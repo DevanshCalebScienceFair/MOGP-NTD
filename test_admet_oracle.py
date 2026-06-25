@@ -33,6 +33,13 @@ if "utils.featurize" not in sys.modules:
 import admet_oracle
 from admet_oracle import ADMETOracle, OUTPUT_COLUMNS
 
+# Prediction columns are NaN-able floats; Out_of_Domain_Warning is a boolean
+# flag (always set, never NaN) so it is excluded from "all predictions NaN"
+# style assertions.
+PREDICTION_COLUMNS = [
+    c for c in OUTPUT_COLUMNS if c not in ("SMILES", "Out_of_Domain_Warning")
+]
+
 
 # ---------------------------------------------------------------------------
 # Fakes
@@ -90,6 +97,20 @@ def oracle(monkeypatch):
         "Half_Life":          "value",
         "hERG_Toxicity_Prob": "proba",
     }
+    # No target transform in the alignment fakes: the regressor echoes column 0,
+    # so predictions stay traceable to their input row.
+    inst.transforms = {
+        "Caco2_Permeability": None,
+        "Half_Life":          None,
+        "hERG_Toxicity_Prob": None,
+    }
+    # Minimal per-model training fingerprints so the Tanimoto applicability
+    # -domain check has something to compare against (one all-ones reference
+    # row keeps unions non-zero; the actual warning value is asserted
+    # separately, not by the alignment tests).
+    ref = np.ones((1, 2048), dtype=np.float32)
+    inst.train_features = {col: ref for col in inst.models}
+    inst.train_bitcounts = {col: ref.sum(axis=1) for col in inst.models}
     return inst
 
 
@@ -111,11 +132,10 @@ def test_dropped_smiles_is_nan_row(oracle):
     df = oracle.predict(smiles)
 
     # The dropped molecule (index 1) is NaN across every prediction column.
-    pred_cols = [c for c in OUTPUT_COLUMNS if c != "SMILES"]
-    assert df.loc[1, pred_cols].isna().all()
+    assert df.loc[1, PREDICTION_COLUMNS].isna().all()
     # The valid rows are NOT NaN.
-    assert df.loc[0, pred_cols].notna().all()
-    assert df.loc[2, pred_cols].notna().all()
+    assert df.loc[0, PREDICTION_COLUMNS].notna().all()
+    assert df.loc[2, PREDICTION_COLUMNS].notna().all()
 
 
 def test_positional_alignment_with_duplicates(oracle):
@@ -146,9 +166,16 @@ def test_single_string_input(oracle):
 
 def test_all_invalid_returns_all_nan(oracle):
     df = oracle.predict(["BAD", "BAD"])
-    pred_cols = [c for c in OUTPUT_COLUMNS if c != "SMILES"]
     assert len(df) == 2
-    assert df[pred_cols].isna().all().all()
+    assert df[PREDICTION_COLUMNS].isna().all().all()
+
+
+def test_dropped_smiles_flagged_out_of_domain(oracle):
+    # Featurizer drops are conservatively flagged out-of-domain (True), since
+    # we cannot place an un-featurizable molecule in any model's domain.
+    df = oracle.predict(["CCO", "BAD", "c1ccccc1"])
+    assert df["Out_of_Domain_Warning"].dtype == bool
+    assert bool(df.loc[1, "Out_of_Domain_Warning"]) is True
 
 
 def test_alignment_guard_raises_on_reordering(oracle, monkeypatch):

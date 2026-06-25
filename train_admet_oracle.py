@@ -43,10 +43,14 @@ RANDOM_SEED = 42
 # Dataset registry
 # ---------------------------------------------------------------------------
 # task_type drives the downstream model choice (regression vs. classification).
+# `log_transform` marks regression targets fitted in log10 space (Half_Life is
+# heavily right-skewed; modeling log10(hours) stabilizes the variance and stops
+# a handful of long-half-life outliers from dominating the loss). The inference
+# wrapper reverses this with 10**prediction.
 DATASETS = {
-    "Caco2_Wang":       {"endpoint": "Absorption",  "task_type": "regression",     "filename": "caco2.joblib"},
-    "Half_Life_Obach":  {"endpoint": "Metabolism",  "task_type": "regression",     "filename": "half_life.joblib"},
-    "hERG":             {"endpoint": "Toxicity",    "task_type": "classification", "filename": "herg.joblib"},
+    "Caco2_Wang":       {"endpoint": "Absorption",  "task_type": "regression",     "filename": "caco2.joblib",     "log_transform": False},
+    "Half_Life_Obach":  {"endpoint": "Metabolism",  "task_type": "regression",     "filename": "half_life.joblib", "log_transform": True},
+    "hERG":             {"endpoint": "Toxicity",    "task_type": "classification", "filename": "herg.joblib",      "log_transform": False},
 }
 
 N_BITS = 2048
@@ -124,12 +128,16 @@ def _make_model(task_type):
     return HistGradientBoostingClassifier(random_state=RANDOM_SEED)
 
 
-def train_and_evaluate(name, X, y, task_type, refit_on_full=False):
+def train_and_evaluate(name, X, y, task_type, refit_on_full=False, log_scale=False):
     """Fit a HistGradientBoosting model and print held-out metrics.
 
     Uses an 80/20 split with a fixed seed (hERG stratified). If
     `refit_on_full` is set, a fresh model is retrained on 100% of the data
     after metrics are reported, and that production model is returned.
+
+    `log_scale` only affects the printed metric labels — the caller is expected
+    to have already log10-transformed `y` for those datasets, so R^2/RMSE are
+    reported in log10 units.
 
     Returns the model to serialize.
     """
@@ -147,8 +155,9 @@ def train_and_evaluate(name, X, y, task_type, refit_on_full=False):
         y_pred = model.predict(X_test)
         r2 = r2_score(y_test, y_pred)
         rmse = np.sqrt(mean_squared_error(y_test, y_pred))
-        print(f"[{name}] R^2  = {r2:.4f}")
-        print(f"[{name}] RMSE = {rmse:.4f}")
+        scale = " (log10 scale)" if log_scale else ""
+        print(f"[{name}] R^2  = {r2:.4f}{scale}")
+        print(f"[{name}] RMSE = {rmse:.4f}{scale}")
     else:
         y_pred = model.predict(X_test)
         y_proba = model.predict_proba(X_test)[:, 1]
@@ -182,6 +191,14 @@ def main():
     datasets = {}
     for name, meta in DATASETS.items():
         X, y = load_and_featurize(name)
+        if meta["log_transform"]:
+            if np.any(y <= 0):
+                raise ValueError(
+                    f"[{name}] log_transform requested but labels contain "
+                    "non-positive values; cannot apply log10."
+                )
+            print(f"[{name}] log10-transforming labels (right-skew correction).")
+            y = np.log10(y)
         datasets[name] = {"X": X, "y": y, **meta}
 
     print("\nSTEP 1 complete — all datasets loaded, featurized, and aligned.")
@@ -189,7 +206,8 @@ def main():
     models = {}
     for name, d in datasets.items():
         models[name] = train_and_evaluate(
-            name, d["X"], d["y"], d["task_type"], refit_on_full=args.refit_on_full
+            name, d["X"], d["y"], d["task_type"],
+            refit_on_full=args.refit_on_full, log_scale=d["log_transform"],
         )
 
     mode = "refit on full data" if args.refit_on_full else "trained on 80% split"
@@ -198,8 +216,12 @@ def main():
     os.makedirs(MODEL_DIR, exist_ok=True)
     for name, model in models.items():
         path = os.path.join(MODEL_DIR, DATASETS[name]["filename"])
-        joblib.dump(model, path)
-        print(f"[{name}] saved -> {path}")
+        # Persist the training fingerprints alongside the model so the
+        # inference wrapper can compute Tanimoto applicability-domain checks.
+        payload = {"model": model, "train_features": datasets[name]["X"]}
+        joblib.dump(payload, path)
+        print(f"[{name}] saved -> {path} "
+              f"(model + train_features {datasets[name]['X'].shape})")
 
     print(f"\nSTEP 3 complete — all models serialized to {MODEL_DIR}/")
     return datasets, models

@@ -139,7 +139,15 @@ def train_and_evaluate(name, X, y, task_type, refit_on_full=False, log_scale=Fal
     to have already log10-transformed `y` for those datasets, so R^2/RMSE are
     reported in log10 units.
 
-    Returns the model to serialize.
+    Returns
+    -------
+    model : fitted estimator to serialize.
+    ad_reference : np.ndarray
+        The fingerprints the returned model was actually trained on — the
+        correct reference set for inference-time applicability-domain checks.
+        This is the 80% train split by default, or all of `X` when
+        `refit_on_full` is set. (Using the full `X` for a split-trained model
+        would leak the held-out rows into the "training domain".)
     """
     print(f"\n[{name}] training ({task_type}) ...")
 
@@ -150,6 +158,7 @@ def train_and_evaluate(name, X, y, task_type, refit_on_full=False, log_scale=Fal
 
     model = _make_model(task_type)
     model.fit(X_train, y_train)
+    ad_reference = X_train
 
     if task_type == "regression":
         y_pred = model.predict(X_test)
@@ -170,8 +179,9 @@ def train_and_evaluate(name, X, y, task_type, refit_on_full=False, log_scale=Fal
         print(f"[{name}] --refit-on-full: retraining on all {X.shape[0]} rows ...")
         model = _make_model(task_type)
         model.fit(X, y)
+        ad_reference = X
 
-    return model
+    return model, ad_reference
 
 
 def parse_args():
@@ -204,11 +214,14 @@ def main():
     print("\nSTEP 1 complete — all datasets loaded, featurized, and aligned.")
 
     models = {}
+    ad_references = {}
     for name, d in datasets.items():
-        models[name] = train_and_evaluate(
+        model, ad_reference = train_and_evaluate(
             name, d["X"], d["y"], d["task_type"],
             refit_on_full=args.refit_on_full, log_scale=d["log_transform"],
         )
+        models[name] = model
+        ad_references[name] = ad_reference
 
     mode = "refit on full data" if args.refit_on_full else "trained on 80% split"
     print(f"\nSTEP 2 complete — all models {mode} and evaluated.")
@@ -216,12 +229,14 @@ def main():
     os.makedirs(MODEL_DIR, exist_ok=True)
     for name, model in models.items():
         path = os.path.join(MODEL_DIR, DATASETS[name]["filename"])
-        # Persist the training fingerprints alongside the model so the
-        # inference wrapper can compute Tanimoto applicability-domain checks.
-        payload = {"model": model, "train_features": datasets[name]["X"]}
+        # Persist the model's OWN training fingerprints alongside it so the
+        # inference wrapper can compute Tanimoto applicability-domain checks
+        # against exactly the data the model learned from (no held-out leakage).
+        ad_reference = ad_references[name]
+        payload = {"model": model, "train_features": ad_reference}
         joblib.dump(payload, path)
         print(f"[{name}] saved -> {path} "
-              f"(model + train_features {datasets[name]['X'].shape})")
+              f"(model + train_features {ad_reference.shape})")
 
     print(f"\nSTEP 3 complete — all models serialized to {MODEL_DIR}/")
     return datasets, models

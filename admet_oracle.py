@@ -9,6 +9,14 @@ Loads the three pretrained HistGradientBoosting models and exposes a single
 same length (and order) as the input list. SMILES dropped by the featurizer
 get NaN prediction rows — this positional alignment is required by the
 downstream Bayesian Optimization loop.
+
+Each prediction carries its own applicability-domain (AD) flag, computed as the
+maximum Tanimoto similarity of the molecule to that specific model's training
+fingerprints. Flags are PER MODEL (not a single AND-across-all gate), so a
+molecule that is well covered for absorption but novel for toxicity is reported
+honestly on each axis. A separate `Featurization_Failed` column distinguishes
+"could not be featurized at all" (NaN predictions) from "featurized fine but
+extrapolating beyond the training data" (valid predictions, AD flag True).
 """
 
 import os
@@ -23,27 +31,50 @@ from utils.featurize import batch_smiles_to_morgan
 MODEL_DIR = os.path.join("models", "pretrained_admet")
 N_BITS = 2048
 
-# Tanimoto similarity below this to a model's nearest training fingerprint means
-# the molecule is outside that model's applicability domain.
-AD_SIMILARITY_THRESHOLD = 0.30
+# Default Tanimoto similarity below which a molecule is considered outside a
+# model's applicability domain. Tunable per instance via the constructor — for
+# sparse Morgan-2048 fingerprints, drug-like molecules routinely sit in the
+# 0.15-0.30 nearest-neighbour range, so this is deliberately permissive.
+DEFAULT_AD_THRESHOLD = 0.20
 
-# Maps output column -> (model filename, prediction kind, inverse transform).
+# Internal model key -> metadata.
+#   filename:  serialized {"model", "train_features"} payload
 #   kind:      "value" -> regressor .predict(); "proba" -> classifier proba[:, 1]
 #   transform: None    -> prediction used as-is
-#              "log10" -> model was trained on log10(y); return 10**prediction
+#              "log10" -> model trained on log10(y); return 10**prediction
+#   value_col: output column for the prediction (named in its true units)
+#   ood_col:   output column for this model's applicability-domain flag
 MODEL_SPEC = {
-    "Caco2_Permeability": ("caco2.joblib",     "value", None),
-    "Half_Life":          ("half_life.joblib", "value", "log10"),
-    "hERG_Toxicity_Prob": ("herg.joblib",      "proba", None),
+    "caco2": {
+        "filename":  "caco2.joblib",
+        "kind":      "value",
+        "transform": None,
+        "value_col": "Caco2_logPapp",          # log10(Papp in cm/s), NOT raw
+        "ood_col":   "Caco2_OutOfDomain",
+    },
+    "half_life": {
+        "filename":  "half_life.joblib",
+        "kind":      "value",
+        "transform": "log10",                   # trained on log10(hours)
+        "value_col": "Half_Life_hours",         # back-transformed to hours
+        "ood_col":   "Half_Life_OutOfDomain",
+    },
+    "herg": {
+        "filename":  "herg.joblib",
+        "kind":      "proba",
+        "transform": None,
+        "value_col": "hERG_Toxicity_Prob",      # P(blocker)
+        "ood_col":   "hERG_OutOfDomain",
+    },
 }
 
-OUTPUT_COLUMNS = [
-    "SMILES",
-    "Caco2_Permeability",
-    "Half_Life",
-    "hERG_Toxicity_Prob",
-    "Out_of_Domain_Warning",
-]
+# Output column order. Predictions first, then the failure/domain diagnostics.
+OUTPUT_COLUMNS = (
+    ["SMILES"]
+    + [spec["value_col"] for spec in MODEL_SPEC.values()]
+    + ["Featurization_Failed"]
+    + [spec["ood_col"] for spec in MODEL_SPEC.values()]
+)
 
 
 class ADMETOracle:
@@ -53,10 +84,14 @@ class ADMETOracle:
     ----------
     model_dir : str
         Directory containing the serialized joblib models.
+    similarity_threshold : float
+        Tanimoto similarity below which a molecule is flagged out-of-domain for
+        a given model. Defaults to ``DEFAULT_AD_THRESHOLD``.
     """
 
-    def __init__(self, model_dir=MODEL_DIR):
+    def __init__(self, model_dir=MODEL_DIR, similarity_threshold=DEFAULT_AD_THRESHOLD):
         self.model_dir = model_dir
+        self.similarity_threshold = similarity_threshold
         self.models = {}
         self.kinds = {}
         self.transforms = {}
@@ -64,24 +99,24 @@ class ADMETOracle:
         # precomputed once for fast Tanimoto applicability-domain checks.
         self.train_features = {}
         self.train_bitcounts = {}
-        for column, (filename, kind, transform) in MODEL_SPEC.items():
-            path = os.path.join(model_dir, filename)
+        for key, spec in MODEL_SPEC.items():
+            path = os.path.join(model_dir, spec["filename"])
             payload = joblib.load(path)
-            self.models[column] = payload["model"]
+            self.models[key] = payload["model"]
             train_X = np.asarray(payload["train_features"], dtype=np.float32)
-            self.train_features[column] = train_X
-            self.train_bitcounts[column] = train_X.sum(axis=1)
-            self.kinds[column] = kind
-            self.transforms[column] = transform
+            self.train_features[key] = train_X
+            self.train_bitcounts[key] = train_X.sum(axis=1)
+            self.kinds[key] = spec["kind"]
+            self.transforms[key] = spec["transform"]
 
-    def _max_tanimoto(self, X, column):
+    def _max_tanimoto(self, X, key):
         """Max Tanimoto similarity of each row in X to this model's train set.
 
         Tanimoto = |A & B| / |A | B| on binary fingerprints, vectorized as
         intersection / (|A| + |B| - intersection). Returns shape (len(X),).
         """
-        train_X = self.train_features[column]
-        train_bits = self.train_bitcounts[column]
+        train_X = self.train_features[key]
+        train_bits = self.train_bitcounts[key]
         Xf = np.asarray(X, dtype=np.float32)
         # intersection[i, j] = #shared on-bits between input i and train mol j.
         intersection = Xf @ train_X.T
@@ -119,10 +154,20 @@ class ADMETOracle:
         Returns
         -------
         pandas.DataFrame
-            One row per input SMILES (same order). Columns: SMILES,
-            Caco2_Permeability, Half_Life (raw hours), hERG_Toxicity_Prob,
-            Out_of_Domain_Warning. Rows for SMILES dropped by the featurizer
-            contain NaN predictions and are flagged out-of-domain (True).
+            One row per input SMILES (same order), with columns:
+
+            - ``SMILES``
+            - ``Caco2_logPapp``        : log10(Papp / cm s^-1)
+            - ``Half_Life_hours``      : terminal half-life in hours
+            - ``hERG_Toxicity_Prob``   : P(hERG blocker)
+            - ``Featurization_Failed`` : True if the SMILES could not be
+              featurized (its prediction columns are NaN)
+            - ``Caco2_OutOfDomain`` / ``Half_Life_OutOfDomain`` /
+              ``hERG_OutOfDomain`` : per-model applicability-domain flags
+
+            Un-featurizable rows have NaN predictions, ``Featurization_Failed``
+            True, and every AD flag True (conservative — we cannot vouch for a
+            molecule we never placed in feature space).
         """
         if isinstance(smiles_list, str):
             smiles_list = [smiles_list]
@@ -133,34 +178,37 @@ class ADMETOracle:
         X = np.asarray(matrix)
         positions = self._valid_positions(smiles_list, valid_smiles)
 
-        # Conservative default: anything we cannot featurize (and thus cannot
-        # place in any model's domain) is flagged True.
-        warning = np.full(n, True, dtype=bool)
-        if X.shape[0] > 0:
-            # In-domain only if the molecule is close enough to EVERY model's
-            # training set; a single model below threshold raises the warning.
-            in_domain = np.ones(X.shape[0], dtype=bool)
-            for column in self.models:
-                max_sim = self._max_tanimoto(X, column)
-                in_domain &= max_sim >= AD_SIMILARITY_THRESHOLD
-            warning[positions] = ~in_domain
+        # A molecule is "featurization failed" unless it survived the featurizer.
+        featurization_failed = np.full(n, True, dtype=bool)
+        featurization_failed[positions] = False
 
         result = {"SMILES": smiles_list}
-        for column, model in self.models.items():
-            # Full-length column pre-filled with NaN for featurizer drops.
+        for key, spec in MODEL_SPEC.items():
+            model = self.models[key]
+            # Full-length columns: NaN predictions and conservative True flags
+            # for any row we could not featurize.
             preds = np.full(n, np.nan, dtype=float)
+            out_of_domain = np.full(n, True, dtype=bool)
+
             if X.shape[0] > 0:
-                if self.kinds[column] == "proba":
+                if self.kinds[key] == "proba":
                     vals = model.predict_proba(X)[:, 1]
                 else:
                     vals = model.predict(X)
                 # Reverse any training-time target transform (e.g. log10 -> hours).
-                if self.transforms[column] == "log10":
+                if self.transforms[key] == "log10":
                     vals = np.power(10.0, vals)
                 preds[positions] = vals
-            result[column] = preds
 
-        result["Out_of_Domain_Warning"] = warning
+                # Per-model applicability domain: flag rows whose nearest
+                # training neighbour is below the similarity threshold.
+                max_sim = self._max_tanimoto(X, key)
+                out_of_domain[positions] = max_sim < self.similarity_threshold
+
+            result[spec["value_col"]] = preds
+            result[spec["ood_col"]] = out_of_domain
+
+        result["Featurization_Failed"] = featurization_failed
         return pd.DataFrame(result, columns=OUTPUT_COLUMNS)
 
 

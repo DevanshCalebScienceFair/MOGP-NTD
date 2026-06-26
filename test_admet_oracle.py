@@ -18,17 +18,21 @@ import pandas as pd
 import pytest
 
 # The real featurizer (utils/featurize.py) is owned by our partner and may not
-# be importable in CI. Inject a stub module BEFORE importing admet_oracle so
-# its top-level `from utils.featurize import batch_smiles_to_morgan` resolves.
+# be importable in CI (it needs RDKit). Prefer the real module when available;
+# only fall back to a stub if the import fails. We must NOT unconditionally
+# clobber sys.modules["utils.featurize"], because pytest runs the whole suite in
+# one process and a stub here would shadow the real module for other test files
+# (e.g. test_gp.py's `from utils.featurize import smiles_to_morgan`).
 # Every test monkeypatches the real behavior onto the admet_oracle namespace.
-if "utils.featurize" not in sys.modules:
-    _utils_pkg = types.ModuleType("utils")
+try:
+    import utils.featurize  # noqa: F401  (use the real module if RDKit is present)
+except Exception:
+    _utils_pkg = sys.modules.setdefault("utils", types.ModuleType("utils"))
     _featurize_mod = types.ModuleType("utils.featurize")
     _featurize_mod.batch_smiles_to_morgan = lambda *a, **k: (_ for _ in ()).throw(
         RuntimeError("stub batch_smiles_to_morgan should be monkeypatched")
     )
     _utils_pkg.featurize = _featurize_mod
-    sys.modules["utils"] = _utils_pkg
     sys.modules["utils.featurize"] = _featurize_mod
 
 import admet_oracle

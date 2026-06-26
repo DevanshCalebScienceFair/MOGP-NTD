@@ -173,7 +173,7 @@ def main():
         pareto_sorted = pareto_sorted.sort_values(sort_col, ascending=ascending).reset_index(drop=True)
 
     st.caption("Green = favorable, red = unfavorable (per-objective direction).")
-    st.dataframe(style_pareto(pareto_sorted), use_container_width=True)
+    st.dataframe(style_pareto(pareto_sorted), width="stretch")
 
     # ----- Scatter plot ----------------------------------------------------
     st.subheader("Objective scatter")

@@ -12,3 +12,6 @@ pytest>=7.4
 # dashboard.py (results viewer) only:
 streamlit>=1.30
 matplotlib>=3.7
+# Streamlit charts/tables convert through pyarrow; versions <16 reference
+# np.unicode_ (removed in NumPy 2.0) and crash every chart under NumPy 2.x.
+pyarrow>=16

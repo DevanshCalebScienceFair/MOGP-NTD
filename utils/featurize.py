@@ -5,7 +5,6 @@ import logging
 import numpy as np
 from rdkit import Chem
 from rdkit.Chem import AllChem
-from rdkit.DataStructs import ConvertToNumpyArray
 
 
 def smiles_to_morgan(smiles, radius=2, n_bits=2048):
@@ -29,8 +28,13 @@ def smiles_to_morgan(smiles, radius=2, n_bits=2048):
     generator = AllChem.GetMorganGenerator(radius=radius, fpSize=n_bits)
     fp = generator.GetFingerprint(mol)
 
+    # Scatter the on-bits into a dense array directly. We avoid RDKit's
+    # ConvertToNumpyArray / GetFingerprintAsNumPy helpers because their boost
+    # bindings in RDKit 2023.x are incompatible with NumPy 2.x (they raise
+    # "Expecting a Numeric array object"). GetOnBits is pure-Python and works
+    # across NumPy versions.
     arr = np.zeros((n_bits,), dtype=np.int8)
-    ConvertToNumpyArray(fp, arr)
+    arr[list(fp.GetOnBits())] = 1
     return arr
 
 

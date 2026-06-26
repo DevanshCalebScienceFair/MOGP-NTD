@@ -11,7 +11,7 @@ import numpy as np
 import torch
 import gpytorch
 
-from fingerprints import smiles_to_morgan
+from utils.featurize import smiles_to_morgan
 from kernel import TanimotoKernel
 
 torch.manual_seed(0)

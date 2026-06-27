@@ -24,19 +24,20 @@ Pipeline per molecule:
     dock()              -> best affinity   (AutoDock Vina, kcal/mol)
 
 Install (if not already present in the `mogp-drug` conda env):
-    # pip install vina
+    # AutoDock Vina CLI on PATH (conda install -c conda-forge vina)
     # pip install meeko
     # pip install biopython
 """
 
 import os
+import re
+import subprocess
 import tempfile
 import warnings
 
 import numpy as np
 from rdkit import Chem
 from rdkit.Chem import AllChem
-from vina import Vina
 import meeko
 
 
@@ -226,12 +227,51 @@ def _prepare_receptor_pdbqt(clean_pdb_path):
     return PROTEIN_PDBQT
 
 
+def _parse_best_affinity(stdout):
+    """Extract the best (most negative) affinity from the Vina CLI stdout table.
+
+    Vina prints a results table whose data rows look like::
+
+        mode |   affinity | dist from best mode
+             | (kcal/mol) | rmsd l.b.| rmsd u.b.
+        -----+------------+----------+----------
+           1       -8.3          0.0        0.0
+           2       -7.9          1.2        2.4
+
+    Each data row starts with an integer mode index followed by the affinity in
+    kcal/mol. The poses are sorted best-first, but rather than trust the order
+    this scans every data row and returns the minimum (strongest) affinity.
+
+    Args:
+        stdout: The captured standard output of the ``vina`` command.
+
+    Returns:
+        The best binding affinity as a float (kcal/mol).
+
+    Raises:
+        ValueError: If no affinity rows can be found in the output.
+    """
+    affinities = []
+    for line in stdout.splitlines():
+        # A result row is "<int mode> <float affinity> <float rmsd> <float rmsd>";
+        # header, separator, and progress-bar lines never match this shape.
+        match = re.match(r"\s*\d+\s+(-?\d+\.\d+)\s", line)
+        if match:
+            affinities.append(float(match.group(1)))
+
+    if not affinities:
+        raise ValueError("Could not parse any affinity from Vina output")
+    return min(affinities)
+
+
 def dock(smiles, n_poses=9):
     """Dock a single molecule into the PfDHFR active site and return the score.
 
     Runs the full pipeline (download -> clean protein -> prepare ligand ->
     Vina) and returns the best (most negative) binding affinity across all
-    poses, in kcal/mol.
+    poses, in kcal/mol. Vina is invoked as a command-line tool via
+    ``subprocess`` (the ``vina`` Python package does not build on Apple
+    Silicon), and the affinity is parsed from its stdout table.
 
     Args:
         smiles: The ligand SMILES string.
@@ -242,15 +282,19 @@ def dock(smiles, n_poses=9):
         or ``None`` if docking fails for any reason (a warning is printed).
     """
     ligand_pdbqt = None
+    out_pdbqt = None
     try:
         download_protein()
         clean_pdb = prepare_protein()
         receptor_pdbqt = _prepare_receptor_pdbqt(clean_pdb)
         ligand_pdbqt = prepare_ligand(smiles)
 
-        v = Vina(sf_name="vina", verbosity=0)
-        v.set_receptor(receptor_pdbqt)
-        v.set_ligand_from_file(ligand_pdbqt)
+        # Vina requires an --out path for the docked poses even though we only
+        # need the score from stdout; use a temp file that the finally block
+        # always removes.
+        out_file = tempfile.NamedTemporaryFile(suffix=".pdbqt", delete=False)
+        out_pdbqt = out_file.name
+        out_file.close()
 
         # Binding box centered on the PfDHFR antifolate active site of PDB 1J3I.
         # The center is the centroid of the rigid diaminotriazine head of the
@@ -259,23 +303,32 @@ def dock(smiles, n_poses=9):
         # core, beside the NADPH cofactor. Using the head rather than the whole
         # molecule avoids the flexible dichlorophenoxy tail pulling the box off
         # the catalytic pocket. A 20 A cube comfortably encloses the site.
-        v.compute_vina_maps(
-            center=[30.5, 5.2, 57.3],
-            box_size=[20, 20, 20],
-        )
-        v.dock(exhaustiveness=8, n_poses=n_poses)
+        cmd = [
+            "vina",
+            "--receptor", receptor_pdbqt,
+            "--ligand", ligand_pdbqt,
+            "--center_x", "30.5",
+            "--center_y", "5.2",
+            "--center_z", "57.3",
+            "--size_x", "20",
+            "--size_y", "20",
+            "--size_z", "20",
+            "--exhaustiveness", "8",
+            "--num_modes", str(n_poses),
+            "--out", out_pdbqt,
+        ]
+        # check=True turns a non-zero Vina exit into CalledProcessError, which is
+        # caught below and reported as a docking failure.
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
 
-        # energies()[i, 0] is the total binding affinity of pose i; Vina returns
-        # poses sorted best-first, so row 0 is the most negative score.
-        energies = v.energies(n_poses=n_poses)
-        best_affinity = float(np.min(energies[:, 0]))
-        return best_affinity
+        return _parse_best_affinity(result.stdout)
     except Exception as exc:
         warnings.warn(f"Docking failed for SMILES {smiles!r}: {exc}")
         return None
     finally:
-        if ligand_pdbqt is not None and os.path.exists(ligand_pdbqt):
-            os.remove(ligand_pdbqt)
+        for path in (ligand_pdbqt, out_pdbqt):
+            if path is not None and os.path.exists(path):
+                os.remove(path)
 
 
 def batch_dock(smiles_list, n_jobs=1):

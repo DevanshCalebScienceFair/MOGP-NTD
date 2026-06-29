@@ -40,7 +40,7 @@ from admet_oracle import ADMETOracle
 
 # Order of the ADMET columns in the cached score matrix. Kept as a module-level
 # constant so build_library and load_library cannot drift out of sync.
-ADMET_COLUMNS = ["Caco2_Permeability", "Half_Life", "hERG_Toxicity_Prob"]
+ADMET_COLUMNS = ["Caco2_logPapp", "Half_Life_hours", "hERG_Toxicity_Prob"]
 
 # Print an ADMET-scoring progress line every this many molecules.
 ADMET_PROGRESS_EVERY = 1000
@@ -123,7 +123,7 @@ def build_library(n_molecules=10000, output_dir="data/library"):
 
         smiles.csv         one column "SMILES", one row per molecule
         fingerprints.npy   np.ndarray shape (N, 2048) int8
-        admet_scores.csv   columns: SMILES, Caco2_Permeability, Half_Life,
+        admet_scores.csv   columns: SMILES, Caco2_logPapp, Half_Life_hours,
                            hERG_Toxicity_Prob
 
     Args:
@@ -164,14 +164,30 @@ def build_library(n_molecules=10000, output_dir="data/library"):
         admet_df = pd.concat(admet_frames, ignore_index=True)
     else:
         admet_df = pd.DataFrame(
-            columns=["SMILES"] + ADMET_COLUMNS + ["Out_of_Domain_Warning"]
+            columns=(
+                ["SMILES"]
+                + ADMET_COLUMNS
+                + [
+                    "Featurization_Failed",
+                    "Caco2_OutOfDomain",
+                    "Half_Life_OutOfDomain",
+                    "hERG_OutOfDomain",
+                ]
+            )
         )
 
     # --- Domain / NaN drop ---------------------------------------------------
-    # Keep only molecules that are in-domain for every ADMET model and have no
-    # missing ADMET value. The mask indexes both admet_df and fingerprints,
-    # which are still row-aligned with valid_smiles at this point.
-    in_domain = ~admet_df["Out_of_Domain_Warning"].to_numpy(dtype=bool)
+    # Keep only molecules that featurized, are in-domain for every ADMET model,
+    # and have no missing ADMET value. The mask indexes both admet_df and
+    # fingerprints, which are still row-aligned with valid_smiles at this point.
+    flag_columns = [
+        "Featurization_Failed",
+        "Caco2_OutOfDomain",
+        "Half_Life_OutOfDomain",
+        "hERG_OutOfDomain",
+    ]
+    flagged = admet_df[flag_columns].to_numpy(dtype=bool).any(axis=1)
+    in_domain = ~flagged
     no_nan = admet_df[ADMET_COLUMNS].notna().all(axis=1).to_numpy(dtype=bool)
     keep_mask = in_domain & no_nan
 
@@ -216,7 +232,7 @@ def load_library(library_dir="data/library"):
             "smiles":       list of SMILES strings
             "fingerprints": np.ndarray shape (N, 2048) int8
             "admet_scores": np.ndarray shape (N, 3) float32, columns in order
-                            [Caco2_Permeability, Half_Life, hERG_Toxicity_Prob]
+                            [Caco2_logPapp, Half_Life_hours, hERG_Toxicity_Prob]
 
     Raises:
         FileNotFoundError: If any of the three library files is missing.

@@ -5,7 +5,6 @@ import logging
 import numpy as np
 from rdkit import Chem
 from rdkit.Chem import AllChem
-from rdkit.DataStructs import ConvertToNumpyArray
 
 
 def smiles_to_morgan(smiles, radius=2, n_bits=2048):
@@ -30,7 +29,8 @@ def smiles_to_morgan(smiles, radius=2, n_bits=2048):
     fp = generator.GetFingerprint(mol)
 
     arr = np.zeros((n_bits,), dtype=np.int8)
-    ConvertToNumpyArray(fp, arr)
+    for bit in fp.GetOnBits():
+        arr[bit] = 1
     return arr
 
 

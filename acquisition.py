@@ -18,9 +18,15 @@ The objectives (in ``TASK_NAMES`` order) have mixed directions:
     hERG_Toxicity_Prob  -> LOWER is better  (less cardiotoxic)
     PfDHFR_Docking      -> LOWER is better  (more negative = stronger binding)
 
-Internally everything is converted to a pure maximization frame (the
-"lower is better" objectives are negated) so the Pareto / hypervolume math is
-uniform. Reference points and returned Pareto fronts are in ORIGINAL units.
+``compute_pareto_front`` / ``get_reference_point`` work in ORIGINAL units,
+converting to a maximization frame internally by negating "lower is better"
+objectives. ``compute_ehvi``, however, scores candidates in the SHARED
+normalized [0, 1] maximization frame defined by ``evaluation.py`` (each
+objective scaled by fixed library/docking bounds) against the SINGLE fixed
+reference point ``evaluation.FIXED_REFERENCE_POINT``. That is deliberate: the
+acquisition then optimizes exactly the hypervolume that
+``evaluation.compute_hypervolume`` reports, so an objective with a tiny raw
+range (hERG probability) actually counts in selection, not just in the score.
 
 The number of objectives is dynamic: PfDHFR_Docking is all-NaN until the
 docking module supplies it, so EHVI runs on whichever objective columns
@@ -181,6 +187,10 @@ def compute_ehvi(model, likelihood, y_mean, y_std,
         Array of shape ``(M,)`` with the EHVI score per candidate; higher means
         more valuable to evaluate next.
     """
+    # Imported here (not at module top) to avoid a circular import: evaluation
+    # imports this module for the Pareto/active-objective helpers.
+    from evaluation import normalize, fixed_reference_point
+
     Y_evaluated = np.asarray(Y_evaluated, dtype=float)
     num_objectives_total = Y_evaluated.shape[1]
     if objective_signs is None:
@@ -191,7 +201,6 @@ def compute_ehvi(model, likelihood, y_mean, y_std,
     active = get_active_objectives(Y_evaluated)
     if not active:
         raise ValueError("compute_ehvi: no active objectives (all columns NaN).")
-    signs_active = objective_signs[active]
 
     # Keep only fully-observed rows across the active objectives for the front.
     Y_active = Y_evaluated[:, active]
@@ -207,29 +216,37 @@ def compute_ehvi(model, likelihood, y_mean, y_std,
     std_a = np.sqrt(var_a)
     M, k = mean_a.shape
 
-    # Current Pareto front and reference point (original units), then mapped
-    # into the maximization frame where the hypervolume math is uniform.
-    _, pareto_Y = compute_pareto_front(Y_active, signs_active)
-    ref_original = get_reference_point(Y_active, signs_active)
-    ref_max = torch.as_tensor(ref_original * signs_active, dtype=torch.float64)
-    pf_max = torch.as_tensor(pareto_Y * signs_active, dtype=torch.float64)
+    # Score in the SHARED normalized [0, 1] maximization frame against the
+    # SINGLE fixed reference point (evaluation.py). This makes the acquisition
+    # optimize exactly the metric evaluation.compute_hypervolume reports, so
+    # every objective — including hERG, whose tiny raw probability range used to
+    # be dwarfed — carries its full normalized weight in selection, not just in
+    # the final score.
+    Y_norm = normalize(Y_active, objective_indices=active, signs=objective_signs)
+    ones = np.ones(len(active), dtype=float)   # already a maximization frame
+    _, pareto_norm = compute_pareto_front(Y_norm, ones)
 
-    hv = Hypervolume(ref_point=ref_max)
+    ref = fixed_reference_point(len(active))
+    ref_t = torch.as_tensor(ref, dtype=torch.float64)
+    hv = Hypervolume(ref_point=ref_t)
+    pf_max = torch.as_tensor(pareto_norm, dtype=torch.float64)
     base_hv = _hypervolume(hv, pf_max)
 
-    signs_t = torch.as_tensor(signs_active, dtype=torch.float64)
     ehvi = np.zeros(M, dtype=float)
 
     for i in range(M):
-        # Draw posterior samples for candidate i: mean + std * N(0, 1).
+        # Draw posterior samples for candidate i in original units, then map
+        # them into the same normalized frame the front and reference live in.
         z = np.random.standard_normal(size=(N_MC_SAMPLES, k))
         samples = mean_a[i] + std_a[i] * z                      # original units
-        samples_max = torch.as_tensor(samples, dtype=torch.float64) * signs_t
+        samples_norm = normalize(samples, objective_indices=active,
+                                 signs=objective_signs)
+        samples_max = torch.as_tensor(samples_norm, dtype=torch.float64)
 
         # A sample can only add hypervolume above the reference point if it
-        # strictly dominates the reference on every objective; otherwise its
-        # box [ref, sample] is empty and the improvement is 0.
-        dominates_ref = (samples_max > ref_max).all(dim=1)
+        # strictly dominates the reference on every objective; since normalized
+        # values are >= 0, that means strictly > 0 on every objective.
+        dominates_ref = (samples_max > ref_t).all(dim=1)
 
         total_improvement = 0.0
         for s in range(N_MC_SAMPLES):

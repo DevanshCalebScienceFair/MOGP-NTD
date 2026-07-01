@@ -34,17 +34,15 @@ import numpy as np
 import torch
 import pandas as pd
 
-from botorch.utils.multi_objective.hypervolume import Hypervolume
-
 from data import load_library
 from mogp import train_mogp, predict, TASK_NAMES
 from acquisition import (
     select_batch,
     compute_pareto_front,
-    get_reference_point,
     get_active_objectives,
     DEFAULT_OBJECTIVE_SIGNS,
 )
+import evaluation
 from docking import batch_dock
 
 
@@ -145,27 +143,14 @@ class BOLoop:
         return full_mask
 
     def _hypervolume(self):
-        """Hypervolume of the current Pareto front in the maximization frame."""
-        Y = self.Y_evaluated
-        if len(Y) == 0:
-            return 0.0
+        """Hypervolume in the shared, fixed, normalized frame (evaluation.py).
 
-        active = get_active_objectives(Y)
-        if not active:
-            return 0.0
-        signs = self._active_signs(active)
-        Y_active = Y[:, active]
-        finite = np.isfinite(Y_active).all(axis=1)
-        if not finite.any():
-            return 0.0
-
-        _, pareto_Y = compute_pareto_front(Y_active[finite], signs)
-        ref = get_reference_point(Y_active[finite], signs)
-        # Negate "lower is better" objectives so the whole frame is maximization.
-        ref_max = torch.as_tensor(ref * signs, dtype=torch.float64)
-        pf_max = torch.as_tensor(pareto_Y * signs, dtype=torch.float64)
-        hv = Hypervolume(ref_point=ref_max)
-        return float(hv.compute(pf_max))
+        Delegates to ``evaluation.compute_hypervolume`` — the single source of
+        truth — so this metric is identical across the MOGP loop and every
+        baseline for the same evaluated set, and no longer depends on a
+        per-method reference point derived from this run's own data.
+        """
+        return evaluation.compute_hypervolume(self.Y_evaluated)
 
     # ------------------------------------------------------------------ #
     # Main loop stages

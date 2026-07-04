@@ -13,7 +13,8 @@ The MOGP places one independent scaled-Tanimoto GP on each objective and packs
 them into a single ``MultitaskMultivariateNormal`` so predictions (mean and
 per-task uncertainty) come out together. Target columns are always handled in
 the fixed order given by ``TASK_NAMES``:
-``[Caco2_Permeability, Half_Life, hERG_Toxicity_Prob, PfDHFR_Docking]``.
+``[PfDHFR_Docking, hDHFR_Docking, hERG_Toxicity_Prob, Caco2_logPapp,
+Half_Life_hours]``.
 
 Run ``python mogp.py`` for a self-contained demo on a handful of known drugs.
 """
@@ -32,27 +33,28 @@ from kernel import TanimotoKernel
 # project (train_mogp, predict, acquisition, loop, baselines, evaluation,
 # dashboard). Import TASK_NAMES rather than hard-coding column strings.
 #
-# Current objective set: a 3-objective POTENCY / SELECTIVITY / SAFETY problem.
+# Current objective set: a 5-objective POTENCY / SELECTIVITY / SAFETY / ADMET
+# problem.
 #   PfDHFR_Docking      minimize (strong parasite binding)
 #   hDHFR_Docking       MAXIMIZE (weak *human* binding -> selectivity)
 #   hERG_Toxicity_Prob  minimize (cardiac safety)
+#   Caco2_logPapp       MAXIMIZE (intestinal permeability / absorption)
+#   Half_Life_hours     MAXIMIZE (metabolic stability)
 #
-# Why only 3 objectives (down from the earlier 4-with-ADMET set): in higher
-# dimensions almost every evaluated point is non-dominated (the Pareto front
-# swallows the whole set), so hypervolume stops discriminating between methods.
-# Three well-chosen, partly-antagonistic objectives keep the front meaningful
-# and make cross-task correlation (PfDHFR vs hDHFR docking) the crux the
-# coregionalized GP can exploit. Caco2_Permeability and Half_Life are kept in
-# OBJECTIVE_SOURCES below so they can be re-added to TASK_NAMES later with a
-# one-line change (and a matching sign in acquisition.DEFAULT_OBJECTIVE_SIGNS).
+# The two docking objectives (PfDHFR/hDHFR) are the expensive scores evaluated
+# on the fly, whose cross-task correlation the coregionalized GP can exploit; the
+# three ADMET objectives (hERG, Caco2, Half_Life) are cheap and precomputed for
+# the whole library (data.py). Each name maps to its evaluation-time source in
+# OBJECTIVE_SOURCES below, and to its optimization direction in
+# acquisition.DEFAULT_OBJECTIVE_SIGNS (order-aligned with this list). Objectives
+# whose ADMET scores are out of domain arrive as NaN and are simply not observed
+# yet — the GP/acquisition/Pareto path handles a dynamic objective count.
 TASK_NAMES = [
     "PfDHFR_Docking",
     "hDHFR_Docking",
     "hERG_Toxicity_Prob",
-    # --- To re-include the ADMET objectives, add them back here (and append the
-    # matching signs to acquisition.DEFAULT_OBJECTIVE_SIGNS): ---
-    # "Caco2_Permeability",
-    # "Half_Life",
+    "Caco2_logPapp",
+    "Half_Life_hours",
 ]
 
 
@@ -63,14 +65,16 @@ TASK_NAMES = [
 #                                  library (data.load_library / data.ADMET_COLUMNS).
 # This lets loop.py, the baselines and evaluation.py handle a mix of docking and
 # library objectives WITHOUT hard-coding column positions (the objectives are no
-# longer "ADMET first, one docking column last"). Entries for objectives not
-# currently in TASK_NAMES are harmless and support re-inclusion later.
+# longer "ADMET first, one docking column last"): here two docking objectives
+# come first and three library objectives follow. The library refs must match
+# data.ADMET_COLUMNS names. Extra entries for objectives not in TASK_NAMES are
+# harmless and support swapping the objective set later.
 OBJECTIVE_SOURCES = {
     "PfDHFR_Docking":     ("dock", "PfDHFR"),
     "hDHFR_Docking":      ("dock", "hDHFR"),
     "hERG_Toxicity_Prob": ("library", "hERG_Toxicity_Prob"),
-    "Caco2_Permeability": ("library", "Caco2_logPapp"),
-    "Half_Life":          ("library", "Half_Life_hours"),
+    "Caco2_logPapp":      ("library", "Caco2_logPapp"),
+    "Half_Life_hours":    ("library", "Half_Life_hours"),
 }
 
 
@@ -156,8 +160,9 @@ def get_training_data(smiles_list):
     """Build the MOGP target matrix for a list of SMILES via the ADMET oracle.
 
     Runs ``ADMETOracle.predict`` and keeps only molecules that are in-domain and
-    have complete oracle predictions: rows flagged ``Out_of_Domain_Warning`` or
-    carrying any NaN oracle prediction are dropped.
+    have complete oracle predictions: rows the oracle flags out-of-domain (any
+    per-model ``*_OutOfDomain`` flag or ``Featurization_Failed``) or carrying any
+    NaN oracle prediction are dropped.
 
     Args:
         smiles_list: Iterable of SMILES strings.
@@ -176,12 +181,20 @@ def get_training_data(smiles_list):
     df = oracle.predict(smiles_list)
 
     n_total = len(df)
-    # Oracle-produced columns are the first three of TASK_NAMES; PfDHFR_Docking
-    # is not predicted yet and is excluded from the NaN drop check (it is always
-    # NaN by design).
+    # The ADMET oracle supplies the library objectives (hERG_Toxicity_Prob,
+    # Caco2_logPapp, Half_Life_hours); the docking objectives (PfDHFR_Docking,
+    # hDHFR_Docking) are not predicted here and stay NaN by design, so they are
+    # excluded from the NaN-drop check. Match by name, not position.
     oracle_columns = [c for c in TASK_NAMES if c in df.columns]
 
-    out_of_domain = df["Out_of_Domain_Warning"].to_numpy(dtype=bool)
+    # A molecule is out-of-domain / unusable if the featurizer dropped it or any
+    # per-model applicability-domain flag fired. admet_oracle emits per-model OOD
+    # flags (``*_OutOfDomain``) plus ``Featurization_Failed`` rather than a single
+    # combined warning column, so OR them together here (as data.build_library does).
+    flag_columns = ["Featurization_Failed"] + [
+        c for c in df.columns if c.endswith("_OutOfDomain")
+    ]
+    out_of_domain = df[flag_columns].to_numpy(dtype=bool).any(axis=1)
     has_nan_pred = df[oracle_columns].isna().any(axis=1).to_numpy()
     drop_mask = out_of_domain | has_nan_pred
     keep_mask = ~drop_mask
@@ -213,14 +226,14 @@ def train_mogp(train_x, train_y, n_iterations=200, lr=0.1):
 
     Args:
         train_x: Fingerprint matrix of shape ``(N, 2048)``, int8.
-        train_y: Target matrix of shape ``(N, 4)``, float32, columns in
-            ``TASK_NAMES`` order.
+        train_y: Target matrix of shape ``(N, num_tasks)``, float32, columns in
+            ``TASK_NAMES`` order (``num_tasks == len(TASK_NAMES)``).
         n_iterations: Number of Adam steps.
         lr: Adam learning rate.
 
     Returns:
         A tuple ``(model, likelihood, y_mean, y_std)`` where ``y_mean`` and
-        ``y_std`` are numpy arrays of shape ``(4,)`` used to reverse the target
+        ``y_std`` are numpy arrays of shape ``(num_tasks,)`` used to reverse the target
         normalization at prediction time. Columns whose targets are entirely
         unobserved (all NaN, e.g. the ``PfDHFR_Docking`` placeholder) are skipped
         during training; their ``y_mean``/``y_std`` entries are NaN and the model
@@ -275,12 +288,12 @@ def predict(model, likelihood, y_mean, y_std, X_new):
     Args:
         model: A trained ``MOGPModel``.
         likelihood: The matching ``MultitaskGaussianLikelihood``.
-        y_mean: Normalization means, shape ``(4,)``.
-        y_std: Normalization stds, shape ``(4,)``.
+        y_mean: Normalization means, shape ``(num_tasks,)``.
+        y_std: Normalization stds, shape ``(num_tasks,)``.
         X_new: Fingerprint matrix of shape ``(M, 2048)``, int8.
 
     Returns:
-        A tuple ``(mean, variance)`` of numpy arrays, each shape ``(M, 4)``, with
+        A tuple ``(mean, variance)`` of numpy arrays, each shape ``(M, num_tasks)``, with
         columns in ``TASK_NAMES`` order on the original (de-normalized) scale.
         ``variance`` is the per-objective predictive variance. Tasks that were
         skipped during training (NaN normalization stats, e.g. ``PfDHFR_Docking``)
@@ -345,7 +358,7 @@ if __name__ == "__main__":
     mean, variance = predict(model, likelihood, y_mean, y_std, X_new)
     std = np.sqrt(variance)
 
-    print("\nPredictions for new molecules (all 4 objectives):")
+    print(f"\nPredictions for new molecules (all {len(TASK_NAMES)} objectives):")
     for i, smiles in enumerate(new_valid):
         name = new_name_by_smiles[smiles]
         print(f"\n{name}:")

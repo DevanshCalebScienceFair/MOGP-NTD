@@ -11,12 +11,13 @@ be compared directly against the baselines:
     baseline_single_obj_results/  -> Single-Obj BO      (baseline_single_obj.py)
     baseline_greedy_results/      -> Greedy Filter       (baseline_greedy.py)
 
-The four objectives are, in fixed column order (matching ``mogp.TASK_NAMES``):
+The five objectives are, in fixed column order (matching ``mogp.TASK_NAMES``):
 
-  * Caco2_Permeability  - higher is better (better intestinal absorption).
-  * Half_Life           - higher is better (drug stays active longer).
+  * PfDHFR_Docking      - lower is better (stronger parasite binding energy).
+  * hDHFR_Docking       - higher is better (weak human binding -> selectivity).
   * hERG_Toxicity_Prob  - lower is better (less cardiotoxicity risk).
-  * PfDHFR_Docking       - lower is better (stronger predicted binding energy).
+  * Caco2_logPapp       - higher is better (better intestinal absorption).
+  * Half_Life_hours     - higher is better (drug stays active longer).
 
 Every section degrades gracefully: a method whose results directory is missing
 is simply skipped (with a note), so the dashboard is useful even after running
@@ -51,10 +52,11 @@ MOGP_LABEL = "MOGP (ours)"
 # ACTUAL column names written to the CSVs (mogp.TASK_NAMES) — the dropdowns must
 # use them so the scatter can index the dataframes.
 OBJECTIVES = [
-    ("Caco2_Permeability", "higher"),
-    ("Half_Life", "higher"),
-    ("hERG_Toxicity_Prob", "lower"),
     ("PfDHFR_Docking", "lower"),
+    ("hDHFR_Docking", "higher"),
+    ("hERG_Toxicity_Prob", "lower"),
+    ("Caco2_logPapp", "higher"),
+    ("Half_Life_hours", "higher"),
 ]
 OBJECTIVE_NAMES = [name for name, _ in OBJECTIVES]
 DIRECTION = dict(OBJECTIVES)
@@ -209,7 +211,8 @@ def main():
         st.info("No `pareto_front.csv` available for any method yet.")
     else:
         sc1, sc2 = st.columns(2)
-        x_axis = sc1.selectbox("X objective", options=OBJECTIVE_NAMES, index=3)
+        # Default to the selectivity plane: PfDHFR (x) vs hDHFR (y).
+        x_axis = sc1.selectbox("X objective", options=OBJECTIVE_NAMES, index=0)
         y_axis = sc2.selectbox("Y objective", options=OBJECTIVE_NAMES, index=1)
 
         fig, ax = plt.subplots(figsize=(8, 6))

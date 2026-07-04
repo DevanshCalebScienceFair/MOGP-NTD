@@ -15,9 +15,11 @@ the Pareto-front / hypervolume bookkeeping — is identical to the BO loop, so t
 two runs are directly comparable on the same axes.
 
 Objective layout (matches ``mogp.TASK_NAMES`` / ``loop.py``):
-    Y columns = [PfDHFR_Docking, hDHFR_Docking, hERG_Toxicity_Prob]
-    hERG comes from the cached library; the two docking objectives are evaluated
-    on the fly for each selected batch, against both targets.
+    Y columns = [PfDHFR_Docking, hDHFR_Docking, hERG_Toxicity_Prob,
+                 Caco2_logPapp, Half_Life_hours]
+    The three ADMET objectives (hERG, Caco2, Half_Life) come from the cached
+    library; the two docking objectives are evaluated on the fly for each
+    selected batch, against both targets.
 
 Run ``python baseline_random.py --help`` for the command-line options.
 """

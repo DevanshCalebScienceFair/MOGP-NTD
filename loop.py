@@ -9,7 +9,8 @@ reductase (PfDHFR).
 Each iteration:
     1. Train the multi-output GP (``mogp.py``) on every molecule evaluated so
        far, across the objectives in ``TASK_NAMES`` (a potency / selectivity /
-       safety set: [PfDHFR_Docking, hDHFR_Docking, hERG_Toxicity_Prob]).
+       safety / ADMET set: [PfDHFR_Docking, hDHFR_Docking, hERG_Toxicity_Prob,
+       Caco2_logPapp, Half_Life_hours]).
     2. Score the un-evaluated library with EHVI and pick a diverse batch
        (``acquisition.select_batch``).
     3. Run the expensive structure-based docking oracle on only that batch,

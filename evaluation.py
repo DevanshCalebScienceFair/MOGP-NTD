@@ -37,9 +37,11 @@ FIXED, shared frame that never depends on evaluated data.
        measures its hypervolume against that fixed reference.
 
 Objective order everywhere is ``mogp.TASK_NAMES``:
-    [PfDHFR_Docking, hDHFR_Docking, hERG_Toxicity_Prob]
-with directions [lower, higher, lower] better. ``add_selectivity_index`` adds a
-REPORTED-only Selectivity Index (hDHFR - PfDHFR) that is not a GP objective.
+    [PfDHFR_Docking, hDHFR_Docking, hERG_Toxicity_Prob, Caco2_logPapp,
+     Half_Life_hours]
+with directions [lower, higher, lower, higher, higher] better.
+``add_selectivity_index`` adds a REPORTED-only Selectivity Index
+(hDHFR - PfDHFR) that is not a GP objective.
 """
 
 import os
@@ -90,9 +92,10 @@ def compute_objective_bounds(library_dir="data/library",
                              force=False):
     """Return per-objective ``(min, max)`` bounds used for normalization.
 
-    The three ADMET bounds are the min/max of each column over the ENTIRE cached
-    library (``data.load_library``); the docking bound is the fixed configurable
-    range ``(docking_min, docking_max)``. Bounds are computed once and persisted
+    The three library/ADMET bounds (hERG, Caco2, Half_Life) are the min/max of
+    each column over the ENTIRE cached library (``data.load_library``); the two
+    docking objectives (PfDHFR, hDHFR) share the fixed configurable range
+    ``(docking_min, docking_max)``. Bounds are computed once and persisted
     to ``bounds_path`` so every method and every run normalizes with the exact
     same numbers. If ``bounds_path`` already exists it is loaded verbatim (unless
     ``force``), which is what guarantees run-to-run identical hypervolumes.

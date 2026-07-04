@@ -8,7 +8,7 @@ launch the side-by-side comparison dashboard.
 
 The four methods (each writes the same three CSVs to its own results directory):
 
-    1. MOGP            — multi-output GP + EHVI over all four objectives (loop.py)
+    1. MOGP            — multi-output GP + EHVI over all five objectives (loop.py)
     2. Random Search   — uniform random batches            (baseline_random.py)
     3. Single-Obj BO   — single-output GP + EI on docking   (baseline_single_obj.py)
     4. Greedy Filter   — hard ADMET cutoffs then dock        (baseline_greedy.py)

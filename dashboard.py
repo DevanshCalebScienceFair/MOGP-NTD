@@ -9,12 +9,13 @@ files that ``loop.save_results()`` writes to the results directory:
   * ``evaluated.csv``     - every molecule the loop has scored with the oracle.
   * ``pareto_front.csv``  - the current non-dominated (Pareto-optimal) molecules.
 
-The four objectives are, in fixed order (matching ``mogp.TASK_NAMES``):
+The five objectives are, in fixed order (matching ``mogp.TASK_NAMES``):
 
-  * Caco2_Permeability  - higher is better (better intestinal absorption).
-  * Half_Life           - higher is better (drug stays active longer).
+  * PfDHFR_Docking      - lower is better (stronger parasite binding energy).
+  * hDHFR_Docking       - higher is better (weak human binding -> selectivity).
   * hERG_Toxicity_Prob  - lower is better (less cardiotoxicity risk).
-  * PfDHFR_Docking       - lower is better (stronger predicted binding energy).
+  * Caco2_logPapp       - higher is better (better intestinal absorption).
+  * Half_Life_hours     - higher is better (drug stays active longer).
 
 It is intentionally simple: meant for testing and internal review, not
 production. Run it with::
@@ -31,14 +32,17 @@ import streamlit as st
 from rdkit import Chem
 from rdkit.Chem import Draw
 
-# The four objectives in the fixed column order used throughout the pipeline
+# The five objectives in the fixed column order used throughout the pipeline
 # (see mogp.TASK_NAMES), each tagged with its optimization direction so the
-# dashboard can color-code and annotate values consistently.
+# dashboard can color-code and annotate values consistently. A molecule whose
+# ADMET score was out of domain has NaN in that column; every section here
+# guards on ``name in df.columns`` / ``pd.isna`` so those degrade gracefully.
 OBJECTIVES = [
-    ("Caco2_Permeability", "higher"),
-    ("Half_Life", "higher"),
-    ("hERG_Toxicity_Prob", "lower"),
     ("PfDHFR_Docking", "lower"),
+    ("hDHFR_Docking", "higher"),
+    ("hERG_Toxicity_Prob", "lower"),
+    ("Caco2_logPapp", "higher"),
+    ("Half_Life_hours", "higher"),
 ]
 OBJECTIVE_NAMES = [name for name, _ in OBJECTIVES]
 DIRECTION = dict(OBJECTIVES)

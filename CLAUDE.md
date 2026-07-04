@@ -7,23 +7,31 @@ optimization (BO)** pipeline for antimalarial drug discovery against
 ## What it does
 
 Searches a fixed library of drug-like molecules for compounds that are good
-across **4 objectives at once**, in this fixed order (`mogp.TASK_NAMES` is the
-single source of truth):
+across **5 objectives at once** — a potency / selectivity / safety / ADMET set —
+in this fixed order (`mogp.TASK_NAMES` is the single source of truth):
 
 | # | Objective | Direction | Source |
 |---|---|---|---|
-| 0 | `Caco2_Permeability` | ↑ higher better | ADMET oracle (cheap, precomputed) |
-| 1 | `Half_Life` | ↑ higher better | ADMET oracle (cheap, precomputed) |
+| 0 | `PfDHFR_Docking` | ↓ lower better (kcal/mol) | AutoDock Vina vs PfDHFR (**expensive**, on the fly) |
+| 1 | `hDHFR_Docking` | ↑ higher better (kcal/mol) | AutoDock Vina vs human DHFR (**expensive**, on the fly) |
 | 2 | `hERG_Toxicity_Prob` | ↓ lower better | ADMET oracle (cheap, precomputed) |
-| 3 | `PfDHFR_Docking` | ↓ lower better (kcal/mol) | AutoDock Vina (**expensive**, on the fly) |
+| 3 | `Caco2_logPapp` | ↑ higher better | ADMET oracle (cheap, precomputed) |
+| 4 | `Half_Life_hours` | ↑ higher better | ADMET oracle (cheap, precomputed) |
 
-Direction signs: `acquisition.DEFAULT_OBJECTIVE_SIGNS = [+1, +1, -1, -1]`.
+Direction signs: `acquisition.DEFAULT_OBJECTIVE_SIGNS = [-1, +1, -1, +1, +1]`.
+
+The two docking objectives are the selectivity pair: strong PfDHFR (parasite)
+binding but **weak** hDHFR (human) binding, so `hDHFR_Docking` is *maximized*.
+`evaluation.add_selectivity_index` reports a derived **Selectivity Index**
+(`hDHFR_Docking - PfDHFR_Docking`) that is **not** an optimized objective.
 
 Core idea: the 3 ADMET objectives are cheap and precomputed for the whole
-library; docking is expensive, so the EHVI acquisition spends docking only on
-the molecules most likely to expand the Pareto front. The docking column is
-all-NaN until evaluated, so the GP/acquisition/loop handle a **dynamic objective
-count** (3 active until docking fills the 4th).
+library; the 2 docking objectives are expensive, so the EHVI acquisition spends
+docking only on the molecules most likely to expand the Pareto front. The
+docking columns are all-NaN until evaluated, so the GP/acquisition/loop handle a
+**dynamic objective count** (the 3 ADMET objectives active until docking fills
+the 2 docking columns; ADMET scores that fall out of domain arrive as NaN and
+`get_active_objectives` simply excludes unobserved objectives).
 
 ## Environment
 
@@ -48,7 +56,7 @@ count** (3 active until docking fills the 4th).
 | `kernel.py` | `TanimotoKernel` for GPyTorch. |
 | `mogp.py` | Multi-output Tanimoto GP (one independent scaled-Tanimoto GP per objective). Owns `TASK_NAMES`. |
 | `acquisition.py` | Monte-Carlo EHVI, Pareto front / hypervolume / reference-point helpers, diverse `select_batch`. |
-| `docking.py` | PfDHFR docking oracle: SMILES → 3D conformer → Vina → kcal/mol. `batch_dock()` returns NaN on failure. |
+| `docking.py` | DHFR docking oracle against **named** targets (`PfDHFR` 1J3I + `hDHFR` 1U72): SMILES → 3D conformer → Vina → kcal/mol. `batch_dock_targets()` docks a batch vs several targets; returns NaN on failure. |
 | `loop.py` | The multi-objective BO loop (`BOLoop`): train MOGP → EHVI select → dock → update Pareto/hypervolume → save. |
 | `dashboard.py` | Streamlit results viewer (reads the 3 result CSVs). |
 | `run.py` | Interactive end-to-end runner (train → build library → BO loop → launch dashboard). |
@@ -80,8 +88,12 @@ writes the same 3 CSVs to its own `*_results/` dir, and saves a `comparison.png`
 | Script | Acquisition | Tests |
 |---|---|---|
 | `baseline_random.py` | none (uniform random batch) | how much BO beats naive sampling |
-| `baseline_single_obj.py` | single-output GP + Expected Improvement on **docking only** | whether optimizing docking alone yields strong binders with poor ADMET, i.e. a worse 4-objective hypervolume |
+| `baseline_single_obj.py` | single-output GP + Expected Improvement on **PfDHFR docking only** | whether optimizing potency alone yields strong binders with poor selectivity/ADMET, i.e. a worse 5-objective hypervolume |
+| `baseline_greedy.py` | none (hard ADMET filter, then dock survivors) | whether industry-standard filter-then-dock misses Pareto-optimal tradeoffs |
 
+All docking is done against **both** targets (PfDHFR + hDHFR) so every method's
+5-objective Pareto/hypervolume is comparable; only the acquisition differs.
+`run_all.py` runs all four back to back and `dashboard_compare.py` overlays them.
 For a fair comparison, run the MOGP `loop.py` and the baselines on the **same
 library and same scale** (n_init / batch_size / n_iterations).
 
@@ -90,20 +102,34 @@ library and same scale** (n_init / batch_size / n_iterations).
 - **Objective order is fixed** by `mogp.TASK_NAMES`; all result CSV columns use
   those names. New code optimizing objectives should import `TASK_NAMES` rather
   than hard-coding column strings.
-- `data.ADMET_COLUMNS` uses the oracle's *unit-named* columns
-  (`Caco2_logPapp`, `Half_Life_hours`, `hERG_Toxicity_Prob`) — that's what the
-  cached `admet_scores.csv` stores. `load_library()` returns those as a
-  **positional** array, and `loop.py` relabels them with `TASK_NAMES`. The two
-  naming schemes refer to the same quantities.
+- `data.ADMET_COLUMNS` (`Caco2_logPapp`, `Half_Life_hours`, `hERG_Toxicity_Prob`)
+  is what the cached `admet_scores.csv` stores, and `TASK_NAMES` now uses those
+  exact *unit-named* strings for the 3 ADMET objectives — the two agree by name.
+  `load_library()` returns the scores as a **positional** array; the mapping from
+  each objective to its library column (or docking target) is resolved by name,
+  once, in `mogp.resolve_objective_layout` / `OBJECTIVE_SOURCES` — nothing keys
+  off a hard-coded column position.
 - `verification/` is a "BioMOBO" correctness harness that targets a *different*
   design (ICM coregionalization, off-target selectivity, cost-aware multi-
   fidelity) than this repo implements; its tests intentionally skip (see
   `verification/README.md`).
 
-## Recent work (2026-06-29)
+## Recent work (2026-07-03)
+
+- Expanded `TASK_NAMES` from the 3-objective selectivity set to the **5-objective**
+  set `[PfDHFR_Docking, hDHFR_Docking, hERG_Toxicity_Prob, Caco2_logPapp,
+  Half_Life_hours]` (added the two ADMET objectives back while keeping both
+  docking objectives). Updated `acquisition.DEFAULT_OBJECTIVE_SIGNS` to
+  `[-1, +1, -1, +1, +1]` and regenerated `evaluation_bounds.json`.
+- Fixed `baseline_single_obj.py`, which still referenced the pre-selectivity
+  single-docking-column layout (`batch_dock` / `ADMET_COLUMNS` / `DOCKING_COLUMN`);
+  it now docks both targets and optimizes PfDHFR potency alone via EI.
+- The GP / EHVI / docking logic is unchanged — the objective count is dynamic and
+  every module derives it from `TASK_NAMES`.
+
+## Earlier work (2026-06-29)
 
 - Verified the full pipeline runs end-to-end in `mogp-drug`
   (`train_admet_oracle.py --refit-on-full` → `data.py` → `loop.py` →
   `dashboard.py`); docking validated (pyrimethamine ≈ −7 kcal/mol).
 - Added `baseline_single_obj.py` (docking-only single-objective BO control).
-- More baselines / tests planned (overnight comparison runs).

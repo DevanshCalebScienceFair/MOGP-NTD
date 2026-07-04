@@ -19,13 +19,15 @@ weakness this baseline exposes is structural: a hard cutoff throws away every
 molecule that just misses a threshold, even if it would have docked superbly and
 sat on the true Pareto front. Greedy filtering optimizes each property in
 isolation and never sees the *tradeoff* between them; the MOGP approach models
-all four objectives jointly and recovers Pareto-optimal molecules that the
+all five objectives jointly and recovers Pareto-optimal molecules that the
 filter discards outright.
 
 Objective layout (matches ``mogp.TASK_NAMES`` / ``loop.py``):
-    Y columns = [PfDHFR_Docking, hDHFR_Docking, hERG_Toxicity_Prob]
-    hERG comes from the cached library; the two docking objectives are
-    evaluated on the fly for each docked batch.
+    Y columns = [PfDHFR_Docking, hDHFR_Docking, hERG_Toxicity_Prob,
+                 Caco2_logPapp, Half_Life_hours]
+    The three ADMET objectives (hERG, Caco2, Half_Life) come from the cached
+    library; the two docking objectives are evaluated on the fly for each
+    docked batch.
 
 Run ``python baseline_greedy.py --help`` for the command-line options.
 """

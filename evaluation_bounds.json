@@ -2,12 +2,16 @@
   "task_names": [
     "PfDHFR_Docking",
     "hDHFR_Docking",
-    "hERG_Toxicity_Prob"
+    "hERG_Toxicity_Prob",
+    "Caco2_logPapp",
+    "Half_Life_hours"
   ],
   "signs": [
     -1,
     1,
-    -1
+    -1,
+    1,
+    1
   ],
   "bounds": {
     "PfDHFR_Docking": [
@@ -21,6 +25,14 @@
     "hERG_Toxicity_Prob": [
       0.0038742402102798223,
       0.9996427297592163
+    ],
+    "Caco2_logPapp": [
+      -6.839174747467041,
+      -3.958852767944336
+    ],
+    "Half_Life_hours": [
+      0.37630030512809753,
+      42.01264953613281
     ]
   }
 }

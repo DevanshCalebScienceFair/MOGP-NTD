@@ -16,6 +16,8 @@ The objectives (in ``TASK_NAMES`` order) have mixed directions:
     PfDHFR_Docking      -> LOWER is better  (more negative = stronger PARASITE binding)
     hDHFR_Docking       -> HIGHER is better (less negative = WEAK human binding -> selective)
     hERG_Toxicity_Prob  -> LOWER is better  (less cardiotoxic)
+    Caco2_logPapp       -> HIGHER is better (more permeable / better absorption)
+    Half_Life_hours     -> HIGHER is better (more metabolically stable)
 
 ``compute_pareto_front`` / ``get_reference_point`` work in ORIGINAL units,
 converting to a maximization frame internally by negating "lower is better"
@@ -29,8 +31,8 @@ range (hERG probability) actually counts in selection, not just in the score.
 
 The number of objectives is dynamic: a docking objective is all-NaN until the
 docking oracle supplies it, so EHVI runs on whichever objective columns actually
-carry data (e.g. only hERG before docking, all three once both targets are
-docked).
+carry data (e.g. only the three cheap ADMET objectives before docking, all five
+once both docking targets have been evaluated).
 """
 
 import numpy as np
@@ -44,13 +46,13 @@ from kernel import TanimotoKernel
 
 # Per-objective optimization direction in TASK_NAMES order: +1 = higher better,
 # -1 = lower better. This is the single source of truth for objective signs and
-# MUST stay aligned with mogp.TASK_NAMES.
+# MUST stay aligned with mogp.TASK_NAMES (same length, same order).
 #   PfDHFR_Docking      -1  (minimize: strong parasite binding)
 #   hDHFR_Docking       +1  (maximize: weak human binding -> selectivity)
 #   hERG_Toxicity_Prob  -1  (minimize: cardiac safety)
-# If the ADMET objectives are re-added to TASK_NAMES, append their signs here in
-# the same order:  Caco2_Permeability +1,  Half_Life +1.
-DEFAULT_OBJECTIVE_SIGNS = [-1, +1, -1]
+#   Caco2_logPapp       +1  (maximize: intestinal permeability / absorption)
+#   Half_Life_hours     +1  (maximize: metabolic stability)
+DEFAULT_OBJECTIVE_SIGNS = [-1, +1, -1, +1, +1]
 
 # Number of posterior samples drawn per candidate for the MC EHVI estimate.
 N_MC_SAMPLES = 128

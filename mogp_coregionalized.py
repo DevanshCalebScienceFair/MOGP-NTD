@@ -196,9 +196,10 @@ def predict_coregionalized(model, likelihood, y_mean, y_std, X_new):
 if __name__ == "__main__":
     # ------------------------------------------------------------------
     # Self-test: train on ~30 fully-observed molecules over the real objective
-    # set TASK_NAMES = [PfDHFR_Docking, hDHFR_Docking, hERG_Toxicity_Prob], print
-    # the learned K x K task covariance, and confirm the STRONGEST off-diagonal
-    # term is the PfDHFR/hDHFR pair. The two dihydrofolate reductases are
+    # set TASK_NAMES = [PfDHFR_Docking, hDHFR_Docking, hERG_Toxicity_Prob,
+    # Caco2_logPapp, Half_Life_hours], print the learned K x K task covariance,
+    # and confirm the STRONGEST off-diagonal term is the PfDHFR/hDHFR pair (the
+    # ADMET tasks are independent axes). The two dihydrofolate reductases are
     # homologous enzymes, so raw docking scores against them co-vary strongly
     # (good binders bind both) — that positive coupling is the biological
     # correlation the ICM borrows strength from, and is exactly why selectivity
@@ -207,19 +208,30 @@ if __name__ == "__main__":
     N_MOL = 30
     rng = np.random.default_rng(0)
 
-    # Objective columns, in TASK_NAMES order.
-    PF, HD, HERG = (TASK_NAMES.index("PfDHFR_Docking"),
-                    TASK_NAMES.index("hDHFR_Docking"),
-                    TASK_NAMES.index("hERG_Toxicity_Prob"))
+    # The two docking-objective columns, in TASK_NAMES order. These are the pair
+    # whose learned task covariance the self-test checks; every other objective
+    # is filled as an independent axis inside _build_targets.
+    PF, HD = (TASK_NAMES.index("PfDHFR_Docking"),
+              TASK_NAMES.index("hDHFR_Docking"))
 
-    def _build_targets(latent, herg, n):
+    def _build_targets(latent, admet, admet_columns, n):
         """PfDHFR & hDHFR share a dominant chemical latent (homologous targets)
-        -> strongly correlated raw docking scores; hERG is a separate signal."""
+        -> strongly correlated raw docking scores. Every OTHER objective is an
+        independent axis (its real ADMET value when the library is available,
+        else independent noise), so the PfDHFR/hDHFR pair stays the strongest
+        off-diagonal task correlation the ICM should recover across all K tasks."""
         Y = np.empty((n, len(TASK_NAMES)), dtype=np.float32)
         noise = rng.standard_normal((n, 2))
         Y[:, PF] = -8.0 + 2.0 * latent + 0.25 * noise[:, 0]   # parasite docking
         Y[:, HD] = -8.0 + 1.9 * latent + 0.25 * noise[:, 1]   # human docking
-        Y[:, HERG] = herg
+        # Fill the remaining (non-docking) objective columns as independent axes.
+        for j, name in enumerate(TASK_NAMES):
+            if j in (PF, HD):
+                continue
+            if admet is not None and name in admet_columns:
+                Y[:, j] = admet[:, admet_columns.index(name)]
+            else:
+                Y[:, j] = rng.standard_normal(n)
         return Y
 
     try:
@@ -231,23 +243,25 @@ if __name__ == "__main__":
         admet = lib["admet_scores"][:n].astype(np.float32)   # (n, len(ADMET_COLUMNS))
         print(f"Loaded {n} molecules from data/library for the self-test.")
 
-        # Dominant chemical latent from a real, structure-grounded ADMET column
-        # (Caco2 permeability); drives BOTH docking tasks so the Tanimoto data
-        # kernel can model them and the shared structure lands in the task
-        # covariance. hERG is the real oracle probability — a separate axis.
-        zc = (admet[:, ADMET_COLUMNS.index("Caco2_logPapp")]
-              - admet[:, ADMET_COLUMNS.index("Caco2_logPapp")].mean())
-        latent = zc / (zc.std() + 1e-8)
-        herg = admet[:, ADMET_COLUMNS.index("hERG_Toxicity_Prob")]
-        Y = _build_targets(latent, herg, n)
+        # Dominant chemical latent grounded in fingerprint structure but
+        # INDEPENDENT of the ADMET objective columns: a fixed random projection
+        # of the Morgan fingerprints. It drives BOTH docking tasks so the
+        # Tanimoto data kernel can model them and the shared structure lands in
+        # the task covariance, while the three real ADMET objectives stay
+        # separate axes uncorrelated with that latent.
+        w = rng.standard_normal(train_x.shape[1]).astype(np.float32)
+        proj = train_x @ w
+        latent = (proj - proj.mean()) / (proj.std() + 1e-8)
+        Y = _build_targets(latent, admet, ADMET_COLUMNS, n)
     except (FileNotFoundError, ImportError) as exc:
         # Fallback so the self-test still runs without a built library.
         print(f"Library unavailable ({exc}); using synthetic data for self-test.")
         n = N_MOL
         train_x = (rng.random((n, 2048)) < 0.02).astype(np.float32)
-        latent = rng.standard_normal(n)
-        herg = 1.0 / (1.0 + np.exp(-rng.standard_normal(n)))   # separate hERG axis
-        Y = _build_targets(latent, herg, n)
+        w = rng.standard_normal(train_x.shape[1]).astype(np.float32)
+        proj = train_x @ w
+        latent = (proj - proj.mean()) / (proj.std() + 1e-8)
+        Y = _build_targets(latent, None, None, n)
 
     K = Y.shape[1]
     print(f"\nTraining coregionalized MOGP (ICM) on {n} molecules, K={K} tasks...")

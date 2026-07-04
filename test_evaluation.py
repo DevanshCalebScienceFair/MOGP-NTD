@@ -31,23 +31,26 @@ from evaluation import (
 
 # A fixed set of hand-chosen bounds so the pure-function tests never touch the
 # cached library. Order matches TASK_NAMES:
-#   [Caco2 (higher), Half_Life (higher), hERG (lower), Docking (lower)]
+#   [PfDHFR (lower), hDHFR (higher), hERG (lower), Caco2 (higher),
+#    Half_Life (higher)]
 TEST_BOUNDS = np.array([
-    [-7.0, -4.0],    # Caco2      higher is better
-    [0.0, 50.0],     # Half_Life  higher is better
-    [0.0, 1.0],      # hERG       lower is better
-    [-14.0, -4.0],   # Docking    lower is better
+    [-14.0, -4.0],   # PfDHFR_Docking   lower is better
+    [-14.0, -4.0],   # hDHFR_Docking    higher is better
+    [0.0, 1.0],      # hERG             lower is better
+    [-7.0, -4.0],    # Caco2_logPapp    higher is better
+    [0.0, 50.0],     # Half_Life_hours  higher is better
 ], dtype=float)
 
 
 def _sample_Y(seed=0, n=12):
-    """A deterministic (n, 4) objective matrix in original units."""
+    """A deterministic (n, 5) objective matrix in original units."""
     rng = np.random.RandomState(seed)
     return np.column_stack([
+        rng.uniform(-12.0, -5.0, size=n),  # PfDHFR_Docking
+        rng.uniform(-12.0, -5.0, size=n),  # hDHFR_Docking
+        rng.uniform(0.01, 0.99, size=n),   # hERG
         rng.uniform(-6.5, -4.2, size=n),   # Caco2
         rng.uniform(1.0, 45.0, size=n),    # Half_Life
-        rng.uniform(0.01, 0.99, size=n),   # hERG
-        rng.uniform(-12.0, -5.0, size=n),  # Docking
     ])
 
 
@@ -57,8 +60,9 @@ def _sample_Y(seed=0, n=12):
 def test_normalize_maps_best_to_one_worst_to_zero():
     """Best value -> 1.0, worst -> 0.0, on every objective regardless of sign."""
     # Row 0 = best on every objective; row 1 = worst on every objective.
-    best = [-4.0, 50.0, 0.0, -14.0]     # hi Caco2, hi HL, lo hERG, lo docking
-    worst = [-7.0, 0.0, 1.0, -4.0]
+    # order: [PfDHFR (lo), hDHFR (hi), hERG (lo), Caco2 (hi), Half_Life (hi)]
+    best = [-14.0, -4.0, 0.0, -4.0, 50.0]
+    worst = [-4.0, -14.0, 1.0, -7.0, 0.0]
     Y = np.array([best, worst], dtype=float)
 
     N = normalize(Y, bounds=TEST_BOUNDS)
@@ -69,9 +73,10 @@ def test_normalize_maps_best_to_one_worst_to_zero():
 def test_normalize_clips_out_of_range():
     """Values outside the fixed bounds saturate into [0, 1] rather than escape."""
     # Beyond-best and beyond-worst values on each objective.
+    # order: [PfDHFR (lo), hDHFR (hi), hERG (lo), Caco2 (hi), Half_Life (hi)]
     Y = np.array([
-        [-3.0, 60.0, -0.5, -20.0],   # all better than the bound -> 1.0
-        [-9.0, -5.0, 2.0, 0.0],      # all worse than the bound  -> 0.0
+        [-20.0, -2.0, -0.5, -3.0, 60.0],   # all better than the bound -> 1.0
+        [0.0, -20.0, 2.0, -9.0, -5.0],     # all worse than the bound  -> 0.0
     ], dtype=float)
     N = normalize(Y, bounds=TEST_BOUNDS)
     assert N.min() >= 0.0 and N.max() <= 1.0
@@ -82,9 +87,10 @@ def test_normalize_clips_out_of_range():
 def test_normalize_flips_lower_is_better():
     """Lower-is-better objectives are flipped so smaller raw values score higher."""
     # Two molecules differing only in hERG (col 2, lower is better).
+    # order: [PfDHFR, hDHFR, hERG, Caco2, Half_Life]
     Y = np.array([
-        [-5.5, 25.0, 0.1, -9.0],
-        [-5.5, 25.0, 0.9, -9.0],
+        [-8.0, -8.0, 0.1, -5.5, 25.0],
+        [-8.0, -8.0, 0.9, -5.5, 25.0],
     ], dtype=float)
     N = normalize(Y, bounds=TEST_BOUNDS)
     # Lower hERG (0.1) must get the higher normalized (maximization) score.
@@ -92,7 +98,7 @@ def test_normalize_flips_lower_is_better():
 
 
 def test_normalize_prefix_of_objectives():
-    """Passing only the 3 ADMET columns normalizes them as objectives 0..2."""
+    """Passing only the first 3 columns normalizes them as objectives 0..2."""
     Y_full = _sample_Y(seed=1)
     N_full = normalize(Y_full, bounds=TEST_BOUNDS)
     N_prefix = normalize(Y_full[:, :3], objective_indices=[0, 1, 2],
@@ -105,7 +111,7 @@ def test_normalize_prefix_of_objectives():
 # ---------------------------------------------------------------------- #
 def test_fixed_reference_point_is_all_zeros():
     assert np.array_equal(FIXED_REFERENCE_POINT, np.zeros(N_OBJECTIVES))
-    for k in (1, 2, 3, 4):
+    for k in (1, 2, 3, 4, 5):
         assert np.array_equal(fixed_reference_point(k), np.zeros(k))
 
 
@@ -130,7 +136,8 @@ def test_hypervolume_dominated_point_does_not_decrease_it():
     Y = _sample_Y(seed=3)
     hv = compute_hypervolume(Y, bounds=TEST_BOUNDS)
     # A point at the worst corner is dominated by everything -> no change.
-    worst = np.array([[-7.0, 0.0, 1.0, -4.0]], dtype=float)
+    # order: [PfDHFR (lo), hDHFR (hi), hERG (lo), Caco2 (hi), Half_Life (hi)]
+    worst = np.array([[-4.0, -14.0, 1.0, -7.0, 0.0]], dtype=float)
     hv_plus = compute_hypervolume(np.vstack([Y, worst]), bounds=TEST_BOUNDS)
     assert abs(hv - hv_plus) < 1e-12
 
@@ -139,14 +146,14 @@ def test_hypervolume_handles_inactive_docking_and_nan_rows():
     """All-NaN docking column is ignored; a per-row NaN drops only that row."""
     Y = _sample_Y(seed=4)
     Y_no_dock = Y.copy()
-    Y_no_dock[:, 3] = np.nan           # docking not yet active -> 3 objectives
+    Y_no_dock[:, [0, 1]] = np.nan      # docking not yet active -> 3 ADMET objectives
     hv3 = compute_hypervolume(Y_no_dock, bounds=TEST_BOUNDS)
     assert 0.0 <= hv3 <= 1.0
 
     # A single failed dock (NaN in one row) must not crash and must match the
     # hypervolume of the same set with that row removed.
     Y_partial = Y.copy()
-    Y_partial[0, 3] = np.nan
+    Y_partial[0, 0] = np.nan
     hv_partial = compute_hypervolume(Y_partial, bounds=TEST_BOUNDS)
     hv_dropped = compute_hypervolume(Y[1:], bounds=TEST_BOUNDS)
     assert abs(hv_partial - hv_dropped) < 1e-12

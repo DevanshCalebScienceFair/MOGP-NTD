@@ -7,21 +7,25 @@ pipeline. This is a control that optimizes **only the docking score** (PfDHFR
 binding affinity) and ignores ADMET entirely during acquisition.
 
 The structure mirrors ``loop.py`` and ``baseline_random.py``, with one
-difference: instead of a multi-output GP + EHVI over four objectives, this uses
-a **single-output GP** (fingerprints -> docking score) and **Expected
-Improvement (EI)** as the acquisition function. ADMET is never seen by the GP or
-the acquisition; it is recorded only so the Pareto front and hypervolume can
-still be computed across all four objectives for a fair comparison.
+difference: instead of a multi-output GP + EHVI over all five objectives, this
+uses a **single-output GP** (fingerprints -> PfDHFR docking score) and
+**Expected Improvement (EI)** as the acquisition function. Selectivity (hDHFR)
+and ADMET are never seen by the GP or the acquisition; they are recorded only so
+the Pareto front and hypervolume can still be computed across all five
+objectives for a fair comparison.
 
-The hypothesis this baseline tests: optimizing docking alone finds strong
-binders, but those binders tend to have poor ADMET profiles, so the four-
-objective Pareto-front hypervolume should end up *worse* than the true multi-
-objective (MOGP + EHVI) loop, even though docking scores themselves look great.
+The hypothesis this baseline tests: optimizing PfDHFR potency alone finds strong
+parasite binders, but those binders tend to bind human DHFR too (poor
+selectivity) and have poor ADMET profiles, so the five-objective Pareto-front
+hypervolume should end up *worse* than the true multi-objective (MOGP + EHVI)
+loop, even though PfDHFR docking scores themselves look great.
 
 Objective layout (matches ``mogp.TASK_NAMES`` / ``loop.py``):
-    Y columns = [Caco2_Permeability, Half_Life, hERG_Toxicity_Prob, PfDHFR_Docking]
-    The first three (ADMET) come from the cached library; the fourth (docking)
-    is evaluated on the fly for each selected batch and is the *only* objective
+    Y columns = [PfDHFR_Docking, hDHFR_Docking, hERG_Toxicity_Prob,
+                 Caco2_logPapp, Half_Life_hours]
+    The three ADMET objectives come from the cached library; the two docking
+    objectives are evaluated on the fly for each selected batch (against both
+    targets). Only PfDHFR_Docking drives selection — it is the *only* objective
     the GP optimizes.
 
 The single-output GP reuses the same setup as ``mogp.py`` (a scaled Tanimoto
@@ -61,9 +65,9 @@ LIBRARY_TASKS, DOCKING_TASKS, DOCKING_TARGETS = resolve_objective_layout(
     LIBRARY_ADMET_COLUMNS
 )
 # The single objective this baseline optimizes: parasite-binding potency
-# (PfDHFR_Docking). It deliberately ignores selectivity (hDHFR) and safety
-# (hERG) — the whole point is to show that chasing potency alone yields a worse
-# multi-objective hypervolume.
+# (PfDHFR_Docking). It deliberately ignores selectivity (hDHFR) and ADMET (hERG,
+# Caco2, Half_Life) — the whole point is to show that chasing potency alone
+# yields a worse multi-objective hypervolume.
 POTENCY_COLUMN = TASK_NAMES.index("PfDHFR_Docking")
 
 
@@ -256,10 +260,10 @@ class SingleObjectiveBOLoop:
     """Single-objective BO over a fixed molecule library, optimizing docking only.
 
     Mirrors ``loop.BOLoop`` but replaces the multi-output GP + EHVI stage with a
-    single-output Tanimoto GP on the docking score and an Expected Improvement
-    acquisition. ADMET objectives are recorded (so the four-objective Pareto /
-    hypervolume math is shared with the BO loop and directly comparable) but are
-    never used to choose molecules.
+    single-output Tanimoto GP on the PfDHFR docking score and an Expected
+    Improvement acquisition. The selectivity (hDHFR) and ADMET objectives are
+    recorded (so the five-objective Pareto / hypervolume math is shared with the
+    BO loop and directly comparable) but are never used to choose molecules.
     """
 
     def __init__(self, library_dir="data/library", seed=77,
@@ -296,24 +300,32 @@ class SingleObjectiveBOLoop:
     # Evaluation helper (identical to loop.BOLoop._evaluate)
     # ------------------------------------------------------------------ #
     def _evaluate(self, library_indices):
-        """Build the (k, 4) objective matrix for the given library indices.
+        """Build the ``(k, N_OBJECTIVES)`` objective matrix for the given indices.
 
-        ADMET objectives come from the cached library; the docking objective is
-        evaluated on the fly with ``batch_dock``. Failed docks stay NaN.
+        The three ADMET objectives come from the cached library; the two docking
+        objectives are evaluated on the fly against every target
+        (``DOCKING_TARGETS``). Failed docks stay NaN. Identical to
+        ``loop.BOLoop._evaluate`` — every objective is recorded so the
+        multi-objective Pareto / hypervolume is comparable, even though only the
+        PfDHFR docking column drives selection.
 
         Returns:
-            A tuple ``(Y, docking)`` where ``Y`` has shape ``(k, 4)`` and
-            ``docking`` is the ``(k,)`` docking score vector.
+            A tuple ``(Y, docking_by_target)`` where ``Y`` has shape
+            ``(k, N_OBJECTIVES)`` and ``docking_by_target`` maps each target name
+            to its ``(k,)`` docking-score vector.
         """
         library_indices = list(library_indices)
         smiles = [self.smiles[i] for i in library_indices]
+        admet_rows = self.admet_scores[library_indices]
 
-        docking = batch_dock(smiles)                             # (k,), NaN on fail
+        docking_by_target = batch_dock_targets(smiles, DOCKING_TARGETS)
 
         Y = np.full((len(library_indices), N_OBJECTIVES), np.nan, dtype=np.float64)
-        Y[:, ADMET_COLUMNS] = self.admet_scores[library_indices]
-        Y[:, DOCKING_COLUMN] = docking
-        return Y, docking
+        for j, col in LIBRARY_TASKS:
+            Y[:, j] = admet_rows[:, col]
+        for j, target in DOCKING_TASKS:
+            Y[:, j] = docking_by_target[target]
+        return Y, docking_by_target
 
     # ------------------------------------------------------------------ #
     # Pareto / hypervolume helpers (shared math with loop.BOLoop)
@@ -367,19 +379,18 @@ class SingleObjectiveBOLoop:
         self.evaluated_indices = list(init_indices)
         self.Y_evaluated = Y
 
-        n_docked = int(np.isfinite(docking).sum())
         print(f"Initialized {self.n_init} molecules; "
-              f"{n_docked}/{self.n_init} docked successfully.")
+              f"docked {docked_summary(docking, self.n_init)}.")
 
     def step(self):
         """Run one BO iteration: train docking GP, score by EI, dock, record."""
         iteration = len(self.history) + 1
 
-        # --- Training data: evaluated molecules with a finite docking score ---
-        # The GP target is docking, so failed docks (NaN) cannot be training
-        # rows. ADMET is deliberately not used here.
+        # --- Training data: evaluated molecules with a finite PfDHFR score ---
+        # The GP target is PfDHFR docking, so failed docks (NaN) cannot be
+        # training rows. Selectivity (hDHFR) and ADMET are deliberately not used.
         evaluated_arr = np.asarray(self.evaluated_indices, dtype=int)
-        docking_obs = self.Y_evaluated[:, DOCKING_COLUMN]
+        docking_obs = self.Y_evaluated[:, POTENCY_COLUMN]
         finite = np.isfinite(docking_obs)
         if finite.sum() < 2:
             print(f"[Iteration {iteration}] not enough successful docks "
@@ -430,14 +441,14 @@ class SingleObjectiveBOLoop:
         assert not (set(int(i) for i in selected_library_indices) & evaluated_set), \
             "select_batch_ei returned an already-evaluated molecule"
 
-        # --- Dock the selected batch ---
+        # --- Dock the selected batch (against every target) ---
         Y_new, docking_new = self._evaluate(list(selected_library_indices))
-        n_docked = int(np.isfinite(docking_new).sum())
+        batch_docked = docked_summary(docking_new, len(selected_library_indices))
 
         self.evaluated_indices.extend(int(i) for i in selected_library_indices)
         self.Y_evaluated = np.vstack([self.Y_evaluated, Y_new])
 
-        # --- Track Pareto front + hypervolume (across ALL 4 objectives) ---
+        # --- Track Pareto front + hypervolume (across ALL 5 objectives) ---
         pareto_size = int(self._pareto_mask().sum())
         hypervolume = self._hypervolume()
 
@@ -453,7 +464,7 @@ class SingleObjectiveBOLoop:
         print(f"[Iteration {iteration}] "
               f"evaluated={len(self.evaluated_indices)}, "
               f"batch={len(selected_library_indices)}, "
-              f"docked_this_batch={n_docked}/{len(selected_library_indices)}, "
+              f"docked_this_batch=[{batch_docked}], "
               f"pareto_size={pareto_size}, hypervolume={hypervolume:.4f}")
         return True
 
@@ -505,20 +516,24 @@ class SingleObjectiveBOLoop:
         history_path = os.path.join(output_dir, "history.csv")
         history_df.to_csv(history_path, index=False)
 
-        # evaluated.csv — every evaluated molecule with all 4 objectives.
+        # evaluated.csv — every evaluated molecule with all 5 objectives + the
+        # reported-only Selectivity Index (hDHFR - PfDHFR).
         evaluated_df = pd.DataFrame(
             {"SMILES": [self.smiles[i] for i in self.evaluated_indices]}
         )
         for j, name in enumerate(TASK_NAMES):
             evaluated_df[name] = self.Y_evaluated[:, j]
+        evaluation.add_selectivity_index(evaluated_df)
         evaluated_path = os.path.join(output_dir, "evaluated.csv")
         evaluated_df.to_csv(evaluated_path, index=False)
 
-        # pareto_front.csv — only the Pareto-optimal molecules.
+        # pareto_front.csv — only the Pareto-optimal molecules, with the
+        # Selectivity Index (hDHFR - PfDHFR).
         pareto = self.get_pareto_front()
         pareto_df = pd.DataFrame({"SMILES": pareto["smiles"]})
         for j, name in enumerate(TASK_NAMES):
             pareto_df[name] = pareto["objectives"][:, j]
+        evaluation.add_selectivity_index(pareto_df)
         pareto_path = os.path.join(output_dir, "pareto_front.csv")
         pareto_df.to_csv(pareto_path, index=False)
 

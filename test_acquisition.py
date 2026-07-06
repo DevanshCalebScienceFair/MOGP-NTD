@@ -221,9 +221,11 @@ def test_composite_objective_matches_evaluation_normalize():
 # ---------------------------------------------------------------------- #
 # End-to-end loop (docking mocked)
 # ---------------------------------------------------------------------- #
-def test_end_to_end_loop_writes_csvs_with_evaluation_hypervolume(tmp_path, monkeypatch):
+@pytest.mark.parametrize("model", ["coregionalized", "independent"])
+def test_end_to_end_loop_writes_csvs_with_evaluation_hypervolume(tmp_path, monkeypatch, model):
     """A tiny BO loop completes with the grey-box qNEHVI acquisition and writes
-    the three result CSVs, with hypervolume produced via evaluation.py."""
+    the three result CSVs, with hypervolume produced via evaluation.py — for both
+    the primary coregionalized (ICM) model and the independent ablation model."""
     import loop as loopmod
 
     _library_or_skip()   # skip cleanly if the cached library is missing
@@ -241,7 +243,9 @@ def test_end_to_end_loop_writes_csvs_with_evaluation_hypervolume(tmp_path, monke
         library_dir=LIBRARY_DIR, seed=2,
         n_init=6, batch_size=4, n_iterations=1,
         mogp_train_iters=12, diversity_threshold=0.95,
+        model=model,
     )
+    assert bo.model_name == model
     # Truncate to a small library subset so the candidate scan is fast.
     K = 24
     bo.smiles = bo.smiles[:K]

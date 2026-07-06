@@ -36,7 +36,7 @@ import webbrowser
 import pandas as pd
 
 from data import load_library, build_library
-from loop import BOLoop
+from loop import BOLoop, DEFAULT_MODEL
 from baseline_random import RandomSearchBaseline
 from baseline_single_obj import SingleObjectiveBOLoop
 from baseline_greedy import GreedyFilterThenDock
@@ -202,7 +202,12 @@ def print_summary(elapsed_by_method):
 # The four method runs
 # ---------------------------------------------------------------------- #
 def run_mogp(params):
-    """Method 1/4 — multi-objective GP + EHVI (our method)."""
+    """Method 1/4 — multi-output GP + qNEHVI (our method).
+
+    Uses the PRIMARY coregionalized (ICM) model by default; ``params["model"]``
+    (``"coregionalized"`` / ``"independent"``) and ``params["rank"]`` select the
+    model and its ICM rank. run_ablation.py compares the two arms head to head.
+    """
     loop = BOLoop(
         library_dir=LIBRARY_DIR,
         seed=params["seed"],
@@ -210,6 +215,8 @@ def run_mogp(params):
         batch_size=params["batch_size"],
         n_iterations=params["n_iterations"],
         mogp_train_iters=params["mogp_iters"],
+        model=params.get("model", DEFAULT_MODEL),
+        coregionalization_rank=params.get("rank", 1),
     )
     loop.run()
     loop.save_results(output_dir=RESULTS_DIRS["MOGP"])
@@ -297,6 +304,8 @@ def main():
     batch_size = ask("Batch size", 5, int)
     n_iterations = ask("Number of iterations", 2, int)
     mogp_iters = ask("MOGP training iterations", 50, int)
+    model = ask("MOGP model (coregionalized/independent)", DEFAULT_MODEL, str)
+    rank = ask("Coregionalization rank", 1, int)
     seed = ask("Seed", 42, int)
 
     per_method = n_init + n_iterations * batch_size
@@ -305,6 +314,8 @@ def main():
         "batch_size": batch_size,
         "n_iterations": n_iterations,
         "mogp_iters": mogp_iters,
+        "model": model,
+        "rank": rank,
         "seed": seed,
         "n_total": per_method,   # greedy budget = same total as the others
     }

@@ -47,6 +47,7 @@ from data import (
 from admet_oracle import ADMETOracle
 from densify import generate_analogs, canonical_smiles
 from mogp import train_mogp, predict, TASK_NAMES, resolve_objective_layout
+from mogp_coregionalized import train_mogp_coregionalized
 from acquisition import (
     select_batch,
     compute_pareto_front,
@@ -76,18 +77,56 @@ DOCKING_COLUMNS = [j for j, _ in DOCKING_TASKS]
 DOCKING_SATURATION_MARGIN = 0.5
 
 
+# The two GP models this loop can run over the docking objectives. The
+# coregionalized (ICM) model is the PRIMARY / headline model: it learns the
+# PfDHFR/hDHFR cross-task correlation the independent model forces to zero. The
+# independent model is retained for the ablation (run_ablation.py).
+MODEL_CHOICES = ("coregionalized", "independent")
+DEFAULT_MODEL = "coregionalized"
+
+
+def resolve_train_fn(model, rank=1):
+    """Map a ``--model`` name to a ``train_fn`` with ``mogp.train_mogp``'s signature.
+
+    Both models share the grey-box contract (train the docking tasks only, return
+    ``(model, likelihood, y_mean, y_std)``), so the rest of the loop — qNEHVI
+    selection via ``acquisition.select_batch``, which decodes the posterior
+    through the model-agnostic ``mogp.predict`` — is identical either way.
+
+    Args:
+        model: ``"coregionalized"`` (ICM) or ``"independent"``.
+        rank: ``IndexKernel`` rank for the coregionalized model (ignored otherwise).
+
+    Returns:
+        A callable ``train_fn(train_x, train_y, n_iterations=..., lr=...)``.
+    """
+    if model == "independent":
+        return train_mogp
+    if model == "coregionalized":
+        def _train_coregionalized(train_x, train_y, n_iterations=200, lr=0.1):
+            return train_mogp_coregionalized(
+                train_x, train_y, n_iterations=n_iterations, lr=lr, rank=rank
+            )
+        return _train_coregionalized
+    raise ValueError(
+        f"Unknown model {model!r}; choose one of {MODEL_CHOICES}."
+    )
+
+
 class BOLoop:
     """Multi-objective Bayesian optimization loop over a fixed molecule library.
 
     The library (fingerprints + precomputed ADMET objectives) is loaded once;
-    each BO iteration trains the MOGP, selects a batch via EHVI, docks it, and
+    each BO iteration trains the docking GP (coregionalized ICM by default, or
+    the independent model), selects a batch via grey-box qNEHVI, docks it, and
     folds the results back in.
     """
 
     def __init__(self, library_dir="data/library", seed=42,
                  n_init=10, batch_size=20, n_iterations=10,
                  mogp_train_iters=200, mogp_lr=0.1,
-                 diversity_threshold=0.7, train_fn=train_mogp,
+                 diversity_threshold=0.7,
+                 model=DEFAULT_MODEL, coregionalization_rank=1, train_fn=None,
                  densify=False, densify_every=1, densify_per_parent=20,
                  densify_max_pool=None):
         # --- Reproducibility ---
@@ -96,13 +135,19 @@ class BOLoop:
         torch.manual_seed(seed)
 
         # --- GP training function ---
-        # Defaults to the batch-independent mogp.train_mogp. run_ablation.py
-        # swaps in mogp_coregionalized.train_mogp_coregionalized (same signature
-        # and return contract) to compare against the ICM model. The rest of the
-        # loop — qNEHVI selection via acquisition.select_batch, which decodes the
-        # posterior through the model-agnostic mogp.predict — is identical either
-        # way, so the model is the only thing that varies in the ablation.
-        self.train_fn = train_fn
+        # The PRIMARY / headline model is the coregionalized (ICM) GP, which
+        # learns the PfDHFR/hDHFR cross-task correlation. `model` selects it by
+        # name ("coregionalized" or "independent") and `coregionalization_rank`
+        # sets the ICM rank; run_ablation.py compares the two arms. An explicit
+        # `train_fn` overrides the name (it must match mogp.train_mogp's signature
+        # and return contract) — the ablation harness uses either path. The rest
+        # of the loop — qNEHVI selection via acquisition.select_batch, which
+        # decodes the posterior through the model-agnostic mogp.predict — is
+        # identical for either model, so the model is the only thing that varies.
+        self.model_name = model
+        self.coregionalization_rank = coregionalization_rank
+        self.train_fn = (train_fn if train_fn is not None
+                         else resolve_train_fn(model, rank=coregionalization_rank))
 
         # --- Library (cheap precomputed features) ---
         library = load_library(library_dir)
@@ -518,6 +563,11 @@ if __name__ == "__main__":
     parser.add_argument("--batch-size", type=int, default=20)
     parser.add_argument("--n-iterations", type=int, default=10)
     parser.add_argument("--mogp-iters", type=int, default=200)
+    parser.add_argument("--model", choices=MODEL_CHOICES, default=DEFAULT_MODEL,
+                        help="GP model over the docking objectives: "
+                             "coregionalized (ICM, primary) or independent.")
+    parser.add_argument("--rank", type=int, default=1,
+                        help="IndexKernel rank for the coregionalized model.")
     parser.add_argument("--output-dir", default="results")
     parser.add_argument(
         "--densify", action="store_true",
@@ -534,12 +584,16 @@ if __name__ == "__main__":
 
     start = time.time()
 
+    print(f"Running BO loop with the {args.model!r} GP model"
+          + (f" (rank {args.rank})" if args.model == "coregionalized" else "") + ".")
     loop = BOLoop(
         library_dir=args.library_dir,
         n_init=args.n_init,
         batch_size=args.batch_size,
         n_iterations=args.n_iterations,
         mogp_train_iters=args.mogp_iters,
+        model=args.model,
+        coregionalization_rank=args.rank,
         densify=args.densify,
         densify_every=args.densify_every,
         densify_per_parent=args.densify_per_parent,

@@ -11,7 +11,9 @@ Each iteration:
        far, across the objectives in ``TASK_NAMES`` (a potency / selectivity /
        safety / ADMET set: [PfDHFR_Docking, hDHFR_Docking, hERG_Toxicity_Prob,
        Caco2_logPapp, Half_Life_hours]).
-    2. Score the un-evaluated library with EHVI and pick a diverse batch
+    2. Score the un-evaluated library with qNEHVI — a grey-box composite
+       acquisition that models only the docking objectives and folds in each
+       candidate's KNOWN-EXACT ADMET values — and pick a diverse batch
        (``acquisition.select_batch``).
     3. Run the expensive structure-based docking oracle on only that batch,
        against EVERY target (``docking.batch_dock_targets`` — PfDHFR and hDHFR).
@@ -97,7 +99,7 @@ class BOLoop:
         # Defaults to the batch-independent mogp.train_mogp. run_ablation.py
         # swaps in mogp_coregionalized.train_mogp_coregionalized (same signature
         # and return contract) to compare against the ICM model. The rest of the
-        # loop — EHVI selection via acquisition.select_batch, which decodes the
+        # loop — qNEHVI selection via acquisition.select_batch, which decodes the
         # posterior through the model-agnostic mogp.predict — is identical either
         # way, so the model is the only thing that varies in the ablation.
         self.train_fn = train_fn
@@ -346,7 +348,11 @@ class BOLoop:
         active = get_active_objectives(self.Y_evaluated)
         eval_idx = np.asarray(self.evaluated_indices)
         finite_rows = np.isfinite(self.Y_evaluated[:, active]).all(axis=1)
-        train_x = self.fingerprints[eval_idx[finite_rows]]
+        # These fully-evaluated molecules are BOTH the GP's training set and the
+        # baseline front the qNEHVI acquisition scores against; keep their library
+        # indices so the acquisition can look up their known-exact ADMET rows.
+        baseline_library_indices = eval_idx[finite_rows]
+        train_x = self.fingerprints[baseline_library_indices]
         train_y = self.Y_evaluated[finite_rows].astype(np.float32)
         print(f"\n[Iteration {iteration}] Training GP on "
               f"{int(finite_rows.sum())}/{len(self.evaluated_indices)} "
@@ -364,12 +370,19 @@ class BOLoop:
         )
         X_candidates = self.fingerprints[candidate_library_indices]
 
-        # --- EHVI batch selection ---
+        # --- qNEHVI batch selection ---
+        # Grey-box acquisition: the GP scores the docking objectives, while the
+        # candidates' and baseline's KNOWN-EXACT ADMET rows (straight from the
+        # cached library, in data.ADMET_COLUMNS order) are folded in exactly by
+        # the composite objective — no ADMET value is ever read from the GP.
         # select_batch returns indices into X_candidates (the candidate array),
         # NOT into the full library. Map them back via candidate_library_indices.
+        candidate_admet = self.admet_scores[candidate_library_indices]
+        baseline_admet = self.admet_scores[baseline_library_indices]
         selected_local, selected_ehvi = select_batch(
             model, likelihood, y_mean, y_std,
-            X_candidates, self.Y_evaluated,
+            X_candidates, candidate_admet,
+            train_x, baseline_admet,
             batch_size=self.batch_size,
             diversity_threshold=self.diversity_threshold,
         )

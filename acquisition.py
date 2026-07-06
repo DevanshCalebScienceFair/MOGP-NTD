@@ -2,45 +2,71 @@
 acquisition.py
 ==============
 
-Expected Hypervolume Improvement (EHVI) acquisition for multi-objective
-molecular Bayesian optimization.
+Grey-box qNEHVI acquisition for multi-objective molecular Bayesian optimization.
 
-Given the trained multi-output GP (``mogp.py``), this module scores every
-candidate molecule by how much it is expected to expand the Pareto front of
-the objectives if it were evaluated. EHVI is estimated by Monte Carlo: draw
-posterior samples for each candidate, measure each sample's hypervolume
-improvement over the current Pareto front, and average.
+The objective set (in ``TASK_NAMES`` order) mixes two EXPENSIVE, uncertain
+docking objectives with three CHEAP objectives that are KNOWN EXACTLY for every
+candidate:
 
-The objectives (in ``TASK_NAMES`` order) have mixed directions:
+    PfDHFR_Docking      -> LOWER  better  (docked on the fly; GP-modelled)
+    hDHFR_Docking       -> HIGHER better  (docked on the fly; GP-modelled)
+    hERG_Toxicity_Prob  -> LOWER  better  (precomputed ADMET; known exactly)
+    Caco2_logPapp       -> HIGHER better  (precomputed ADMET; known exactly)
+    Half_Life_hours     -> HIGHER better  (precomputed ADMET; known exactly)
 
-    PfDHFR_Docking      -> LOWER is better  (more negative = stronger PARASITE binding)
-    hDHFR_Docking       -> HIGHER is better (less negative = WEAK human binding -> selective)
-    hERG_Toxicity_Prob  -> LOWER is better  (less cardiotoxic)
-    Caco2_logPapp       -> HIGHER is better (more permeable / better absorption)
-    Half_Life_hours     -> HIGHER is better (more metabolically stable)
+Because the three ADMET values are precomputed for the whole library
+(``data.py``), feeding them through a GP would only inject avoidable predictive
+uncertainty into the acquisition and let the loop chase ADMET "improvements" that
+are really model error. So this is a GREY-BOX / composite setup:
 
-``compute_pareto_front`` / ``get_reference_point`` work in ORIGINAL units,
-converting to a maximization frame internally by negating "lower is better"
-objectives. ``compute_ehvi``, however, scores candidates in the SHARED
-normalized [0, 1] maximization frame defined by ``evaluation.py`` (each
-objective scaled by fixed library/docking bounds) against the SINGLE fixed
-reference point ``evaluation.FIXED_REFERENCE_POINT``. That is deliberate: the
-acquisition then optimizes exactly the hypervolume that
-``evaluation.compute_hypervolume`` reports, so an objective with a tiny raw
-range (hERG probability) actually counts in selection, not just in the score.
+  * The GP (``mogp.py``) models ONLY the two docking objectives
+    (``mogp.DOCKING_TASK_INDICES``); ``mogp.predict`` returns NaN for the ADMET
+    columns.
+  * Acquisition is BoTorch's noise-robust **qNEHVI**
+    (``qLogNoisyExpectedHypervolumeImprovement``) built on a 2-output docking
+    posterior, with a **composite objective**
+    (``CompositeKnownADMETObjective``) that, per candidate, concatenates that
+    candidate's EXACT known ADMET values onto the two sampled docking values to
+    form the full 5-D objective vector, then maps it into evaluation.py's shared
+    normalized [0, 1] maximization frame. qNEHVI then measures each composite
+    point's hypervolume improvement over the current front against the SINGLE
+    fixed reference point ``evaluation.FIXED_REFERENCE_POINT`` (all zeros).
 
-The number of objectives is dynamic: a docking objective is all-NaN until the
-docking oracle supplies it, so EHVI runs on whichever objective columns actually
-carry data (e.g. only the three cheap ADMET objectives before docking, all five
-once both docking targets have been evaluated).
+Scoring in that shared normalized frame is deliberate: the acquisition optimizes
+exactly the hypervolume ``evaluation.compute_hypervolume`` reports, so every
+objective — including hERG, whose tiny raw probability range would otherwise be
+dwarfed — carries its full weight in selection. qNEHVI (vs. plain EHVI) is
+noise-robust, which matches the noisy AutoDock Vina docking signal, AND, through
+the composite objective, uses the known ADMET exactly rather than a GP estimate.
+
+``compute_pareto_front`` / ``get_reference_point`` (ORIGINAL units) and
+``get_active_objectives`` are retained as shared helpers used across
+``evaluation.py``, ``loop.py`` and the baselines.
 """
+
+import warnings
 
 import numpy as np
 import torch
 
-from botorch.utils.multi_objective.hypervolume import Hypervolume
+from gpytorch.distributions import MultitaskMultivariateNormal
+from gpytorch.utils.warnings import GPInputWarning
+from botorch.models.model import Model
+from botorch.posteriors.gpytorch import GPyTorchPosterior
+from botorch.sampling.normal import SobolQMCNormalSampler
+from botorch.acquisition.multi_objective.objective import MCMultiOutputObjective
+from botorch.acquisition.multi_objective.logei import (
+    qLogNoisyExpectedHypervolumeImprovement,
+)
 
-from mogp import train_mogp, predict, TASK_NAMES
+from mogp import (
+    train_mogp,
+    predict,
+    TASK_NAMES,
+    DOCKING_TASK_INDICES,
+    OBJECTIVE_SOURCES,
+    resolve_objective_layout,
+)
 from kernel import TanimotoKernel
 
 
@@ -54,8 +80,11 @@ from kernel import TanimotoKernel
 #   Half_Life_hours     +1  (maximize: metabolic stability)
 DEFAULT_OBJECTIVE_SIGNS = [-1, +1, -1, +1, +1]
 
-# Number of posterior samples drawn per candidate for the MC EHVI estimate.
+# Number of quasi-Monte-Carlo posterior samples qNEHVI draws for its estimate.
 N_MC_SAMPLES = 128
+
+# BoTorch multi-objective utilities work in double precision.
+_DTYPE = torch.double
 
 
 def _default_signs(num_objectives):
@@ -145,7 +174,7 @@ def get_reference_point(Y, signs=None):
 def get_active_objectives(Y_evaluated):
     """Return indices of objective columns that have real (non all-NaN) data.
 
-    Handles the dynamic objective count: PfDHFR_Docking is all-NaN until the
+    Handles the dynamic objective count: a docking objective is all-NaN until the
     docking module supplies it, so it is excluded until then.
 
     Args:
@@ -160,151 +189,345 @@ def get_active_objectives(Y_evaluated):
     return active
 
 
-def _hypervolume(hv, points_max):
-    """Hypervolume dominated by ``points_max`` (maximization frame) vs ``hv`` ref.
+# ---------------------------------------------------------------------- #
+# Grey-box composite pieces: a 2-output docking posterior + a composite
+# objective that folds in the KNOWN-EXACT ADMET values.
+# ---------------------------------------------------------------------- #
+def _resolve_admet_layout():
+    """Resolve how known ADMET columns map onto the objective layout.
 
-    Args:
-        hv: A botorch ``Hypervolume`` initialized with the reference point.
-        points_max: Tensor of shape ``(P, m)`` in the maximization frame.
+    Returns ``(dock_task_indices, lib_task_indices, lib_admet_cols)``:
+      * ``dock_task_indices``  = objective indices the GP models (docking).
+      * ``lib_task_indices``   = objective indices known exactly from the library.
+      * ``lib_admet_cols``     = for each library objective, WHICH column of the
+        ``admet_scores`` matrix (``data.ADMET_COLUMNS`` order) supplies it.
 
-    Returns:
-        The dominated hypervolume as a Python float (0.0 if no points).
+    Resolved from ``mogp.OBJECTIVE_SOURCES`` + ``data.ADMET_COLUMNS`` (imported
+    lazily so this module carries no heavy import), so nothing keys off a
+    hard-coded column position.
     """
-    if points_max.shape[0] == 0:
-        return 0.0
-    return float(hv.compute(points_max))
+    from data import ADMET_COLUMNS
+
+    library_tasks, docking_tasks, _ = resolve_objective_layout(ADMET_COLUMNS)
+    dock_task_indices = [j for j, _ in docking_tasks]
+    lib_task_indices = [j for j, _ in library_tasks]
+    lib_admet_cols = [col for _, col in library_tasks]
+    return dock_task_indices, lib_task_indices, lib_admet_cols
 
 
-def compute_ehvi(model, likelihood, y_mean, y_std,
-                 X_candidates, Y_evaluated, objective_signs=None):
-    """Monte Carlo Expected Hypervolume Improvement for each candidate.
+def compose_objective_points(docking, admet_tail,
+                             dock_task_indices, lib_task_indices,
+                             num_objectives):
+    """Scatter sampled docking + KNOWN-EXACT ADMET into the full objective layout.
 
-    For each candidate the GP posterior (mean + variance) is sampled
-    ``N_MC_SAMPLES`` times; each sample's hypervolume improvement over the
-    current Pareto front (in a maximization frame, relative to a reference
-    point) is measured and averaged. Only objectives with real data are used.
+    Builds a ``(..., num_objectives)`` vector in ORIGINAL units whose docking
+    slots come from ``docking`` (the GP samples) and whose ADMET slots come
+    ONLY from ``admet_tail`` (the known values) — no ADMET value is ever read
+    from the GP posterior. Works for both torch tensors and numpy arrays.
 
     Args:
-        model, likelihood, y_mean, y_std: Outputs of ``train_mogp``.
-        X_candidates: Candidate fingerprints, shape ``(M, 2048)``.
-        Y_evaluated: Already-evaluated objectives, shape ``(N, num_objectives)``.
-        objective_signs: List of +1/-1 per objective (higher/lower is better).
-            Defaults to ``DEFAULT_OBJECTIVE_SIGNS`` for the full objective set.
+        docking: ``(..., n_dock)`` docking values, columns ordered as
+            ``dock_task_indices``.
+        admet_tail: ``(..., n_admet)`` known ADMET values, columns ordered as
+            ``lib_task_indices``.
+        dock_task_indices: Objective indices the docking columns map to.
+        lib_task_indices: Objective indices the ADMET columns map to.
+        num_objectives: Total objective count (columns in the result).
 
     Returns:
-        Array of shape ``(M,)`` with the EHVI score per candidate; higher means
-        more valuable to evaluate next.
+        ``(..., num_objectives)`` array/tensor in ORIGINAL units.
+    """
+    dock_task_indices = list(dock_task_indices)
+    lib_task_indices = list(lib_task_indices)
+    columns = [None] * num_objectives
+    for k, j in enumerate(dock_task_indices):
+        columns[j] = docking[..., k]
+    for k, j in enumerate(lib_task_indices):
+        columns[j] = admet_tail[..., k]
+    if any(c is None for c in columns):
+        missing = [j for j, c in enumerate(columns) if c is None]
+        raise ValueError(
+            f"compose_objective_points: objective columns {missing} were not "
+            "supplied by either the docking or the library sources."
+        )
+    # Broadcast every column to a common shape before stacking: the docking
+    # samples carry qNEHVI's leading MC-sample dimension that the known ADMET
+    # tail (read straight from X) does not, so the ADMET columns broadcast across
+    # every posterior sample.
+    if torch.is_tensor(docking):
+        shape = torch.broadcast_shapes(*(c.shape for c in columns))
+        columns = [c.expand(shape) for c in columns]
+        return torch.stack(columns, dim=-1)
+    shape = np.broadcast_shapes(*(c.shape for c in columns))
+    columns = [np.broadcast_to(c, shape) for c in columns]
+    return np.stack(columns, axis=-1)
+
+
+class DockingPosteriorModel(Model):
+    """BoTorch wrapper exposing the grey-box GP as a docking-only posterior.
+
+    The acquisition input ``X`` is a fingerprint with the candidate's known
+    ADMET appended as a tail (see ``_augment_with_admet``); this model uses only
+    the leading ``n_fp`` fingerprint columns and returns a posterior over the
+    docking objectives (``num_outputs == len(dock_task_indices) == 2``). The
+    ADMET tail is ignored here — it is consumed exactly by the composite
+    objective, never predicted.
+
+    The posterior is assembled from ``mogp.predict``'s per-molecule marginal
+    mean/variance (original docking units) as an independent
+    ``MultitaskMultivariateNormal`` (diagonal covariance), which qNEHVI samples.
+    """
+
+    def __init__(self, model, likelihood, y_mean, y_std, n_fp, dock_task_indices):
+        super().__init__()
+        self._model = model
+        self._likelihood = likelihood
+        self._y_mean = y_mean
+        self._y_std = y_std
+        self._n_fp = int(n_fp)
+        self._dock = list(dock_task_indices)
+
+    @property
+    def num_outputs(self):
+        return len(self._dock)
+
+    def posterior(self, X, output_indices=None, observation_noise=False,
+                  posterior_transform=None):
+        *batch, q, _ = X.shape
+        k = len(self._dock)
+        fp = X[..., :self._n_fp].reshape(-1, self._n_fp).detach().cpu().numpy()
+        with warnings.catch_warnings():
+            # The evaluated baseline IS the GP's training set, so predicting on it
+            # trips GPyTorch's "input matches training data" notice every step.
+            # That is expected here (we want the posterior at those points).
+            warnings.simplefilter("ignore", GPInputWarning)
+            mean_np, var_np = predict(
+                self._model, self._likelihood, self._y_mean, self._y_std, fp
+            )
+        mean_d = torch.as_tensor(
+            mean_np[:, self._dock], dtype=_DTYPE
+        ).reshape(*batch, q, k)
+        var_d = torch.as_tensor(
+            np.clip(var_np[:, self._dock], 1e-9, None), dtype=_DTYPE
+        ).reshape(*batch, q, k)
+        # Independent (diagonal) joint posterior over the q x k docking outputs.
+        covar = torch.diag_embed(var_d.reshape(*batch, q * k))
+        mvn = MultitaskMultivariateNormal(mean_d, covar)
+        post = GPyTorchPosterior(mvn)
+        if posterior_transform is not None:
+            return posterior_transform(post)
+        return post
+
+
+class CompositeKnownADMETObjective(MCMultiOutputObjective):
+    r"""Composite objective: sampled docking + KNOWN-EXACT ADMET, normalized.
+
+    For each point, concatenates the GP-sampled DOCKING outputs with that point's
+    EXACT KNOWN ADMET values — read from the tail of the acquisition input ``X``,
+    NOT from the GP posterior — into the full objective vector, then maps it into
+    ``evaluation.py``'s shared [0, 1] maximization frame (so 1.0 = best on every
+    objective and the fixed all-zeros reference point applies). ADMET is therefore
+    used exactly; only the docking objectives carry model uncertainty.
+    """
+
+    def __init__(self, dock_task_indices, lib_task_indices, num_objectives,
+                 bounds, signs):
+        super().__init__()
+        self.dock_task_indices = list(dock_task_indices)
+        self.lib_task_indices = list(lib_task_indices)
+        self.num_objectives = int(num_objectives)
+        self.n_admet = len(self.lib_task_indices)
+
+        bounds = torch.as_tensor(bounds, dtype=_DTYPE)
+        lo = bounds[:, 0]
+        hi = bounds[:, 1]
+        span = hi - lo
+        # Guard zero-width objectives so normalization never divides by zero.
+        span = torch.where(span == 0, torch.ones_like(span), span)
+        self.register_buffer("_lo", lo)
+        self.register_buffer("_hi", hi)
+        self.register_buffer("_span", span)
+        self.register_buffer("_signs", torch.as_tensor(signs, dtype=_DTYPE))
+
+    def forward(self, samples, X=None):
+        if X is None:
+            raise RuntimeError(
+                "CompositeKnownADMETObjective requires X: the known ADMET values "
+                "are encoded in its tail."
+            )
+        admet_tail = X[..., -self.n_admet:].to(samples)
+        full = compose_objective_points(
+            samples, admet_tail,
+            self.dock_task_indices, self.lib_task_indices, self.num_objectives,
+        )
+        lo = self._lo.to(full)
+        hi = self._hi.to(full)
+        span = self._span.to(full)
+        s = self._signs.to(full)
+        # Higher-is-better: (y - lo)/span; lower-is-better: (hi - y)/span. Both
+        # put the best value at 1.0 and the worst at 0.0; clip so out-of-range
+        # values saturate into the cube rather than escaping it.
+        norm = torch.where(s > 0, (full - lo) / span, (hi - full) / span)
+        return norm.clamp(0.0, 1.0)
+
+
+def _augment_with_admet(X_fp, admet_rows, lib_admet_cols):
+    """Append each point's KNOWN ADMET (in library-task order) to its fingerprint.
+
+    ``admet_rows`` are raw ``admet_scores`` rows (``data.ADMET_COLUMNS`` order);
+    they are reordered by ``lib_admet_cols`` into library-task order so the tail
+    lines up with ``lib_task_indices`` when the composite objective reads it.
+    """
+    X_fp = np.asarray(X_fp, dtype=float)
+    admet_rows = np.asarray(admet_rows, dtype=float)
+    if admet_rows.ndim != 2 or admet_rows.shape[0] != X_fp.shape[0]:
+        raise ValueError(
+            "admet_rows must be a (N, n_admet) matrix aligned row-for-row with "
+            f"X_fp; got admet_rows {admet_rows.shape} vs X_fp {X_fp.shape}."
+        )
+    tail = admet_rows[:, list(lib_admet_cols)]
+    return np.concatenate([X_fp, tail], axis=1)
+
+
+def compute_qnehvi(model, likelihood, y_mean, y_std,
+                   X_candidates, candidate_admet,
+                   X_baseline, baseline_admet,
+                   objective_signs=None, bounds=None,
+                   ref_point=None, n_mc_samples=N_MC_SAMPLES, layout=None):
+    """Noisy Expected Hypervolume Improvement (qNEHVI) per candidate.
+
+    Builds a 2-output docking posterior and a composite objective that folds each
+    point's KNOWN-EXACT ADMET onto its sampled docking values, then scores every
+    candidate by its qNEHVI (log) hypervolume improvement over the current front
+    (defined by the GP posterior at the evaluated ``X_baseline`` points), in the
+    shared normalized frame of ``evaluation.py`` against its fixed reference.
+
+    Args:
+        model, likelihood, y_mean, y_std: Outputs of ``train_mogp`` (docking-only GP).
+        X_candidates: Candidate fingerprints, shape ``(M, n_fp)``.
+        candidate_admet: Candidates' KNOWN ADMET rows, shape ``(M, n_admet)``,
+            in ``data.ADMET_COLUMNS`` order (i.e. ``admet_scores`` rows).
+        X_baseline: Evaluated fingerprints, shape ``(B, n_fp)`` (the front).
+        baseline_admet: Evaluated points' KNOWN ADMET rows, shape ``(B, n_admet)``,
+            same column order as ``candidate_admet``.
+        objective_signs: +1/-1 per objective; defaults to ``DEFAULT_OBJECTIVE_SIGNS``.
+        bounds: Optional ``(num_objectives, 2)`` normalization bounds; defaults to
+            ``evaluation.compute_objective_bounds()``.
+        ref_point: Optional normalized reference point; defaults to
+            ``evaluation.fixed_reference_point`` (all zeros).
+        n_mc_samples: qNEHVI quasi-MC sample count.
+        layout: Optional ``(dock_task_indices, lib_task_indices, lib_admet_cols)``;
+            defaults to ``_resolve_admet_layout()``.
+
+    Returns:
+        Array of shape ``(M,)`` of qNEHVI scores; higher is more valuable to
+        evaluate next.
     """
     # Imported here (not at module top) to avoid a circular import: evaluation
     # imports this module for the Pareto/active-objective helpers.
-    from evaluation import normalize, fixed_reference_point
+    from evaluation import compute_objective_bounds, fixed_reference_point
 
-    Y_evaluated = np.asarray(Y_evaluated, dtype=float)
-    num_objectives_total = Y_evaluated.shape[1]
+    if layout is None:
+        layout = _resolve_admet_layout()
+    dock_task_indices, lib_task_indices, lib_admet_cols = layout
+
+    num_objectives = len(TASK_NAMES)
     if objective_signs is None:
-        objective_signs = _default_signs(num_objectives_total)
-    objective_signs = np.asarray(objective_signs, dtype=float)
+        objective_signs = _default_signs(num_objectives)
+    signs = np.asarray(objective_signs, dtype=float)
+    if bounds is None:
+        bounds = compute_objective_bounds()
+    bounds = np.asarray(bounds, dtype=float)
 
-    # Restrict everything to objectives that currently have data.
-    active = get_active_objectives(Y_evaluated)
-    if not active:
-        raise ValueError("compute_ehvi: no active objectives (all columns NaN).")
+    X_candidates = np.asarray(X_candidates)
+    X_baseline = np.asarray(X_baseline)
+    if X_baseline.shape[0] == 0:
+        raise ValueError(
+            "compute_qnehvi: empty baseline; need at least one fully-evaluated "
+            "molecule to define the current front."
+        )
+    n_fp = X_candidates.shape[1]
 
-    # Keep only fully-observed rows across the active objectives for the front.
-    Y_active = Y_evaluated[:, active]
-    finite_rows = np.isfinite(Y_active).all(axis=1)
-    Y_active = Y_active[finite_rows]
-    if Y_active.shape[0] == 0:
-        raise ValueError("compute_ehvi: no fully-observed evaluated rows.")
+    Xb_aug = torch.as_tensor(
+        _augment_with_admet(X_baseline, baseline_admet, lib_admet_cols),
+        dtype=_DTYPE,
+    )
+    Xc_aug = torch.as_tensor(
+        _augment_with_admet(X_candidates, candidate_admet, lib_admet_cols),
+        dtype=_DTYPE,
+    )
 
-    # GP posterior for the candidates, subset to the active objectives.
-    mean, variance = predict(model, likelihood, y_mean, y_std, X_candidates)
-    mean_a = np.asarray(mean)[:, active]
-    var_a = np.clip(np.asarray(variance)[:, active], 0.0, None)
-    std_a = np.sqrt(var_a)
-    M, k = mean_a.shape
+    model_wrap = DockingPosteriorModel(
+        model, likelihood, y_mean, y_std, n_fp, dock_task_indices
+    )
+    objective = CompositeKnownADMETObjective(
+        dock_task_indices, lib_task_indices, num_objectives, bounds, signs
+    )
+    ref = (fixed_reference_point(num_objectives)
+           if ref_point is None else np.asarray(ref_point, dtype=float))
 
-    # Score in the SHARED normalized [0, 1] maximization frame against the
-    # SINGLE fixed reference point (evaluation.py). This makes the acquisition
-    # optimize exactly the metric evaluation.compute_hypervolume reports, so
-    # every objective — including hERG, whose tiny raw probability range used to
-    # be dwarfed — carries its full normalized weight in selection, not just in
-    # the final score.
-    Y_norm = normalize(Y_active, objective_indices=active, signs=objective_signs)
-    ones = np.ones(len(active), dtype=float)   # already a maximization frame
-    _, pareto_norm = compute_pareto_front(Y_norm, ones)
+    sampler = SobolQMCNormalSampler(sample_shape=torch.Size([int(n_mc_samples)]))
+    acqf = qLogNoisyExpectedHypervolumeImprovement(
+        model=model_wrap,
+        ref_point=torch.as_tensor(ref, dtype=_DTYPE),
+        X_baseline=Xb_aug,
+        sampler=sampler,
+        objective=objective,
+        # Our custom marginal posterior does not support the low-rank root cache,
+        # and pruning the baseline is unnecessary for a discrete candidate scan.
+        prune_baseline=False,
+        cache_root=False,
+    )
 
-    ref = fixed_reference_point(len(active))
-    ref_t = torch.as_tensor(ref, dtype=torch.float64)
-    hv = Hypervolume(ref_point=ref_t)
-    pf_max = torch.as_tensor(pareto_norm, dtype=torch.float64)
-    base_hv = _hypervolume(hv, pf_max)
-
-    ehvi = np.zeros(M, dtype=float)
-
-    for i in range(M):
-        # Draw posterior samples for candidate i in original units, then map
-        # them into the same normalized frame the front and reference live in.
-        z = np.random.standard_normal(size=(N_MC_SAMPLES, k))
-        samples = mean_a[i] + std_a[i] * z                      # original units
-        samples_norm = normalize(samples, objective_indices=active,
-                                 signs=objective_signs)
-        samples_max = torch.as_tensor(samples_norm, dtype=torch.float64)
-
-        # A sample can only add hypervolume above the reference point if it
-        # strictly dominates the reference on every objective; since normalized
-        # values are >= 0, that means strictly > 0 on every objective.
-        dominates_ref = (samples_max > ref_t).all(dim=1)
-
-        total_improvement = 0.0
-        for s in range(N_MC_SAMPLES):
-            if not dominates_ref[s]:
-                continue
-            union = torch.cat([pf_max, samples_max[s:s + 1]], dim=0)
-            new_hv = _hypervolume(hv, union)
-            total_improvement += max(0.0, new_hv - base_hv)
-
-        ehvi[i] = total_improvement / N_MC_SAMPLES
-
-    return ehvi
+    # Score each candidate independently as its own q=1 t-batch -> shape (M,).
+    with torch.no_grad():
+        scores = acqf(Xc_aug.unsqueeze(1))
+    return np.asarray(scores.detach().cpu().numpy(), dtype=float)
 
 
 def select_batch(model, likelihood, y_mean, y_std,
-                 X_candidates, Y_evaluated,
+                 X_candidates, candidate_admet,
+                 X_baseline, baseline_admet,
                  batch_size=20, diversity_threshold=0.7,
-                 objective_signs=None):
-    """Greedily select a diverse, high-EHVI batch of candidates.
+                 objective_signs=None, n_mc_samples=N_MC_SAMPLES, layout=None):
+    """Greedily select a diverse, high-qNEHVI batch of candidates.
 
-    Candidates are ranked by EHVI, then walked in descending order; a candidate
-    is added only if its maximum Tanimoto similarity to the already-selected
-    molecules is below ``diversity_threshold`` (so the batch stays structurally
-    diverse). Selection stops at ``batch_size`` or when candidates run out.
+    Candidates are ranked by their qNEHVI score (``compute_qnehvi``), then walked
+    in descending order; a candidate is added only if its maximum Tanimoto
+    similarity to the already-selected molecules is below ``diversity_threshold``
+    (so the batch stays structurally diverse). Selection stops at ``batch_size``
+    or when candidates run out.
 
     Args:
-        model, likelihood, y_mean, y_std: Outputs of ``train_mogp``.
-        X_candidates: Candidate fingerprints, shape ``(M, 2048)``.
-        Y_evaluated: Already-evaluated objectives, shape ``(N, num_objectives)``.
+        model, likelihood, y_mean, y_std: Outputs of ``train_mogp`` (docking-only GP).
+        X_candidates: Candidate fingerprints, shape ``(M, n_fp)``.
+        candidate_admet: Candidates' KNOWN ADMET rows, shape ``(M, n_admet)``,
+            in ``data.ADMET_COLUMNS`` order (``admet_scores`` rows). These exact
+            values — never a GP estimate — enter the composite objective.
+        X_baseline: Evaluated fingerprints, shape ``(B, n_fp)`` (defines the front).
+        baseline_admet: Evaluated points' KNOWN ADMET rows, shape ``(B, n_admet)``.
         batch_size: Number of molecules to select.
         diversity_threshold: Max allowed Tanimoto similarity to any already-
             selected molecule.
-        objective_signs: Passed through to ``compute_ehvi``.
+        objective_signs, n_mc_samples, layout: Passed through to ``compute_qnehvi``.
 
     Returns:
-        A tuple ``(selected_indices, selected_ehvi)`` of int and float arrays
-        (indices into ``X_candidates`` and their EHVI scores). Length is
+        A tuple ``(selected_indices, selected_scores)`` of int and float arrays
+        (indices into ``X_candidates`` and their qNEHVI scores). Length is
         ``batch_size`` unless diversity exhausts the candidates first.
     """
     X_candidates = np.asarray(X_candidates)
-    ehvi = compute_ehvi(
+    scores = compute_qnehvi(
         model, likelihood, y_mean, y_std,
-        X_candidates, Y_evaluated, objective_signs=objective_signs,
+        X_candidates, candidate_admet, X_baseline, baseline_admet,
+        objective_signs=objective_signs, n_mc_samples=n_mc_samples, layout=layout,
     )
 
-    # Rank candidates by EHVI, highest first.
-    ranked = np.argsort(-ehvi)
+    # Rank candidates by qNEHVI score, highest first.
+    ranked = np.argsort(-scores)
 
     kernel = TanimotoKernel()
-    X_t = torch.from_numpy(X_candidates).to(torch.float32)
+    X_t = torch.from_numpy(np.asarray(X_candidates)).to(torch.float32)
 
     selected = []
     for idx in ranked:
@@ -319,53 +542,54 @@ def select_batch(model, likelihood, y_mean, y_std,
             selected.append(int(idx))
 
     selected_indices = np.asarray(selected, dtype=int)
-    selected_ehvi = ehvi[selected_indices]
-    return selected_indices, selected_ehvi
+    selected_scores = scores[selected_indices]
+    return selected_indices, selected_scores
 
 
 if __name__ == "__main__":
     np.random.seed(0)
     torch.manual_seed(0)
 
-    # 10 fake molecules: sparse random 2048-bit fingerprints (~5% on bits).
-    n_train = 10
-    train_x = (np.random.rand(n_train, 2048) < 0.05).astype(np.int8)
+    # Objective layout WITHOUT importing the (heavy) data module: docking indices
+    # from OBJECTIVE_SOURCES, and library ADMET passed already in library-task
+    # order (so lib_admet_cols is the identity).
+    dock_idx = list(DOCKING_TASK_INDICES)
+    lib_idx = [j for j, name in enumerate(TASK_NAMES)
+               if OBJECTIVE_SOURCES[name][0] != "dock"]
+    layout = (dock_idx, lib_idx, list(range(len(lib_idx))))
+    n_admet = len(lib_idx)
+    n_fp = 2048
 
-    # Fake objectives in TASK_NAMES order; the docking objectives are unavailable
-    # (all NaN) until the docking oracle runs, so only the cheap library
-    # objectives (e.g. hERG) carry data here.
-    from mogp import OBJECTIVE_SOURCES
-    Y = np.full((n_train, len(TASK_NAMES)), np.nan, dtype=np.float32)
-    for j, name in enumerate(TASK_NAMES):
-        if OBJECTIVE_SOURCES[name][0] == "library":
-            Y[:, j] = np.random.uniform(0, 1, size=n_train)   # e.g. hERG prob
+    # Sparse random 2048-bit fingerprints (~5% on bits) for baseline + candidates.
+    n_baseline, n_cand = 12, 25
+    X_baseline = (np.random.rand(n_baseline, n_fp) < 0.05).astype(np.int8)
+    X_candidates = (np.random.rand(n_cand, n_fp) < 0.05).astype(np.int8)
 
-    n_active = int(sum(OBJECTIVE_SOURCES[n][0] == "library" for n in TASK_NAMES))
-    print(f"Training MOGP on 10 fake molecules ({n_active} active objective(s))...")
-    model, likelihood, y_mean, y_std = train_mogp(train_x, Y, n_iterations=50)
+    # Known ADMET (library-task order) for baseline + candidates.
+    baseline_admet = np.random.uniform(0.0, 1.0, size=(n_baseline, n_admet)).astype(np.float32)
+    candidate_admet = np.random.uniform(0.0, 1.0, size=(n_cand, n_admet)).astype(np.float32)
 
-    # Current Pareto front / reference point over the active objectives.
-    active = get_active_objectives(Y)
-    signs_active = np.asarray(_default_signs(len(TASK_NAMES)))[active]
-    pareto_mask, pareto_Y = compute_pareto_front(Y[:, active], signs_active)
-    ref_point = get_reference_point(Y[:, active], signs_active)
+    # Grey-box GP trains on the docking columns only; the ADMET columns of Y are
+    # present but ignored by the GP (train_mogp masks them out).
+    Y = np.zeros((n_baseline, len(TASK_NAMES)), dtype=np.float32)
+    for j in dock_idx:
+        Y[:, j] = np.random.uniform(-11.0, -5.0, size=n_baseline)
+    for k, j in enumerate(lib_idx):
+        Y[:, j] = baseline_admet[:, k]
 
-    print(f"\nActive objectives: {[TASK_NAMES[j] for j in active]}")
-    print(f"Current Pareto front size: {int(pareto_mask.sum())}")
-    print(f"Reference point: {np.round(ref_point, 4)}")
+    print(f"Training grey-box MOGP on {n_baseline} fake molecules "
+          f"({len(dock_idx)} docking tasks)...")
+    model, likelihood, y_mean, y_std = train_mogp(X_baseline, Y, n_iterations=50)
 
-    # 20 fake candidates.
-    n_cand = 20
-    X_candidates = (np.random.rand(n_cand, 2048) < 0.05).astype(np.int8)
-
-    selected_indices, selected_ehvi = select_batch(
+    selected_indices, selected_scores = select_batch(
         model, likelihood, y_mean, y_std,
-        X_candidates, Y, batch_size=5,
+        X_candidates, candidate_admet, X_baseline, baseline_admet,
+        batch_size=5, layout=layout,
     )
 
-    print("\nSelected molecules (index -> EHVI):")
-    for idx, score in zip(selected_indices, selected_ehvi):
-        print(f"  candidate {int(idx):>2}  EHVI = {score:.6f}")
+    print("\nSelected molecules (candidate index -> qNEHVI score):")
+    for idx, score in zip(selected_indices, selected_scores):
+        print(f"  candidate {int(idx):>2}  qNEHVI = {float(score):.6f}")
 
     if len(selected_indices) == 5:
         print("\nACQUISITION TEST PASSED")

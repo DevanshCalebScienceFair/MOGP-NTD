@@ -9,12 +9,15 @@ existing pieces:
   * The ADMET oracle (``admet_oracle.ADMETOracle``) that supplies the
     regression/classification targets to learn.
 
-The MOGP places one independent scaled-Tanimoto GP on each objective and packs
-them into a single ``MultitaskMultivariateNormal`` so predictions (mean and
-per-task uncertainty) come out together. Target columns are always handled in
-the fixed order given by ``TASK_NAMES``:
+The MOGP is a GREY-BOX model: it places one independent scaled-Tanimoto GP on
+each **docking** objective (``DOCKING_TASK_INDICES``) and packs them into a
+single ``MultitaskMultivariateNormal`` so predictions (mean and per-task
+uncertainty) come out together. The three ADMET objectives are **known exactly**
+for every candidate (precomputed in ``data.py``), so they are deliberately NOT
+modelled here — the acquisition folds their exact values in via a composite
+objective. Predictions are still returned in the fixed ``TASK_NAMES`` order
 ``[PfDHFR_Docking, hDHFR_Docking, hERG_Toxicity_Prob, Caco2_logPapp,
-Half_Life_hours]``.
+Half_Life_hours]``, with the un-modelled ADMET columns returned as NaN.
 
 Run ``python mogp.py`` for a self-contained demo on a handful of known drugs.
 """
@@ -76,6 +79,22 @@ OBJECTIVE_SOURCES = {
     "Caco2_logPapp":      ("library", "Caco2_logPapp"),
     "Half_Life_hours":    ("library", "Half_Life_hours"),
 }
+
+
+# Task indices (into TASK_NAMES) the GP actually models: ONLY the expensive
+# docking objectives. This is a GREY-BOX / composite setup. The three ADMET
+# objectives are cheap and KNOWN EXACTLY for every candidate (precomputed for the
+# whole library in data.py), so modelling them with a GP would only inject
+# avoidable predictive uncertainty into the acquisition and let the loop chase
+# ADMET "improvements" that are really model error. They are therefore left out
+# of the GP entirely and folded back in — exactly — by the acquisition's
+# composite objective (see acquisition.select_batch). Derived from
+# OBJECTIVE_SOURCES so nothing keys off a hard-coded column position; for the
+# current TASK_NAMES this is ``[0, 1]`` (PfDHFR_Docking, hDHFR_Docking).
+DOCKING_TASK_INDICES = [
+    j for j, name in enumerate(TASK_NAMES)
+    if OBJECTIVE_SOURCES[name][0] == "dock"
+]
 
 
 def resolve_objective_layout(admet_columns):
@@ -234,10 +253,12 @@ def train_mogp(train_x, train_y, n_iterations=200, lr=0.1):
     Returns:
         A tuple ``(model, likelihood, y_mean, y_std)`` where ``y_mean`` and
         ``y_std`` are numpy arrays of shape ``(num_tasks,)`` used to reverse the target
-        normalization at prediction time. Columns whose targets are entirely
-        unobserved (all NaN, e.g. the ``PfDHFR_Docking`` placeholder) are skipped
-        during training; their ``y_mean``/``y_std`` entries are NaN and the model
-        is fitted only on the remaining tasks.
+        normalization at prediction time. Only the docking columns
+        (``DOCKING_TASK_INDICES``) are trained: the model is fitted on those
+        columns alone (so its trained-task count is ``len(DOCKING_TASK_INDICES)``,
+        i.e. 2 for the current objective set), and every other column's
+        ``y_mean``/``y_std`` entry is NaN to mark it "not modelled". A docking
+        column that is itself entirely unobserved (all NaN) is also skipped.
     """
     train_x_t = torch.from_numpy(np.asarray(train_x)).to(torch.float32)
     train_y = np.asarray(train_y, dtype=np.float32)
@@ -251,9 +272,24 @@ def train_mogp(train_x, train_y, n_iterations=200, lr=0.1):
     # mean). NaN stats for unobserved columns are left NaN to flag "not trained".
     y_std = np.where(y_std == 0.0, 1.0, y_std)
 
+    # Grey-box: the GP models ONLY the docking objectives. The three ADMET
+    # objectives are known exactly for every candidate and are handled in the
+    # acquisition's composite objective, so they are excluded from the GP here by
+    # masking every non-docking column's normalization stats to NaN. This makes
+    # predict() return NaN for those columns (its public contract) and fits the
+    # model on the docking columns alone. A docking column that is itself still
+    # unobserved (all-NaN, e.g. before any docking) also drops out via its NaN stats.
+    docking_mask = np.zeros(train_y.shape[1], dtype=bool)
+    docking_mask[[j for j in DOCKING_TASK_INDICES if j < train_y.shape[1]]] = True
+    y_mean = np.where(docking_mask, y_mean, np.nan)
+    y_std = np.where(docking_mask, y_std, np.nan)
+
     observed = np.isfinite(y_mean) & np.isfinite(y_std)
     if not observed.any():
-        raise ValueError("train_mogp: no observed target columns to train on.")
+        raise ValueError(
+            "train_mogp: no observed docking target columns to train on "
+            "(the grey-box GP models only the docking objectives)."
+        )
 
     train_y_norm = (train_y[:, observed] - y_mean[observed]) / y_std[observed]
     train_y_t = torch.from_numpy(train_y_norm).to(torch.float32)
@@ -295,9 +331,10 @@ def predict(model, likelihood, y_mean, y_std, X_new):
     Returns:
         A tuple ``(mean, variance)`` of numpy arrays, each shape ``(M, num_tasks)``, with
         columns in ``TASK_NAMES`` order on the original (de-normalized) scale.
-        ``variance`` is the per-objective predictive variance. Tasks that were
-        skipped during training (NaN normalization stats, e.g. ``PfDHFR_Docking``)
-        are returned as NaN columns.
+        ``variance`` is the per-objective predictive variance. Tasks the grey-box
+        GP does not model — the three ADMET objectives, which have NaN
+        normalization stats — are returned as NaN columns; only the docking
+        columns carry real predictions.
     """
     X_new_t = torch.from_numpy(np.asarray(X_new)).to(torch.float32)
 
@@ -331,21 +368,35 @@ if __name__ == "__main__":
         "Pyrimethamine": "C1=CC(=NC(=N1)N)CC2=CC=C(C=C2)Cl",
     }
 
-    print("Building training data from the ADMET oracle...")
-    Y, valid_smiles = get_training_data(list(train_smiles.values()))
+    valid_smiles = list(train_smiles.values())
 
-    print("\nADMET target matrix Y (columns in TASK_NAMES order):")
+    # Self-contained demo: build a synthetic 5-objective target matrix (no live
+    # ADMET oracle needed; use get_training_data for oracle-backed ADMET). The
+    # grey-box GP models ONLY the docking objectives, so only those two columns
+    # need real training signal here; the three ADMET columns are "known" values
+    # the GP deliberately does NOT model (they are folded in exactly by the
+    # acquisition's composite objective at selection time).
+    rng = np.random.default_rng(0)
+    Y = np.zeros((len(valid_smiles), len(TASK_NAMES)), dtype=np.float32)
+    for j, name in enumerate(TASK_NAMES):
+        if OBJECTIVE_SOURCES[name][0] == "dock":
+            Y[:, j] = rng.uniform(-11.0, -5.0, size=len(valid_smiles))   # docking (kcal/mol)
+        else:
+            Y[:, j] = rng.uniform(0.0, 1.0, size=len(valid_smiles))      # known ADMET (stand-in)
+
+    print("Synthetic target matrix Y (columns in TASK_NAMES order):")
     print(f"{'molecule':>14}" + "".join(f"{h:>22}" for h in TASK_NAMES))
     name_by_smiles = {s: n for n, s in train_smiles.items()}
     for name, row in zip((name_by_smiles[s] for s in valid_smiles), Y):
         print(f"{name:>14}" + "".join(f"{v:22.4f}" for v in row))
-    print("Note: the docking objectives (PfDHFR_Docking, hDHFR_Docking) are "
-          "placeholders (NaN) here until the docking oracle is run.")
+    print("Note: the GP trains on the docking objectives only (here synthetic "
+          "stand-ins); the ADMET objectives are known exactly and left out of the GP.")
 
     # Fingerprints for the valid training molecules.
     train_x = np.vstack([smiles_to_morgan(s) for s in valid_smiles])
 
-    print("\nTraining MOGP for 100 iterations...")
+    print(f"\nTraining grey-box MOGP for 100 iterations "
+          f"({len(DOCKING_TASK_INDICES)} docking tasks)...")
     model, likelihood, y_mean, y_std = train_mogp(train_x, Y, n_iterations=100)
 
     new_smiles = {
@@ -358,11 +409,11 @@ if __name__ == "__main__":
     mean, variance = predict(model, likelihood, y_mean, y_std, X_new)
     std = np.sqrt(variance)
 
-    print(f"\nPredictions for new molecules (all {len(TASK_NAMES)} objectives):")
+    print(f"\nPredictions for new molecules (GP models docking only; ADMET NaN):")
     for i, smiles in enumerate(new_valid):
         name = new_name_by_smiles[smiles]
         print(f"\n{name}:")
         for j, task in enumerate(TASK_NAMES):
-            note = ("  <- placeholder (nan) until docking oracle is run"
-                    if OBJECTIVE_SOURCES[task][0] == "dock" else "")
+            note = ("  <- not modelled by the GP (known exactly; NaN here)"
+                    if OBJECTIVE_SOURCES[task][0] != "dock" else "")
             print(f"  {task:<20} = {mean[i, j]:.4f}  (std {std[i, j]:.4f}){note}")

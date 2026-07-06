@@ -31,12 +31,19 @@ Run ``python loop.py --help`` for the command-line options.
 import os
 import time
 import argparse
+import warnings
 
 import numpy as np
 import torch
 import pandas as pd
 
-from data import load_library, ADMET_COLUMNS as LIBRARY_ADMET_COLUMNS
+from data import (
+    load_library,
+    process_smiles,
+    ADMET_COLUMNS as LIBRARY_ADMET_COLUMNS,
+)
+from admet_oracle import ADMETOracle
+from densify import generate_analogs, canonical_smiles
 from mogp import train_mogp, predict, TASK_NAMES, resolve_objective_layout
 from acquisition import (
     select_batch,
@@ -61,6 +68,11 @@ LIBRARY_TASKS, DOCKING_TASKS, DOCKING_TARGETS = resolve_objective_layout(
 # columns filled by docking.
 DOCKING_COLUMNS = [j for j, _ in DOCKING_TASKS]
 
+# Margin (kcal/mol) below evaluation.DOCKING_MIN at which we warn that observed
+# docking scores are saturating the fixed normalization floor (see
+# BOLoop._warn_if_docking_saturates).
+DOCKING_SATURATION_MARGIN = 0.5
+
 
 class BOLoop:
     """Multi-objective Bayesian optimization loop over a fixed molecule library.
@@ -73,7 +85,9 @@ class BOLoop:
     def __init__(self, library_dir="data/library", seed=42,
                  n_init=10, batch_size=20, n_iterations=10,
                  mogp_train_iters=200, mogp_lr=0.1,
-                 diversity_threshold=0.7, train_fn=train_mogp):
+                 diversity_threshold=0.7, train_fn=train_mogp,
+                 densify=False, densify_every=1, densify_per_parent=20,
+                 densify_max_pool=None):
         # --- Reproducibility ---
         self.seed = seed
         np.random.seed(seed)
@@ -103,6 +117,28 @@ class BOLoop:
         self.mogp_train_iters = mogp_train_iters
         self.mogp_lr = mogp_lr
         self.diversity_threshold = diversity_threshold
+
+        # --- Densification (grow candidates around the Pareto front) ---
+        # OFF by default so the base benchmark is unchanged. When on, after each
+        # iteration we enumerate analogs of the current front, score/filter them
+        # exactly like the base library, and inject the survivors as new
+        # candidates. See _densify.
+        self.densify = densify
+        self.densify_every = densify_every
+        self.densify_per_parent = densify_per_parent
+        self.densify_max_pool = densify_max_pool
+        # A reused ADMET oracle and a canonical-SMILES set of everything already
+        # in the library (for novelty dedup), both built lazily only when
+        # densification is enabled so the base loop pays nothing for them.
+        self._oracle = None
+        self._library_canonical = None
+        if self.densify:
+            self._oracle = ADMETOracle()
+            self._library_canonical = set()
+            for s in self.smiles:
+                canon = canonical_smiles(s)
+                if canon is not None:
+                    self._library_canonical.add(canon)
 
         # --- Tracking state ---
         self.evaluated_indices = []                           # library indices
@@ -138,6 +174,108 @@ class BOLoop:
         for j, target in DOCKING_TASKS:
             Y[:, j] = docking_by_target[target]
         return Y, docking_by_target
+
+    def _warn_if_docking_saturates(self, Y_new):
+        """Warn if any observed docking score sits at/below the normalization floor.
+
+        ``evaluation.DOCKING_MIN`` (-14 kcal/mol) is the fixed lower bound of the
+        shared docking normalization. A score at or below it maps to the best
+        normalized value (1.0) and clips, so an even stronger binder earns NO
+        additional hypervolume — the metric saturates. This is a real risk once
+        densification starts proposing tighter binders. We only WARN (via
+        ``warnings.warn``, so result files are untouched); we deliberately do NOT
+        move the bound, because changing it mid-study would break cross-method
+        hypervolume comparability. Widen ``evaluation.DOCKING_MIN`` yourself, once,
+        for a fresh comparison if this fires.
+        """
+        if not DOCKING_COLUMNS:
+            return
+        dock_vals = np.asarray(Y_new)[:, DOCKING_COLUMNS]
+        finite = dock_vals[np.isfinite(dock_vals)]
+        if finite.size == 0:
+            return
+        strongest = float(finite.min())
+        if strongest < evaluation.DOCKING_MIN + DOCKING_SATURATION_MARGIN:
+            warnings.warn(
+                f"Observed docking score {strongest:.2f} kcal/mol is within "
+                f"{DOCKING_SATURATION_MARGIN} of (or below) the normalization "
+                f"floor evaluation.DOCKING_MIN={evaluation.DOCKING_MIN}; such "
+                "scores saturate to hypervolume 1.0 and stop earning credit. "
+                "Consider widening DOCKING_MIN for a fresh comparison (do NOT "
+                "change it mid-study — it breaks comparability)."
+            )
+
+    def _densify(self, iteration):
+        """Grow the candidate pool with analogs of the current Pareto front.
+
+        Enumerates novel analogs of the front molecules (``densify.generate_analogs``),
+        pushes them through the SAME per-molecule pipeline as the base library
+        (``data.process_smiles``: drug-likeness filter -> Morgan featurize ->
+        ADMET score -> domain/NaN drop), and appends the survivors to the live
+        library arrays (``smiles`` / ``fingerprints`` / ``admet_scores``) so they
+        become eligible candidates on the NEXT iteration. Docking is NOT run here
+        — densification only grows the candidate pool.
+
+        Injected rows are byte-compatible with base-library rows (int8
+        fingerprints, float32 ADMET in ``ADMET_COLUMNS`` order), so the
+        candidate->library remap and its assertions in ``step`` still hold.
+        """
+        parents = self.get_pareto_front()["smiles"]
+        if not parents:
+            print(f"[Densify iter {iteration}] no Pareto front yet; nothing to do.")
+            return
+
+        analogs = generate_analogs(
+            parents,
+            n_per_parent=self.densify_per_parent,
+            seed=self.seed + iteration,
+            exclude=self._library_canonical,
+        )
+        n_proposed = len(analogs)
+
+        # Respect the pool cap up front so we never ADMET-score analogs we cannot
+        # keep. densify_max_pool bounds the TOTAL library size.
+        room = None
+        if self.densify_max_pool is not None:
+            room = max(0, self.densify_max_pool - self.library_size)
+            if room == 0:
+                print(f"[Densify iter {iteration}] parents={len(parents)}, "
+                      f"proposed={n_proposed}, passed_filter=0, added=0 "
+                      f"(pool cap {self.densify_max_pool} reached), "
+                      f"library_size={self.library_size}")
+                return
+
+        n_passed = 0
+        add_smiles, add_fp, add_admet = [], [], []
+        if n_proposed:
+            processed = process_smiles(analogs, oracle=self._oracle)
+            n_passed = processed.n_final
+            surv_admet = processed.admet_df[LIBRARY_ADMET_COLUMNS].to_numpy(
+                dtype=np.float32
+            )
+            # Defensive novelty dedup (process_smiles preserves SMILES identity,
+            # but two analogs can canonicalize together): keep first occurrence
+            # of anything not already in the library.
+            for k, smiles in enumerate(processed.smiles):
+                canon = canonical_smiles(smiles)
+                if canon is None or canon in self._library_canonical:
+                    continue
+                if room is not None and len(add_smiles) >= room:
+                    break
+                self._library_canonical.add(canon)
+                add_smiles.append(smiles)
+                add_fp.append(processed.fingerprints[k])
+                add_admet.append(surv_admet[k])
+
+        if add_smiles:
+            self.smiles = list(self.smiles) + add_smiles
+            self.fingerprints = np.vstack([self.fingerprints, np.asarray(add_fp)])
+            self.admet_scores = np.vstack([self.admet_scores, np.asarray(add_admet)])
+            self.library_size = len(self.smiles)
+
+        print(f"[Densify iter {iteration}] parents={len(parents)}, "
+              f"proposed={n_proposed}, passed_filter={n_passed}, "
+              f"added={len(add_smiles)}, library_size={self.library_size}")
 
     # ------------------------------------------------------------------ #
     # Pareto / hypervolume helpers (on the currently-active objectives)
@@ -251,6 +389,7 @@ class BOLoop:
         # --- Dock the selected batch (against every target) ---
         Y_new, docking_new = self._evaluate(list(selected_library_indices))
         batch_docked = docked_summary(docking_new, len(selected_library_indices))
+        self._warn_if_docking_saturates(Y_new)
 
         self.evaluated_indices.extend(int(i) for i in selected_library_indices)
         self.Y_evaluated = np.vstack([self.Y_evaluated, Y_new])
@@ -275,10 +414,18 @@ class BOLoop:
               f"pareto_size={pareto_size}, hypervolume={hypervolume:.4f}")
 
     def run(self):
-        """Run the complete loop: initialize, then ``n_iterations`` steps."""
+        """Run the complete loop: initialize, then ``n_iterations`` steps.
+
+        When densification is enabled, each iteration (except the last, which has
+        no successor to select the new molecules) is followed by ``_densify``,
+        which grows the candidate pool with analogs of the current front.
+        """
         self.initialize()
-        for _ in range(self.n_iterations):
+        for iteration in range(1, self.n_iterations + 1):
             self.step()
+            if (self.densify and iteration < self.n_iterations
+                    and iteration % self.densify_every == 0):
+                self._densify(iteration)
 
         final = self.history[-1] if self.history else {}
         print("\n=== BO run complete ===")
@@ -359,6 +506,17 @@ if __name__ == "__main__":
     parser.add_argument("--n-iterations", type=int, default=10)
     parser.add_argument("--mogp-iters", type=int, default=200)
     parser.add_argument("--output-dir", default="results")
+    parser.add_argument(
+        "--densify", action="store_true",
+        help="Grow candidates by enumerating analogs of the Pareto front each "
+             "iteration (off by default; the base benchmark is unchanged).",
+    )
+    parser.add_argument("--densify-every", type=int, default=1,
+                        help="Densify every N iterations (default 1).")
+    parser.add_argument("--densify-per-parent", type=int, default=20,
+                        help="Target analogs generated per front molecule.")
+    parser.add_argument("--densify-max-pool", type=int, default=None,
+                        help="Cap the total library size after densification.")
     args = parser.parse_args()
 
     start = time.time()
@@ -369,6 +527,10 @@ if __name__ == "__main__":
         batch_size=args.batch_size,
         n_iterations=args.n_iterations,
         mogp_train_iters=args.mogp_iters,
+        densify=args.densify,
+        densify_every=args.densify_every,
+        densify_per_parent=args.densify_per_parent,
+        densify_max_pool=args.densify_max_pool,
     )
     loop.run()
 

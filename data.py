@@ -26,6 +26,7 @@ Run as a script to (re)build and sanity-check the library:
 
 import os
 import argparse
+from collections import namedtuple
 
 import numpy as np
 import pandas as pd
@@ -41,6 +42,27 @@ from admet_oracle import ADMETOracle
 # Order of the ADMET columns in the cached score matrix. Kept as a module-level
 # constant so build_library and load_library cannot drift out of sync.
 ADMET_COLUMNS = ["Caco2_logPapp", "Half_Life_hours", "hERG_Toxicity_Prob"]
+
+# The flag columns the ADMET oracle emits alongside its predictions; a molecule
+# is dropped from the library if ANY of these is True (see process_smiles).
+ADMET_FLAG_COLUMNS = [
+    "Featurization_Failed",
+    "Caco2_OutOfDomain",
+    "Half_Life_OutOfDomain",
+    "hERG_OutOfDomain",
+]
+
+# Row-aligned survivors of the per-molecule library pipeline (process_smiles).
+# The three arrays/frames are aligned: row i is the same molecule in each.
+#   smiles        list[str]
+#   fingerprints  (M, 2048) int8
+#   admet_df      DataFrame, columns ["SMILES"] + ADMET_COLUMNS (== admet_scores.csv)
+#   n_input/n_druglike/n_featurized/n_final  per-stage counts (for logging)
+ProcessedMolecules = namedtuple(
+    "ProcessedMolecules",
+    ["smiles", "fingerprints", "admet_df",
+     "n_input", "n_druglike", "n_featurized", "n_final"],
+)
 
 # Print an ADMET-scoring progress line every this many molecules.
 ADMET_PROGRESS_EVERY = 1000
@@ -114,12 +136,98 @@ def filter_druglike(smiles_list):
     return passed
 
 
+def process_smiles(smiles_list, oracle=None):
+    """Run the per-molecule library pipeline and return row-aligned survivors.
+
+    This is the SINGLE per-molecule processing path shared by ``build_library``
+    (the base ChEMBL library) and the on-line densification path in ``loop.py``,
+    so a molecule injected mid-run is processed identically to one from the base
+    library — same drug-likeness filter, same Morgan featurization, same ADMET
+    scoring, same applicability-domain / NaN drop. Reusing one function is what
+    guarantees the two can never drift.
+
+    Steps (each drops molecules that fail it):
+        1. Lipinski drug-likeness filter (``filter_druglike``).
+        2. Morgan featurization (``batch_smiles_to_morgan``).
+        3. ADMET scoring via ``ADMETOracle`` (chunked, with progress).
+        4. Applicability-domain / NaN drop: keep only rows that featurized, are
+           in-domain for EVERY ADMET model, and have no missing ADMET value.
+
+    Args:
+        smiles_list: Candidate SMILES strings.
+        oracle: Optional pre-loaded ``ADMETOracle`` (reused across densification
+            iterations so the three models are not re-read from disk each call).
+            A fresh oracle is constructed when ``None``.
+
+    Returns:
+        A ``ProcessedMolecules`` namedtuple whose ``smiles`` (list),
+        ``fingerprints`` ((M, 2048) int8) and ``admet_df`` (columns
+        ``["SMILES"] + ADMET_COLUMNS``) are row-aligned survivors, plus the
+        per-stage counts.
+    """
+    smiles_list = list(smiles_list)
+    n_input = len(smiles_list)
+
+    # --- Drug-likeness filter (cheap) ----------------------------------------
+    filtered = filter_druglike(smiles_list)
+    n_druglike = len(filtered)
+
+    # --- Fingerprints (cheap) ------------------------------------------------
+    # batch_smiles_to_morgan drops anything it cannot featurize and returns the
+    # surviving SMILES in input order, so fingerprints and valid_smiles align.
+    fingerprints, valid_smiles = batch_smiles_to_morgan(filtered)
+    n_featurized = len(valid_smiles)
+    print(f"Featurization: {n_featurized} molecules produced fingerprints.")
+
+    # --- ADMET scoring (the slow part; ~minutes for 10k) ---------------------
+    if oracle is None:
+        oracle = ADMETOracle()
+
+    if n_featurized:
+        print(f"Scoring {n_featurized} molecules through the ADMET oracle...")
+        admet_frames = []
+        for start in range(0, n_featurized, ADMET_PROGRESS_EVERY):
+            chunk = valid_smiles[start:start + ADMET_PROGRESS_EVERY]
+            admet_frames.append(oracle.predict(chunk))
+            done = min(start + ADMET_PROGRESS_EVERY, n_featurized)
+            print(f"  ADMET scored {done}/{n_featurized}")
+        admet_df = pd.concat(admet_frames, ignore_index=True)
+    else:
+        # An empty predict() yields a correctly-columned empty frame, so the
+        # domain/NaN masks below are well-defined without a hard-coded schema.
+        admet_df = oracle.predict([])
+
+    # --- Domain / NaN drop ---------------------------------------------------
+    # The mask indexes both admet_df and fingerprints, which are still
+    # row-aligned with valid_smiles at this point.
+    flagged = admet_df[ADMET_FLAG_COLUMNS].to_numpy(dtype=bool).any(axis=1)
+    in_domain = ~flagged
+    no_nan = admet_df[ADMET_COLUMNS].notna().all(axis=1).to_numpy(dtype=bool)
+    keep_mask = in_domain & no_nan
+
+    final_smiles = [s for s, k in zip(valid_smiles, keep_mask) if k]
+    final_fingerprints = fingerprints[keep_mask].astype(np.int8)
+    final_admet = admet_df.loc[keep_mask, ["SMILES"] + ADMET_COLUMNS]
+    final_admet = final_admet.reset_index(drop=True)
+    n_final = len(final_smiles)
+
+    return ProcessedMolecules(
+        smiles=final_smiles,
+        fingerprints=final_fingerprints,
+        admet_df=final_admet,
+        n_input=n_input,
+        n_druglike=n_druglike,
+        n_featurized=n_featurized,
+        n_final=n_final,
+    )
+
+
 def build_library(n_molecules=10000, output_dir="data/library"):
     """Build the molecule library and cache it to ``output_dir``.
 
-    Pulls molecules, filters for drug-likeness, computes Morgan fingerprints,
-    scores them with the ADMET oracle, drops out-of-domain / NaN rows, and
-    writes three row-aligned files:
+    Pulls molecules, then runs the shared ``process_smiles`` pipeline (drug-
+    likeness filter, Morgan fingerprints, ADMET scoring, out-of-domain / NaN
+    drop) and writes three row-aligned files:
 
         smiles.csv         one column "SMILES", one row per molecule
         fingerprints.npy   np.ndarray shape (N, 2048) int8
@@ -136,86 +244,32 @@ def build_library(n_molecules=10000, output_dir="data/library"):
     """
     os.makedirs(output_dir, exist_ok=True)
 
-    # --- Pull + drug-likeness filter (cheap) ---------------------------------
+    # --- Pull (cheap) --------------------------------------------------------
     pulled = pull_molecules(n_molecules)
     n_pulled = len(pulled)
 
-    filtered = filter_druglike(pulled)
-    n_filtered = len(filtered)
-
-    # --- Fingerprints (cheap) ------------------------------------------------
-    # batch_smiles_to_morgan drops anything it cannot featurize and returns the
-    # surviving SMILES in input order, so fingerprints and valid_smiles align.
-    fingerprints, valid_smiles = batch_smiles_to_morgan(filtered)
-    n_featurized = len(valid_smiles)
-    print(f"Featurization: {n_featurized} molecules produced fingerprints.")
-
-    # --- ADMET scoring (the slow part; ~minutes for 10k) ---------------------
-    oracle = ADMETOracle()
-    admet_frames = []
-    print(f"Scoring {n_featurized} molecules through the ADMET oracle...")
-    for start in range(0, n_featurized, ADMET_PROGRESS_EVERY):
-        chunk = valid_smiles[start:start + ADMET_PROGRESS_EVERY]
-        admet_frames.append(oracle.predict(chunk))
-        done = min(start + ADMET_PROGRESS_EVERY, n_featurized)
-        print(f"  ADMET scored {done}/{n_featurized}")
-
-    if admet_frames:
-        admet_df = pd.concat(admet_frames, ignore_index=True)
-    else:
-        admet_df = pd.DataFrame(
-            columns=(
-                ["SMILES"]
-                + ADMET_COLUMNS
-                + [
-                    "Featurization_Failed",
-                    "Caco2_OutOfDomain",
-                    "Half_Life_OutOfDomain",
-                    "hERG_OutOfDomain",
-                ]
-            )
-        )
-
-    # --- Domain / NaN drop ---------------------------------------------------
-    # Keep only molecules that featurized, are in-domain for every ADMET model,
-    # and have no missing ADMET value. The mask indexes both admet_df and
-    # fingerprints, which are still row-aligned with valid_smiles at this point.
-    flag_columns = [
-        "Featurization_Failed",
-        "Caco2_OutOfDomain",
-        "Half_Life_OutOfDomain",
-        "hERG_OutOfDomain",
-    ]
-    flagged = admet_df[flag_columns].to_numpy(dtype=bool).any(axis=1)
-    in_domain = ~flagged
-    no_nan = admet_df[ADMET_COLUMNS].notna().all(axis=1).to_numpy(dtype=bool)
-    keep_mask = in_domain & no_nan
-
-    final_smiles = [s for s, k in zip(valid_smiles, keep_mask) if k]
-    final_fingerprints = fingerprints[keep_mask]
-    final_admet = admet_df.loc[keep_mask, ["SMILES"] + ADMET_COLUMNS]
-    final_admet = final_admet.reset_index(drop=True)
-    n_final = len(final_smiles)
+    # --- Shared per-molecule pipeline (filter -> featurize -> ADMET -> drop) --
+    processed = process_smiles(pulled)
 
     # --- Persist (all three files row-aligned) -------------------------------
-    pd.DataFrame({"SMILES": final_smiles}).to_csv(
+    pd.DataFrame({"SMILES": processed.smiles}).to_csv(
         os.path.join(output_dir, "smiles.csv"), index=False
     )
     np.save(
         os.path.join(output_dir, "fingerprints.npy"),
-        final_fingerprints.astype(np.int8),
+        processed.fingerprints.astype(np.int8),
     )
-    final_admet.to_csv(
+    processed.admet_df.to_csv(
         os.path.join(output_dir, "admet_scores.csv"), index=False
     )
 
     # --- Summary -------------------------------------------------------------
     print("\n=== Library build summary ===")
     print(f"  Total pulled:              {n_pulled}")
-    print(f"  Passed drug-likeness:      {n_filtered}")
-    print(f"  Passed featurization:      {n_featurized}")
-    print(f"  Passed ADMET domain check: {n_final}")
-    print(f"  Final library size:        {n_final}")
+    print(f"  Passed drug-likeness:      {processed.n_druglike}")
+    print(f"  Passed featurization:      {processed.n_featurized}")
+    print(f"  Passed ADMET domain check: {processed.n_final}")
+    print(f"  Final library size:        {processed.n_final}")
     print(f"  Saved to:                  {output_dir}")
     return output_dir
 

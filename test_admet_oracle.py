@@ -18,18 +18,25 @@ import pandas as pd
 import pytest
 
 # The real featurizer (utils/featurize.py) is owned by our partner and may not
-# be importable in CI. Inject a stub module BEFORE importing admet_oracle so
-# its top-level `from utils.featurize import batch_smiles_to_morgan` resolves.
-# Every test monkeypatches the real behavior onto the admet_oracle namespace.
-if "utils.featurize" not in sys.modules:
-    _utils_pkg = types.ModuleType("utils")
-    _featurize_mod = types.ModuleType("utils.featurize")
-    _featurize_mod.batch_smiles_to_morgan = lambda *a, **k: (_ for _ in ()).throw(
-        RuntimeError("stub batch_smiles_to_morgan should be monkeypatched")
-    )
-    _utils_pkg.featurize = _featurize_mod
-    sys.modules["utils"] = _utils_pkg
-    sys.modules["utils.featurize"] = _featurize_mod
+# be importable in CI. Prefer the REAL module when it is importable; only fall
+# back to a stub when it is not. Unconditionally injecting the stub would clobber
+# `sys.modules["utils.featurize"]` for every other test module collected in the
+# same `pytest` session (they would then see a stub with no `smiles_to_morgan`),
+# so we import the real one first and stub only on failure. Either way, every
+# test monkeypatches the behavior onto the `admet_oracle` namespace it patched
+# `batch_smiles_to_morgan` into, so the choice does not affect these tests.
+try:
+    import utils.featurize  # noqa: F401  (use the real featurizer when available)
+except Exception:
+    if "utils.featurize" not in sys.modules:
+        _utils_pkg = types.ModuleType("utils")
+        _featurize_mod = types.ModuleType("utils.featurize")
+        _featurize_mod.batch_smiles_to_morgan = lambda *a, **k: (_ for _ in ()).throw(
+            RuntimeError("stub batch_smiles_to_morgan should be monkeypatched")
+        )
+        _utils_pkg.featurize = _featurize_mod
+        sys.modules["utils"] = _utils_pkg
+        sys.modules["utils.featurize"] = _featurize_mod
 
 import admet_oracle
 from admet_oracle import ADMETOracle, OUTPUT_COLUMNS, MODEL_SPEC

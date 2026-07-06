@@ -71,11 +71,18 @@ METHODS = [
 def _build_runner(method_key, params, seed):
     """Construct the runner for ``method_key`` at ``seed`` with shared params."""
     if method_key == "mogp":
+        # Only the MOGP loop supports densification (growing candidates around
+        # the Pareto front); the baselines have no acquisition to feed. With
+        # --densify off, this is exactly the base MOGP run.
         return BOLoop(
             library_dir=LIBRARY_DIR, seed=seed,
             n_init=params["n_init"], batch_size=params["batch_size"],
             n_iterations=params["n_iterations"],
             mogp_train_iters=params["mogp_iters"],
+            densify=params.get("densify", False),
+            densify_every=params.get("densify_every", 1),
+            densify_per_parent=params.get("densify_per_parent", 20),
+            densify_max_pool=params.get("densify_max_pool"),
         )
     if method_key == "random":
         return RandomSearchBaseline(
@@ -319,6 +326,16 @@ def main():
                         help="Disable the persistent docking cache for this run.")
     parser.add_argument("--clear-cache", action="store_true",
                         help="Wipe the docking cache before running (retry failures).")
+    parser.add_argument(
+        "--densify", action="store_true",
+        help="Enable Pareto-front analog densification in the MOGP loop (the "
+             "baselines are unaffected). Lets you quantify the hypervolume gain "
+             "from densification with error bars across seeds.",
+    )
+    parser.add_argument("--densify-per-parent", type=int, default=20,
+                        help="Target analogs generated per front molecule.")
+    parser.add_argument("--densify-max-pool", type=int, default=None,
+                        help="Cap the total MOGP library size after densification.")
     args = parser.parse_args()
 
     if args.clear_cache:
@@ -334,6 +351,9 @@ def main():
         "n_iterations": args.n_iterations,
         "mogp_iters": args.mogp_iters,
         "n_total": args.n_init + args.n_iterations * args.batch_size,
+        "densify": args.densify,
+        "densify_per_parent": args.densify_per_parent,
+        "densify_max_pool": args.densify_max_pool,
     }
 
     print("=" * 64)
@@ -342,6 +362,9 @@ def main():
     print(f"Seeds:        {args.seeds}")
     print(f"Per method:   {params['n_total']} molecules "
           f"(= {args.n_init} init + {args.n_iterations} x {args.batch_size})")
+    print(f"Densify:      {'ON' if args.densify else 'off'}"
+          + (f" (per_parent={args.densify_per_parent}, "
+             f"max_pool={args.densify_max_pool})" if args.densify else ""))
     print(f"Output dir:   {args.output_dir}/")
 
     ensure_library(args.lib_size)

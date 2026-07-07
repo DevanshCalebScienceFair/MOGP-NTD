@@ -83,6 +83,15 @@ DEFAULT_OBJECTIVE_SIGNS = [-1, +1, -1, +1, +1]
 # Number of quasi-Monte-Carlo posterior samples qNEHVI draws for its estimate.
 N_MC_SAMPLES = 128
 
+# How many candidates to score per qNEHVI forward call. qNEHVI materializes a
+# (n_mc_samples, M, num_boxes, m) tensor, so scoring the whole un-evaluated
+# library (M in the thousands) at once blows past RAM within a few iterations —
+# num_boxes (the m-D box decomposition of the baseline front) also grows with the
+# evaluated set. Each candidate is an INDEPENDENT q=1 t-batch, so we score them in
+# fixed-size chunks and concatenate: identical per-candidate result, bounded peak
+# memory. Docking dominates wall-clock, so the extra Python-level calls are free.
+CANDIDATE_CHUNK = 128
+
 # BoTorch multi-objective utilities work in double precision.
 _DTYPE = torch.double
 
@@ -393,7 +402,8 @@ def compute_qnehvi(model, likelihood, y_mean, y_std,
                    X_candidates, candidate_admet,
                    X_baseline, baseline_admet,
                    objective_signs=None, bounds=None,
-                   ref_point=None, n_mc_samples=N_MC_SAMPLES, layout=None):
+                   ref_point=None, n_mc_samples=N_MC_SAMPLES, layout=None,
+                   candidate_chunk=CANDIDATE_CHUNK):
     """Noisy Expected Hypervolume Improvement (qNEHVI) per candidate.
 
     Builds a 2-output docking posterior and a composite objective that folds each
@@ -480,9 +490,22 @@ def compute_qnehvi(model, likelihood, y_mean, y_std,
     )
 
     # Score each candidate independently as its own q=1 t-batch -> shape (M,).
+    # Chunk the candidate (t-batch) dimension so qNEHVI's internal
+    # (n_mc_samples, M, num_boxes, m) tensor never materializes for the whole
+    # library at once (scoring the full pool OOM-kills the process within a few
+    # iterations). Each candidate is scored independently, so this is a valid
+    # per-candidate qNEHVI estimate with bounded peak memory; it is deterministic
+    # and reproducible for a fixed chunk size, though not bit-identical to a
+    # single-shot call, since the quasi-MC Sobol draws depend on t-batch size.
+    Xc_q = Xc_aug.unsqueeze(1)
+    chunk = max(1, int(candidate_chunk))
+    chunk_scores = []
     with torch.no_grad():
-        scores = acqf(Xc_aug.unsqueeze(1))
-    return np.asarray(scores.detach().cpu().numpy(), dtype=float)
+        for start in range(0, Xc_q.shape[0], chunk):
+            batch_scores = acqf(Xc_q[start:start + chunk])
+            chunk_scores.append(batch_scores.detach().cpu())
+    scores = torch.cat(chunk_scores, dim=0)
+    return np.asarray(scores.numpy(), dtype=float)
 
 
 def select_batch(model, likelihood, y_mean, y_std,

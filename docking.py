@@ -475,6 +475,53 @@ def dock_target(smiles, target=DEFAULT_TARGET, n_poses=9,
                 os.remove(path)
 
 
+def raw_to_ligand_efficiency(raw_score, smiles):
+    """Convert a raw docking affinity (kcal/mol) to ligand efficiency (per atom).
+
+    ``LE = raw_score / heavy_atom_count``, where the heavy-atom count is
+    ``Chem.MolFromSmiles(smiles).GetNumHeavyAtoms()`` — the SAME definition
+    ``validate_docking.py`` uses, so LE numbers are directly comparable between
+    the diagnostic and the optimizer.
+
+    WHY size-correct: AutoDock Vina sums per-atom interaction terms, so raw
+    scores drift more negative ("better") for bigger, greasier molecules almost
+    regardless of true complementarity. ``validate_docking.py`` measured this
+    confound on a library sample (Pearson r ~ -0.44 vs MW, -0.51 vs logP; re-
+    ranking by LE overlaps only ~7% with the raw top-15; clinical antifolates
+    sit at only the ~38th percentile of raw scores). Dividing by heavy-atom count
+    is the standard size-debiased remedy, so the optimizer chases binding PER
+    ATOM rather than sheer molecular size.
+
+    SIGN IS PRESERVED. Raw docking is lower-is-better (more negative = tighter);
+    the denominator (heavy-atom count) is strictly POSITIVE, so LE stays lower-
+    is-better and every objective sign is unchanged. Dividing by a positive
+    constant preserves the ordering of scores, so both docking objectives keep
+    their existing directions (PfDHFR minimize, hDHFR maximize) via their signs
+    in ``acquisition.DEFAULT_OBJECTIVE_SIGNS`` — nothing here flips a sign.
+
+    Returns ``float('nan')`` when the raw score is missing/NaN or the SMILES will
+    not parse (or has no heavy atoms) — mirroring how a failed dock is already
+    represented as NaN, so an LE failure slots into the objective matrix exactly
+    like a docking failure and is excluded from the front/hypervolume.
+
+    Args:
+        raw_score: The raw docking affinity in kcal/mol (may be ``None``/NaN).
+        smiles: The molecule's SMILES string (for the heavy-atom denominator).
+
+    Returns:
+        The ligand efficiency as a float, or ``float('nan')`` on any failure.
+    """
+    if raw_score is None or not np.isfinite(raw_score):
+        return float("nan")
+    mol = Chem.MolFromSmiles(smiles)
+    if mol is None:
+        return float("nan")
+    heavy_atoms = mol.GetNumHeavyAtoms()
+    if heavy_atoms <= 0:
+        return float("nan")
+    return float(raw_score) / heavy_atoms
+
+
 def batch_dock_target(smiles_list, target=DEFAULT_TARGET, n_jobs=1,
                       seed=DEFAULT_VINA_SEED, use_cache=True):
     """Dock a list of molecules against ONE named target, returning affinities.

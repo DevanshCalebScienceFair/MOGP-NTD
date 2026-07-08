@@ -54,7 +54,7 @@ from acquisition import (
     DEFAULT_OBJECTIVE_SIGNS,
 )
 import evaluation
-from docking import batch_dock_targets, docked_summary
+from docking import batch_dock_targets, docked_summary, raw_to_ligand_efficiency
 
 
 # Objective -> data-source layout (identical to loop.py). All objectives are
@@ -67,7 +67,10 @@ LIBRARY_TASKS, DOCKING_TASKS, DOCKING_TARGETS = resolve_objective_layout(
 # The single objective this baseline optimizes: parasite-binding potency
 # (PfDHFR_Docking). It deliberately ignores selectivity (hDHFR) and ADMET (hERG,
 # Caco2, Half_Life) — the whole point is to show that chasing potency alone
-# yields a worse multi-objective hypervolume.
+# yields a worse multi-objective hypervolume. As in every method, this docking
+# objective is now size-corrected LIGAND EFFICIENCY (the Y column is LE, not raw
+# kcal), so the GP + EI optimize PfDHFR ligand efficiency — still lower-is-better,
+# so the EI/minimization logic is unchanged.
 POTENCY_COLUMN = TASK_NAMES.index("PfDHFR_Docking")
 
 
@@ -294,6 +297,9 @@ class SingleObjectiveBOLoop:
         # --- Tracking state ---
         self.evaluated_indices = []                              # library indices
         self.Y_evaluated = np.empty((0, N_OBJECTIVES), dtype=np.float64)
+        # Raw docking kcal/mol (docking columns only; NaN elsewhere), row-aligned
+        # to Y_evaluated; the optimized docking columns are ligand efficiency.
+        self.raw_docking = np.empty((0, N_OBJECTIVES), dtype=np.float64)
         self.history = []
 
     # ------------------------------------------------------------------ #
@@ -307,12 +313,16 @@ class SingleObjectiveBOLoop:
         (``DOCKING_TARGETS``). Failed docks stay NaN. Identical to
         ``loop.BOLoop._evaluate`` — every objective is recorded so the
         multi-objective Pareto / hypervolume is comparable, even though only the
-        PfDHFR docking column drives selection.
+        PfDHFR docking column drives selection. The docking oracle/cache return
+        RAW kcal/mol, but the OPTIMIZED docking objective is size-corrected LIGAND
+        EFFICIENCY (raw / heavy-atom count, ``docking.raw_to_ligand_efficiency``),
+        applied here downstream of the cache. Raw kcal is retained in ``Y_raw``.
 
         Returns:
-            A tuple ``(Y, docking_by_target)`` where ``Y`` has shape
-            ``(k, N_OBJECTIVES)`` and ``docking_by_target`` maps each target name
-            to its ``(k,)`` docking-score vector.
+            A tuple ``(Y, Y_raw, docking_by_target)`` where ``Y`` has LIGAND
+            EFFICIENCY in the docking columns, ``Y_raw`` has RAW kcal/mol there
+            (NaN elsewhere), and ``docking_by_target`` maps each target name to
+            its ``(k,)`` RAW docking-score vector.
         """
         library_indices = list(library_indices)
         smiles = [self.smiles[i] for i in library_indices]
@@ -321,11 +331,14 @@ class SingleObjectiveBOLoop:
         docking_by_target = batch_dock_targets(smiles, DOCKING_TARGETS)
 
         Y = np.full((len(library_indices), N_OBJECTIVES), np.nan, dtype=np.float64)
+        Y_raw = np.full((len(library_indices), N_OBJECTIVES), np.nan, dtype=np.float64)
         for j, col in LIBRARY_TASKS:
             Y[:, j] = admet_rows[:, col]
         for j, target in DOCKING_TASKS:
-            Y[:, j] = docking_by_target[target]
-        return Y, docking_by_target
+            raw = docking_by_target[target]
+            Y_raw[:, j] = raw
+            Y[:, j] = [raw_to_ligand_efficiency(r, s) for r, s in zip(raw, smiles)]
+        return Y, Y_raw, docking_by_target
 
     # ------------------------------------------------------------------ #
     # Pareto / hypervolume helpers (shared math with loop.BOLoop)
@@ -374,10 +387,11 @@ class SingleObjectiveBOLoop:
         init_indices = [int(i) for i in init_indices]
 
         print(f"Initializing with {self.n_init} random molecules...")
-        Y, docking = self._evaluate(init_indices)
+        Y, Y_raw, docking = self._evaluate(init_indices)
 
         self.evaluated_indices = list(init_indices)
         self.Y_evaluated = Y
+        self.raw_docking = Y_raw
 
         print(f"Initialized {self.n_init} molecules; "
               f"docked {docked_summary(docking, self.n_init)}.")
@@ -442,11 +456,12 @@ class SingleObjectiveBOLoop:
             "select_batch_ei returned an already-evaluated molecule"
 
         # --- Dock the selected batch (against every target) ---
-        Y_new, docking_new = self._evaluate(list(selected_library_indices))
+        Y_new, Y_raw_new, docking_new = self._evaluate(list(selected_library_indices))
         batch_docked = docked_summary(docking_new, len(selected_library_indices))
 
         self.evaluated_indices.extend(int(i) for i in selected_library_indices)
         self.Y_evaluated = np.vstack([self.Y_evaluated, Y_new])
+        self.raw_docking = np.vstack([self.raw_docking, Y_raw_new])
 
         # --- Track Pareto front + hypervolume (across ALL 5 objectives) ---
         pareto_size = int(self._pareto_mask().sum())
@@ -496,6 +511,7 @@ class SingleObjectiveBOLoop:
             "indices": indices,
             "smiles": smiles,
             "objectives": objectives,
+            "raw_docking": self.raw_docking[rows],   # raw kcal/mol (docking cols)
             "task_names": TASK_NAMES,
         }
 
@@ -516,23 +532,28 @@ class SingleObjectiveBOLoop:
         history_path = os.path.join(output_dir, "history.csv")
         history_df.to_csv(history_path, index=False)
 
-        # evaluated.csv — every evaluated molecule with all 5 objectives + the
-        # reported-only Selectivity Index (hDHFR - PfDHFR).
+        # evaluated.csv — every evaluated molecule with all 5 objectives (docking
+        # columns are ligand efficiency), the RAW docking kcal as ``*_kcal``
+        # columns, plus the reported-only Selectivity Index (hDHFR - PfDHFR).
         evaluated_df = pd.DataFrame(
             {"SMILES": [self.smiles[i] for i in self.evaluated_indices]}
         )
         for j, name in enumerate(TASK_NAMES):
             evaluated_df[name] = self.Y_evaluated[:, j]
+        for j, _target in DOCKING_TASKS:
+            evaluated_df[f"{TASK_NAMES[j]}_kcal"] = self.raw_docking[:, j]
         evaluation.add_selectivity_index(evaluated_df)
         evaluated_path = os.path.join(output_dir, "evaluated.csv")
         evaluated_df.to_csv(evaluated_path, index=False)
 
-        # pareto_front.csv — only the Pareto-optimal molecules, with the
-        # Selectivity Index (hDHFR - PfDHFR).
+        # pareto_front.csv — only the Pareto-optimal molecules, with the raw
+        # docking kcal (``*_kcal``) and the Selectivity Index (hDHFR - PfDHFR).
         pareto = self.get_pareto_front()
         pareto_df = pd.DataFrame({"SMILES": pareto["smiles"]})
         for j, name in enumerate(TASK_NAMES):
             pareto_df[name] = pareto["objectives"][:, j]
+        for j, _target in DOCKING_TASKS:
+            pareto_df[f"{TASK_NAMES[j]}_kcal"] = pareto["raw_docking"][:, j]
         evaluation.add_selectivity_index(pareto_df)
         pareto_path = os.path.join(output_dir, "pareto_front.csv")
         pareto_df.to_csv(pareto_path, index=False)

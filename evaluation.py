@@ -25,9 +25,16 @@ FIXED, shared frame that never depends on evaluated data.
        docking objectives get a fixed configurable range (the library is not
        docked up front). Which objective is which comes from
        ``mogp.OBJECTIVE_SOURCES`` — nothing is hard-coded to a column position.
+
+       NOTE: the two docking objectives are now SIZE-CORRECTED LIGAND EFFICIENCY
+       (raw Vina kcal/mol divided by heavy-atom count, see
+       ``docking.raw_to_ligand_efficiency``), NOT raw kcal/mol. Raw Vina scores
+       are confounded by molecular size/lipophilicity; ``validate_docking.py``
+       flagged that confound, so the optimized objective is LE. Their fixed
+       normalization range is therefore an LE range (per atom), not a kcal range.
     2. ``normalize`` maps every objective into [0, 1] in a pure MAXIMIZATION
        frame using those bounds, flipping lower-is-better objectives so 1.0 is
-       always best. Both docking objectives share the same fixed range, and
+       always best. Both docking objectives share the same fixed LE range, and
        their opposite preferred directions (PfDHFR strong / hDHFR weak) are
        handled purely by their signs.
     3. ``FIXED_REFERENCE_POINT`` is the all-zeros corner of that normalized cube
@@ -41,7 +48,8 @@ Objective order everywhere is ``mogp.TASK_NAMES``:
      Half_Life_hours]
 with directions [lower, higher, lower, higher, higher] better.
 ``add_selectivity_index`` adds a REPORTED-only Selectivity Index
-(hDHFR - PfDHFR) that is not a GP objective.
+(hDHFR - PfDHFR, now on the LE columns -> per-atom selectivity) that is not a
+GP objective.
 """
 
 import os
@@ -64,18 +72,30 @@ from acquisition import (
 N_OBJECTIVES = len(TASK_NAMES)
 OBJECTIVE_SIGNS = list(DEFAULT_OBJECTIVE_SIGNS)
 
-# Fixed docking range (kcal/mol), shared by EVERY docking objective (PfDHFR and
-# hDHFR). Docking is NOT computed over the whole library up front, so its
-# normalization bounds cannot come from data — they are fixed and configurable.
-# The span comfortably brackets realistic AutoDock Vina scores. The two docking
-# objectives use the SAME range; their opposite preferred directions (PfDHFR
-# strong = minimize, hDHFR weak = maximize) are handled by their signs in
-# ``normalize``, not by different bounds.
-DOCKING_MIN = -14.0
-DOCKING_MAX = -4.0
+# Fixed LIGAND-EFFICIENCY range (kcal/mol PER HEAVY ATOM), shared by EVERY
+# docking objective (PfDHFR and hDHFR). The docking objectives are now
+# size-corrected ligand efficiency (raw Vina score / heavy-atom count, see
+# ``docking.raw_to_ligand_efficiency``), NOT raw kcal/mol, so these are LE
+# bounds. Ligand efficiency is NOT computed over the whole library up front (it
+# needs a dock), so — exactly like the old raw-docking range — its normalization
+# bounds cannot come from data and are fixed and configurable.
+#
+# The span is set from the LE distribution ``validate_docking.py`` observed on
+# its ~200-dock sample (best/most-negative LE ~ -0.53, worst ~ -0.19, mean
+# ~ -0.36), widened with margin so realistic and even stronger-than-observed
+# binders stay inside the cube (``normalize`` clips anything outside to [0, 1]).
+# The two docking objectives use the SAME range; their opposite preferred
+# directions (PfDHFR strong = minimize, hDHFR weak = maximize) are handled by
+# their signs in ``normalize``, not by different bounds. Lower (more negative) LE
+# = stronger binding per atom = better, so DOCKING_LE_MIN is the best corner.
+DOCKING_LE_MIN = -0.65
+DOCKING_LE_MAX = -0.10
 
 # Column name of the reported-only Selectivity Index (see add_selectivity_index).
+# The primary Selectivity_Index is now computed on the LE columns (per-atom
+# selectivity); a raw-kcal counterpart is emitted when the *_kcal columns exist.
 SELECTIVITY_COLUMN = "Selectivity_Index"
+SELECTIVITY_KCAL_COLUMN = "Selectivity_Index_kcal"
 
 # Where the shared bounds are persisted so every method/run reads identical
 # numbers. Lives next to this module.
@@ -88,22 +108,24 @@ BOUNDS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
 # ---------------------------------------------------------------------- #
 def compute_objective_bounds(library_dir="data/library",
                              bounds_path=BOUNDS_PATH,
-                             docking_min=DOCKING_MIN, docking_max=DOCKING_MAX,
+                             docking_min=DOCKING_LE_MIN, docking_max=DOCKING_LE_MAX,
                              force=False):
     """Return per-objective ``(min, max)`` bounds used for normalization.
 
     The three library/ADMET bounds (hERG, Caco2, Half_Life) are the min/max of
     each column over the ENTIRE cached library (``data.load_library``); the two
-    docking objectives (PfDHFR, hDHFR) share the fixed configurable range
-    ``(docking_min, docking_max)``. Bounds are computed once and persisted
-    to ``bounds_path`` so every method and every run normalizes with the exact
-    same numbers. If ``bounds_path`` already exists it is loaded verbatim (unless
-    ``force``), which is what guarantees run-to-run identical hypervolumes.
+    docking objectives (PfDHFR, hDHFR) share the fixed configurable LIGAND-
+    EFFICIENCY range ``(docking_min, docking_max)`` (kcal/mol per heavy atom, not
+    raw kcal). Bounds are computed once and persisted to ``bounds_path`` so every
+    method and every run normalizes with the exact same numbers. If
+    ``bounds_path`` already exists it is loaded verbatim (unless ``force``), which
+    is what guarantees run-to-run identical hypervolumes.
 
     Args:
         library_dir: Cached library directory (for the ADMET bounds).
         bounds_path: JSON file to read/write the persisted bounds.
-        docking_min, docking_max: Fixed docking range in kcal/mol.
+        docking_min, docking_max: Fixed docking ligand-efficiency range
+            (kcal/mol per heavy atom).
         force: Recompute and overwrite ``bounds_path`` even if it exists.
 
     Returns:
@@ -127,8 +149,8 @@ def compute_objective_bounds(library_dir="data/library",
         bounds[j, 0] = float(admet[:, col].min())
         bounds[j, 1] = float(admet[:, col].max())
     for j, _target in docking_tasks:
-        # Every docking objective shares the same fixed range; direction is a
-        # matter of sign, not of bounds.
+        # Every docking objective shares the same fixed ligand-efficiency range
+        # (per atom); direction is a matter of sign, not of bounds.
         bounds[j, 0] = float(docking_min)
         bounds[j, 1] = float(docking_max)
 
@@ -174,9 +196,11 @@ def normalize(Y, objective_indices=None, bounds=None, signs=None):
     """Map objective columns into [0, 1], pure maximization, 1.0 = best.
 
     Each column is scaled by its ``(min, max)`` bound; lower-is-better columns
-    (hERG, docking) are flipped so the best value maps to 1.0 and the worst to
-    0.0. Results are clipped to [0, 1], so values outside the fixed bounds
-    saturate rather than escaping the cube.
+    (hERG, and PfDHFR docking ligand efficiency) are flipped so the best value
+    maps to 1.0 and the worst to 0.0. The docking columns are ligand efficiency
+    (per atom), so their bounds are the fixed LE range. Results are clipped to
+    [0, 1], so values outside the fixed bounds saturate rather than escaping the
+    cube.
 
     Args:
         Y: Objective matrix of shape ``(N, k)`` in ORIGINAL units. ``k`` may be
@@ -304,18 +328,31 @@ def compute_hypervolume(Y_evaluated, bounds=None):
 def add_selectivity_index(df):
     """Add a REPORTED-only Selectivity Index column to a results DataFrame.
 
-    ``Selectivity_Index = hDHFR_Docking - PfDHFR_Docking`` (kcal/mol). Higher is
-    more parasite-selective: it grows when human binding is weak (less negative
-    hDHFR) and parasite binding is strong (more negative PfDHFR). This is a
-    derived, human-facing metric only — it is NOT modeled by any GP and NEVER
-    enters selection or hypervolume; it is computed straight from the two docked
-    values for the Pareto output and the dashboard.
+    ``Selectivity_Index = hDHFR_Docking - PfDHFR_Docking``. Because the two
+    docking columns are now size-corrected LIGAND EFFICIENCY (kcal/mol per heavy
+    atom), this is a PER-ATOM selectivity — the difference in binding-per-atom
+    between the human and parasite enzymes. Higher is more parasite-selective: it
+    grows when human binding is weak (less negative hDHFR LE) and parasite
+    binding is strong (more negative PfDHFR LE). This is a derived, human-facing
+    metric only — it is NOT modeled by any GP and NEVER enters selection or
+    hypervolume; it is computed straight from the two docked values for the
+    Pareto output and the dashboard.
 
-    The column is added only when both docking columns are present (e.g. once
-    both targets are docked). The DataFrame is mutated in place and returned.
+    When the raw-kcal docking columns (``*_kcal``, retained for reporting) are
+    also present, a raw-kcal Selectivity Index (``Selectivity_Index_kcal``) is
+    emitted alongside — also reported-only — so the traditional whole-molecule
+    kcal selectivity is not lost.
+
+    The columns are added only when the corresponding docking columns are present
+    (e.g. once both targets are docked). The DataFrame is mutated in place and
+    returned.
     """
     if "hDHFR_Docking" in df.columns and "PfDHFR_Docking" in df.columns:
         df[SELECTIVITY_COLUMN] = df["hDHFR_Docking"] - df["PfDHFR_Docking"]
+    if "hDHFR_Docking_kcal" in df.columns and "PfDHFR_Docking_kcal" in df.columns:
+        df[SELECTIVITY_KCAL_COLUMN] = (
+            df["hDHFR_Docking_kcal"] - df["PfDHFR_Docking_kcal"]
+        )
     return df
 
 
@@ -329,12 +366,28 @@ if __name__ == "__main__":
         print(f"  {name:<22} [{lo:.4f}, {hi:.4f}]")
     print(f"\nFixed reference point (normalized): {FIXED_REFERENCE_POINT}")
 
+    # Sign / LE-normalization check: a strong binder (very negative LE) must
+    # normalize near 1.0 on a lower-is-better docking objective (PfDHFR, sign -1),
+    # and a weak binder (least negative LE) near 0.0. This confirms LE preserves
+    # the raw "more negative = better" direction after the size correction.
+    pf = TASK_NAMES.index("PfDHFR_Docking")
+    strong_le = DOCKING_LE_MIN            # most negative LE = strongest per-atom binder
+    weak_le = DOCKING_LE_MAX              # least negative LE = weakest binder
+    n_strong = float(normalize(np.array([[strong_le]]), objective_indices=[pf])[0, 0])
+    n_weak = float(normalize(np.array([[weak_le]]), objective_indices=[pf])[0, 0])
+    print(f"\nLE sign check (PfDHFR, minimize): strong LE {strong_le:+.3f} -> "
+          f"{n_strong:.3f} (want ~1.0), weak LE {weak_le:+.3f} -> {n_weak:.3f} "
+          "(want ~0.0)")
+    assert n_strong > 0.99, "a strong binder (very negative LE) must normalize near 1.0"
+    assert n_weak < 0.01, "a weak binder (least negative LE) must normalize near 0.0"
+
     rng = np.random.RandomState(0)
     from mogp import OBJECTIVE_SOURCES
     cols = []
     for name in TASK_NAMES:
         if OBJECTIVE_SOURCES[name][0] == "dock":
-            cols.append(rng.uniform(-12, -5, size=8))   # docking (kcal/mol)
+            # Ligand efficiency (kcal/mol per heavy atom), the docking objective.
+            cols.append(rng.uniform(DOCKING_LE_MIN, DOCKING_LE_MAX, size=8))
         else:
             cols.append(rng.uniform(0, 1, size=8))      # e.g. hERG probability
     Y = np.column_stack(cols)

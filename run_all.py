@@ -40,6 +40,7 @@ from loop import BOLoop, DEFAULT_MODEL
 from baseline_random import RandomSearchBaseline
 from baseline_single_obj import SingleObjectiveBOLoop
 from baseline_greedy import GreedyFilterThenDock
+from docking import clear_cache
 
 
 # The four runs: (display name, results directory, terminal-friendly key).
@@ -308,6 +309,18 @@ def main():
     rank = ask("Coregionalization rank", 1, int)
     seed = ask("Seed", 42, int)
 
+    # Fair wall-clock: the docking cache is keyed by (SMILES, target) and shared,
+    # so whichever method runs first pays the real docking cost while later methods
+    # get cache hits — making the time column reflect run order, not the method.
+    # Clearing the cache before EACH method makes all four pay full cold docking,
+    # so their wall-clocks are directly comparable (results are identical either
+    # way — a cached dock returns the same deterministic score). Off by default so
+    # normal runs stay fast and keep the accumulated cache.
+    fair_timing = ask_yes_no(
+        "Clear docking cache before each method (fair, comparable wall-clock; "
+        "much slower)?", default=False,
+    )
+
     per_method = n_init + n_iterations * batch_size
     params = {
         "n_init": n_init,
@@ -351,6 +364,10 @@ def main():
         print("\n" + "=" * 64)
         print(f"Method {i}/4: {name}")
         print("=" * 64)
+        # Give every method the SAME (cold) cache state so the timing is fair.
+        if fair_timing:
+            clear_cache()
+            print("Cleared docking cache (fair timing: this method docks cold).")
         method_start = time.time()
         try:
             runner(params)

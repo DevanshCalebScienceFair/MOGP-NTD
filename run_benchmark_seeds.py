@@ -23,8 +23,14 @@ three CSVs). We then aggregate, across seeds, two curves per method:
     * Pareto-front size vs molecules evaluated
 
 reporting the mean and ±1 std across seeds, and save a single figure (two curve
-panels with shaded std bands + a final-hypervolume table) plus a CSV of the
-aggregated numbers.
+panels showing each method's mean line, its individual per-seed traces, and a
+shaded band + a final-hypervolume table) plus a CSV of the aggregated numbers.
+The ``--band`` flag selects the band type (``std`` / ``sem`` / ``ci95``).
+
+Because every method runs on the SAME seeds, the final hypervolumes are PAIRED
+across methods, so we also run a paired significance test (Wilcoxon signed-rank,
+primary; paired t-test, secondary) of MOGP vs each baseline, printing a
+significance table and saving it to ``benchmark_seeds_significance.csv``.
 
 Hypervolume is NEVER recomputed here: each run already records it through
 ``evaluation.compute_hypervolume`` (the single source of truth) into its
@@ -45,6 +51,7 @@ import argparse
 
 import numpy as np
 import pandas as pd
+from scipy import stats
 
 from loop import BOLoop
 from baseline_random import RandomSearchBaseline
@@ -149,8 +156,8 @@ def _load_history(output_dir, method_key, seed):
     return df if len(df) else None
 
 
-def aggregate_method(output_dir, method_key, seeds, ycol):
-    """Mean/std of ``ycol`` vs molecules evaluated across seeds for one method.
+def method_curves(output_dir, method_key, seeds, ycol):
+    """Per-seed curves of ``ycol`` vs molecules evaluated for one method.
 
     Runs are aligned by iteration index (position in history) and truncated to
     the shortest seed's length, so a method that stops early on some seed still
@@ -158,34 +165,71 @@ def aggregate_method(output_dir, method_key, seeds, ycol):
     ``n_evaluated`` (identical across seeds for the fixed-budget methods).
 
     Returns:
-        ``(x, mean, std, n_seeds)`` numpy arrays (empty if no seed produced a
-        history), where ``n_seeds`` is how many seeds contributed.
+        ``(x, y_stack, n_seeds)`` where ``x`` is a length-``min_len`` array and
+        ``y_stack`` is a ``(n_seeds, min_len)`` array of per-seed traces (both
+        empty if no seed produced a history).
     """
     histories = [
         h for h in (_load_history(output_dir, method_key, s) for s in seeds)
         if h is not None
     ]
     if not histories:
-        return np.array([]), np.array([]), np.array([]), 0
+        return np.array([]), np.empty((0, 0)), 0
 
     min_len = min(len(h) for h in histories)
     x_stack = np.stack([h["n_evaluated"].to_numpy()[:min_len] for h in histories])
     y_stack = np.stack([h[ycol].to_numpy()[:min_len] for h in histories])
+    return x_stack.mean(axis=0), y_stack, len(histories)
 
-    x = x_stack.mean(axis=0)
-    mean = y_stack.mean(axis=0)
-    # ddof=0 so a single seed yields std 0 (rather than NaN).
-    std = y_stack.std(axis=0, ddof=0)
-    return x, mean, std, len(histories)
+
+def band_halfwidth(y_stack, band):
+    """Half-width of the shaded band per x point, for the chosen ``band`` type.
+
+    ``std``  — ±1 sample std (ddof=0; a single seed yields 0, not NaN).
+    ``sem``  — ±1 standard error of the mean = std(ddof=1)/sqrt(n).
+    ``ci95`` — 95% CI ≈ mean ± 1.96·sem (normal approximation).
+
+    ``sem``/``ci95`` need ≥2 seeds; with <2 they collapse to 0 (no band).
+    """
+    n = y_stack.shape[0]
+    if band == "std":
+        return y_stack.std(axis=0, ddof=0)
+    if n < 2:
+        return np.zeros(y_stack.shape[1])
+    sem = y_stack.std(axis=0, ddof=1) / np.sqrt(n)
+    return sem if band == "sem" else 1.96 * sem
+
+
+def aggregate_method(output_dir, method_key, seeds, ycol, band="std"):
+    """Mean and band half-width of ``ycol`` vs evaluated across seeds.
+
+    Returns ``(x, mean, half, n_seeds)`` numpy arrays (empty if no seed produced
+    a history); ``half`` is the ``band``-type half-width from
+    :func:`band_halfwidth`. Back-compat: ``band`` defaults to ``"std"``.
+    """
+    x, y_stack, k = method_curves(output_dir, method_key, seeds, ycol)
+    if k == 0:
+        return np.array([]), np.array([]), np.array([]), 0
+    return x, y_stack.mean(axis=0), band_halfwidth(y_stack, band), k
+
+
+def final_hv_by_seed(output_dir, method_key, seeds):
+    """Ordered ``(seed, final_hypervolume)`` pairs for seeds that produced one.
+
+    Preserves ``seeds`` order so callers can pair two methods by seed. Seeds
+    whose run left no history are omitted (not zero-filled).
+    """
+    pairs = []
+    for s in seeds:
+        h = _load_history(output_dir, method_key, s)
+        if h is not None:
+            pairs.append((s, float(h["hypervolume"].iloc[-1])))
+    return pairs
 
 
 def final_hypervolume_stats(output_dir, method_key, seeds):
     """Return ``(mean, std, n_seeds, per_seed_list)`` of final hypervolume."""
-    finals = []
-    for s in seeds:
-        h = _load_history(output_dir, method_key, s)
-        if h is not None:
-            finals.append(float(h["hypervolume"].iloc[-1]))
+    finals = [v for _, v in final_hv_by_seed(output_dir, method_key, seeds)]
     if not finals:
         return float("nan"), float("nan"), 0, []
     arr = np.asarray(finals, dtype=float)
@@ -193,10 +237,162 @@ def final_hypervolume_stats(output_dir, method_key, seeds):
 
 
 # ---------------------------------------------------------------------- #
+# Paired significance tests on final hypervolume
+# ---------------------------------------------------------------------- #
+# Wilcoxon signed-rank has essentially no power below a handful of paired
+# samples (its smallest attainable two-sided p is 2 / 2**n). Warn below this.
+MIN_SEEDS_FOR_POWER = 6
+
+MOGP_KEY = "mogp"
+
+
+def paired_significance(output_dir, seeds):
+    """Paired MOGP-vs-baseline tests on per-seed final hypervolume.
+
+    For each baseline, the MOGP and baseline final-hypervolume vectors are
+    paired by seed (only seeds where BOTH methods produced a history are used,
+    matched in ``seeds`` order). Runs a Wilcoxon signed-rank test (primary) and
+    a paired t-test (secondary) on the paired differences ``mogp - baseline``.
+
+    Returns a list of dicts, one per baseline, with the mean paired difference,
+    both test statistics/p-values, the number of paired seeds, and whether the
+    difference is significant (Wilcoxon p < 0.05). Degenerate cases (too few
+    pairs, all-zero differences) are reported with NaN p-values and a note
+    rather than raising.
+    """
+    mogp_map = dict(final_hv_by_seed(output_dir, MOGP_KEY, seeds))
+    results = []
+    for label, key, _ in METHODS:
+        if key == MOGP_KEY:
+            continue
+        base_map = dict(final_hv_by_seed(output_dir, key, seeds))
+        common = [s for s in seeds if s in mogp_map and s in base_map]
+        mogp_vals = np.asarray([mogp_map[s] for s in common], dtype=float)
+        base_vals = np.asarray([base_map[s] for s in common], dtype=float)
+        diff = mogp_vals - base_vals
+        n = len(common)
+
+        rec = {
+            "comparison": f"MOGP vs {label}",
+            "baseline": label,
+            "n_pairs": n,
+            "mean_diff": float(diff.mean()) if n else float("nan"),
+            "wilcoxon_stat": float("nan"),
+            "wilcoxon_p": float("nan"),
+            "ttest_stat": float("nan"),
+            "ttest_p": float("nan"),
+            "significant": False,
+            "note": "",
+        }
+
+        if n < 2:
+            rec["note"] = "too few paired seeds (<2) to test"
+            results.append(rec)
+            continue
+        if np.allclose(diff, 0.0):
+            rec["note"] = "all paired differences are zero; no test applicable"
+            results.append(rec)
+            continue
+
+        # Wilcoxon signed-rank (primary). Zero differences are dropped by the
+        # default 'wilcox' zero-method, so an effective n below can be < n.
+        try:
+            w_stat, w_p = stats.wilcoxon(mogp_vals, base_vals)
+            rec["wilcoxon_stat"] = float(w_stat)
+            rec["wilcoxon_p"] = float(w_p)
+        except ValueError as exc:
+            rec["note"] = f"Wilcoxon skipped: {exc}"
+
+        # Paired t-test (secondary).
+        t_stat, t_p = stats.ttest_rel(mogp_vals, base_vals)
+        rec["ttest_stat"] = float(t_stat)
+        rec["ttest_p"] = float(t_p)
+
+        rec["significant"] = bool(rec["wilcoxon_p"] < 0.05)
+        if n < MIN_SEEDS_FOR_POWER:
+            rec["note"] = (f"only {n} paired seeds (< {MIN_SEEDS_FOR_POWER}); "
+                           "low power — add more seeds before trusting p")
+        results.append(rec)
+    return results
+
+
+def print_significance_table(output_dir, seeds):
+    """Print the paired MOGP-vs-baseline significance table to stdout.
+
+    Returns the ``paired_significance`` records so callers can also persist them.
+    """
+    recs = paired_significance(output_dir, seeds)
+    bar = "=" * 78
+    print("\n" + bar)
+    print("PAIRED SIGNIFICANCE — final hypervolume, MOGP vs each baseline")
+    print("(paired by seed; Wilcoxon signed-rank primary, paired t-test secondary)")
+    print(bar)
+
+    n_pairs_max = max((r["n_pairs"] for r in recs), default=0)
+    if 0 < n_pairs_max < MIN_SEEDS_FOR_POWER:
+        print(f"WARNING: only {n_pairs_max} paired seed(s) — below the ~"
+              f"{MIN_SEEDS_FOR_POWER} needed for meaningful Wilcoxon power.")
+        print("         Treat p-values as indicative only; add more seeds.\n")
+
+    header = (f"{'Comparison':<22}{'n':>3}{'mean Δhv':>12}"
+              f"{'Wilcoxon p':>13}{'t-test p':>12}")
+    print(header)
+    print("-" * len(header))
+    for r in recs:
+        if r["n_pairs"] < 2 or (np.isnan(r["wilcoxon_p"]) and np.isnan(r["ttest_p"])):
+            print(f"{r['comparison']:<22}{r['n_pairs']:>3}"
+                  f"{r['mean_diff']:>12.4f}{'n/a':>13}{'n/a':>12}")
+        else:
+            wp = "n/a" if np.isnan(r["wilcoxon_p"]) else f"{r['wilcoxon_p']:.4f}"
+            print(f"{r['comparison']:<22}{r['n_pairs']:>3}"
+                  f"{r['mean_diff']:>12.4f}{wp:>13}{r['ttest_p']:>12.4f}")
+    print("-" * len(header))
+
+    # Plain-language verdicts.
+    for r in recs:
+        if r["n_pairs"] < 2 or np.isnan(r["wilcoxon_p"]):
+            print(f"  {r['comparison']}: inconclusive — {r['note']}")
+            continue
+        direction = "higher" if r["mean_diff"] > 0 else "lower"
+        verb = "IS" if r["significant"] else "is NOT"
+        print(f"  {r['comparison']}: MOGP's final hypervolume {verb} significantly "
+              f"{direction} (mean Δ = {r['mean_diff']:+.4f}, "
+              f"Wilcoxon p = {r['wilcoxon_p']:.4f}).")
+        if r["note"]:
+            print(f"      ⚠ {r['note']}")
+    print(bar)
+    return recs
+
+
+def save_significance_csv(recs, output_dir, csv_path=None):
+    """Persist the paired significance records to a sibling CSV."""
+    if csv_path is None:
+        csv_path = os.path.join(output_dir, "benchmark_seeds_significance.csv")
+    cols = ["comparison", "baseline", "n_pairs", "mean_diff",
+            "wilcoxon_stat", "wilcoxon_p", "ttest_stat", "ttest_p",
+            "significant", "note"]
+    df = pd.DataFrame.from_records(recs, columns=cols)
+    df.to_csv(csv_path, index=False)
+    print(f"Saved significance table to {csv_path}")
+    return csv_path
+
+
+# ---------------------------------------------------------------------- #
 # Figure + table
 # ---------------------------------------------------------------------- #
-def save_figure(output_dir, seeds, fig_path=None):
-    """Save the aggregated figure: hv + Pareto curves with ±1 std bands + table.
+BAND_LABELS = {
+    "std": "±1 std",
+    "sem": "±1 s.e.m.",
+    "ci95": "95% CI",
+}
+
+
+def save_figure(output_dir, seeds, fig_path=None, band="std"):
+    """Save the aggregated figure: hv + Pareto curves + final-hypervolume table.
+
+    Each method draws its across-seed mean as a bold marker line, its individual
+    per-seed traces as thin low-alpha lines behind it (so spread is visible, not
+    just summarized), and a shaded ``band``-type band (``std``/``sem``/``ci95``).
 
     Returns the figure path, or None if no method produced any history.
     """
@@ -221,15 +417,21 @@ def save_figure(output_dir, seeds, fig_path=None):
             (ax_hv, "hypervolume", "Hypervolume"),
             (ax_pareto, "pareto_size", "Pareto-front size"),
         ):
-            x, mean, std, k = aggregate_method(output_dir, key, seeds, ycol)
-            if len(x) == 0:
+            x, y_stack, k = method_curves(output_dir, key, seeds, ycol)
+            if k == 0:
                 continue
-            ax.plot(x, mean, color=color, marker="o", label=label)
-            ax.fill_between(x, mean - std, mean + std, color=color, alpha=0.18)
+            # Individual per-seed traces (thin, low-alpha) behind the mean.
+            for row in y_stack:
+                ax.plot(x, row, color=color, alpha=0.22, linewidth=0.8, zorder=1)
+            mean = y_stack.mean(axis=0)
+            half = band_halfwidth(y_stack, band)
+            ax.plot(x, mean, color=color, marker="o", label=label, zorder=3)
+            ax.fill_between(x, mean - half, mean + half, color=color,
+                            alpha=0.18, zorder=2)
             ax.set_ylabel(ylabel)
         # count only once (via hv curve presence)
-        x, _, _, _ = aggregate_method(output_dir, key, seeds, "hypervolume")
-        if len(x):
+        _, _, k_hv = method_curves(output_dir, key, seeds, "hypervolume")
+        if k_hv:
             plotted += 1
 
     if plotted == 0:
@@ -264,7 +466,8 @@ def save_figure(output_dir, seeds, fig_path=None):
                        f"{list(seeds)}", pad=12)
 
     fig.suptitle("MOGP vs baselines — multi-seed benchmark "
-                 "(mean lines, ±1 std bands)", fontsize=14)
+                 f"(mean lines, per-seed traces, {BAND_LABELS[band]} bands)",
+                 fontsize=14)
     fig.savefig(fig_path, dpi=150, bbox_inches="tight")
     plt.close(fig)
     print(f"Saved aggregated figure to {fig_path}")
@@ -322,6 +525,13 @@ def main():
     parser.add_argument("--n-iterations", type=int, default=10)
     parser.add_argument("--mogp-iters", type=int, default=200)
     parser.add_argument("--output-dir", default="benchmark_seeds_results")
+    parser.add_argument(
+        "--band", choices=["std", "sem", "ci95"], default="std",
+        help="Shaded band on the curves: 'std' = ±1 std (default, back-compat), "
+             "'sem' = ±1 standard error, 'ci95' = 95%% CI (mean ± 1.96·sem). "
+             "sem/ci95 are more honest for few seeds (they shrink as seeds are "
+             "added, whereas std does not).",
+    )
     parser.add_argument("--no-cache", action="store_true",
                         help="Disable the persistent docking cache for this run.")
     parser.add_argument("--clear-cache", action="store_true",
@@ -375,8 +585,10 @@ def main():
 
     # --- Aggregate + report ---
     print_final_table(args.output_dir, args.seeds)
+    sig_recs = print_significance_table(args.output_dir, args.seeds)
     save_aggregate_csv(args.output_dir, args.seeds)
-    save_figure(args.output_dir, args.seeds)
+    save_significance_csv(sig_recs, args.output_dir)
+    save_figure(args.output_dir, args.seeds, band=args.band)
 
     print("\nPer-method total time across all seeds:")
     for label, _, _ in METHODS:

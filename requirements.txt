@@ -8,6 +8,9 @@ joblib>=1.3
 pandas>=2.0
 numpy>=1.24
 botorch>=0.10
+# Paired significance tests (Wilcoxon signed-rank + paired t-test) in
+# run_benchmark_seeds.py. Usually already present as a botorch/sklearn dep.
+scipy>=1.10
 pytest>=7.4
 # dashboard.py (results viewer) only:
 streamlit>=1.30

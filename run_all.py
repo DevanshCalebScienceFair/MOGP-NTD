@@ -103,6 +103,20 @@ def fmt_time(seconds):
 # ---------------------------------------------------------------------- #
 # Library preparation
 # ---------------------------------------------------------------------- #
+def default_lib_size(fallback=1000):
+    """Pull size the cached library was last built from, per the build marker.
+
+    Used as the interactive default so that pressing enter reuses whatever
+    library is already on disk (``ensure_library`` compares the marker against
+    the requested size) rather than rebuilding it at a different, smaller size.
+    """
+    try:
+        with open(BUILD_MARKER) as fh:
+            return int(fh.read().strip())
+    except (ValueError, OSError):
+        return fallback
+
+
 def ensure_library(lib_size):
     """Make sure ``data/library`` holds a library built from ``lib_size`` molecules.
 
@@ -300,7 +314,13 @@ def main():
     print("=" * 64)
 
     # --- 1. Collect parameters (enter = default) ---
-    lib_size = ask("Number of molecules in library", 1000, int)
+    # NB: this is the ChEMBL PULL size, not the final library size — only ~60% of
+    # a pull survives the Lipinski filter + ADMET domain check. The default is the
+    # pull size the cached library was actually built from (the build marker), so
+    # pressing enter REUSES that library instead of silently rebuilding a smaller
+    # one over it.
+    lib_size = ask("ChEMBL pull size (final library is ~60% of this)",
+                   default_lib_size(), int)
     n_init = ask("Initial molecules", 5, int)
     batch_size = ask("Batch size", 5, int)
     n_iterations = ask("Number of iterations", 2, int)

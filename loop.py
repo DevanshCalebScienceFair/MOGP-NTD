@@ -31,6 +31,22 @@ Run ``python loop.py --help`` for the command-line options.
 """
 
 import os
+
+# ---------------------------------------------------------------------------
+# Threading / OpenMP guard — MUST run before numpy/torch/botorch are imported.
+# On Apple Silicon a duplicate libomp runtime can crash on import (OMP Error #15)
+# or deadlock inside torch autograd (_C.backward); pinning every math backend to
+# a single thread and tolerating the duplicate runtime avoids both. launch.py
+# sets the same variables (before it imports this module); setdefault means
+# whichever runs first wins and an explicit outer override is always respected,
+# so `python loop.py` is safe standalone without the old `env KMP_...` prefix.
+# ---------------------------------------------------------------------------
+for _thread_var in ("KMP_DUPLICATE_LIB_OK", "OMP_NUM_THREADS", "MKL_NUM_THREADS",
+                    "VECLIB_MAXIMUM_THREADS", "NUMEXPR_NUM_THREADS"):
+    os.environ.setdefault(
+        _thread_var, "TRUE" if _thread_var == "KMP_DUPLICATE_LIB_OK" else "1"
+    )
+
 import time
 import argparse
 import warnings
@@ -87,6 +103,14 @@ DOCKING_SATURATION_MARGIN = 0.02
 # independent model is retained for the ablation (run_ablation.py).
 MODEL_CHOICES = ("coregionalized", "independent")
 DEFAULT_MODEL = "coregionalized"
+
+
+# Locked-in run profiles selected by the --smoke flag (shared with launch.py).
+# --smoke is a fast (~5 min) end-to-end verification; without it the loop runs
+# the full "Grand Campaign" configuration. Explicit --n-init / --batch-size /
+# --n-iterations on the CLI still override whichever profile is active.
+SMOKE_PARAMS = {"n_init": 5, "batch_size": 2, "n_iterations": 2}
+GRAND_CAMPAIGN_PARAMS = {"n_init": 40, "batch_size": 5, "n_iterations": 50}
 
 
 def resolve_train_fn(model, rank=1):
@@ -612,9 +636,18 @@ if __name__ == "__main__":
         description="Run the multi-objective BO loop for PfDHFR drug discovery."
     )
     parser.add_argument("--library-dir", default="data/library")
-    parser.add_argument("--n-init", type=int, default=10)
-    parser.add_argument("--batch-size", type=int, default=20)
-    parser.add_argument("--n-iterations", type=int, default=10)
+    parser.add_argument(
+        "--smoke", action="store_true",
+        help="Fast end-to-end smoke test (n_init=5, batch_size=2, "
+             "n_iterations=2). Without it the loop runs the Grand Campaign "
+             "(n_init=40, batch_size=5, n_iterations=50). Explicit --n-init / "
+             "--batch-size / --n-iterations override whichever profile applies.")
+    # Default None so we can tell "user gave a value" from "use the profile":
+    # --smoke picks SMOKE_PARAMS, otherwise GRAND_CAMPAIGN_PARAMS; an explicit
+    # flag always wins over both (resolved after parse_args below).
+    parser.add_argument("--n-init", type=int, default=None)
+    parser.add_argument("--batch-size", type=int, default=None)
+    parser.add_argument("--n-iterations", type=int, default=None)
     parser.add_argument("--mogp-iters", type=int, default=200)
     parser.add_argument("--model", choices=MODEL_CHOICES, default=DEFAULT_MODEL,
                         help="GP model over the docking objectives: "
@@ -635,15 +668,25 @@ if __name__ == "__main__":
                         help="Cap the total library size after densification.")
     args = parser.parse_args()
 
+    # Resolve the run profile: --smoke -> SMOKE_PARAMS, else the Grand Campaign;
+    # an explicit --n-init / --batch-size / --n-iterations overrides the profile.
+    profile = SMOKE_PARAMS if args.smoke else GRAND_CAMPAIGN_PARAMS
+    n_init = args.n_init if args.n_init is not None else profile["n_init"]
+    batch_size = args.batch_size if args.batch_size is not None else profile["batch_size"]
+    n_iterations = (args.n_iterations if args.n_iterations is not None
+                    else profile["n_iterations"])
+
     start = time.time()
 
-    print(f"Running BO loop with the {args.model!r} GP model"
+    profile_name = "SMOKE" if args.smoke else "GRAND CAMPAIGN"
+    print(f"Running BO loop [{profile_name}] with the {args.model!r} GP model"
           + (f" (rank {args.rank})" if args.model == "coregionalized" else "") + ".")
+    print(f"  n_init={n_init}, batch_size={batch_size}, n_iterations={n_iterations}")
     loop = BOLoop(
         library_dir=args.library_dir,
-        n_init=args.n_init,
-        batch_size=args.batch_size,
-        n_iterations=args.n_iterations,
+        n_init=n_init,
+        batch_size=batch_size,
+        n_iterations=n_iterations,
         mogp_train_iters=args.mogp_iters,
         model=args.model,
         coregionalization_rank=args.rank,

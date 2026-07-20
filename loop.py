@@ -65,6 +65,7 @@ from data import (
 )
 from admet_oracle import ADMETOracle
 from densify import generate_analogs, canonical_smiles
+import quality_filter
 from mogp import train_mogp, predict, TASK_NAMES, resolve_objective_layout
 from mogp_coregionalized import train_mogp_coregionalized
 from acquisition import (
@@ -202,6 +203,23 @@ class BOLoop:
         self.densify_every = densify_every
         self.densify_per_parent = densify_per_parent
         self.densify_max_pool = densify_max_pool
+        # Fail loudly if densification is requested but can never add a molecule.
+        # densify_max_pool caps the TOTAL library size, so a cap already met by
+        # the base library leaves _densify with room == 0 every iteration: it
+        # returns before adding anything and densify becomes a silent no-op (the
+        # only signal is a buried per-iteration print). That makes a --densify run
+        # byte-identical to a plain run — an easy, expensive mistake to miss. Raise
+        # instead, so the invocation is fixed before a whole run is wasted.
+        if self.densify and self.densify_max_pool is not None \
+                and self.densify_max_pool <= self.library_size:
+            raise ValueError(
+                f"--densify-max-pool ({self.densify_max_pool}) is <= the current "
+                f"library size ({self.library_size}), so densification can never "
+                "add a molecule and would be a silent no-op. densify_max_pool caps "
+                "the TOTAL library size after densification, not the number of "
+                "analogs added. Set it ABOVE the library size (e.g. "
+                f"{self.library_size} + N to allow ~N analogs) or omit it for no cap."
+            )
         # A reused ADMET oracle and a canonical-SMILES set of everything already
         # in the library (for novelty dedup), both built lazily only when
         # densification is enabled so the base loop pays nothing for them.
@@ -328,6 +346,30 @@ class BOLoop:
         )
         n_proposed = len(analogs)
 
+        # Apply the SAME PAINS+synthesizability screen the base library passes
+        # through (data._apply_quality_filter -> quality_filter.passes_quality),
+        # BEFORE the expensive ADMET pipeline. This is the load-bearing bit: the
+        # densify ablation showed generated analogs of an anthraquinone-sulfonate
+        # PAINS parent were what boosted the front. Without this gate, analogs
+        # could bypass a filter every library molecule respects.
+        quality_kept = []
+        n_pains_rej = 0
+        n_synth_rej = 0
+        n_parse_rej = 0
+        for smi in analogs:
+            ok, reason = quality_filter.passes_quality(smi)
+            if ok:
+                quality_kept.append(smi)
+                continue
+            if reason == "unparseable":
+                n_parse_rej += 1
+            elif reason and reason.startswith("PAINS"):
+                n_pains_rej += 1
+            else:
+                n_synth_rej += 1
+        n_quality_rej = n_pains_rej + n_synth_rej + n_parse_rej
+        analogs = quality_kept
+
         # Respect the pool cap up front so we never ADMET-score analogs we cannot
         # keep. densify_max_pool bounds the TOTAL library size.
         room = None
@@ -335,14 +377,16 @@ class BOLoop:
             room = max(0, self.densify_max_pool - self.library_size)
             if room == 0:
                 print(f"[Densify iter {iteration}] parents={len(parents)}, "
-                      f"proposed={n_proposed}, passed_filter=0, added=0 "
+                      f"proposed={n_proposed}, quality_rejected={n_quality_rej} "
+                      f"({n_pains_rej} PAINS + {n_synth_rej} synth + "
+                      f"{n_parse_rej} unparseable), passed_filter=0, added=0 "
                       f"(pool cap {self.densify_max_pool} reached), "
                       f"library_size={self.library_size}")
                 return
 
         n_passed = 0
         add_smiles, add_fp, add_admet = [], [], []
-        if n_proposed:
+        if analogs:
             processed = process_smiles(analogs, oracle=self._oracle)
             n_passed = processed.n_final
             surv_admet = processed.admet_df[LIBRARY_ADMET_COLUMNS].to_numpy(
@@ -369,8 +413,11 @@ class BOLoop:
             self.library_size = len(self.smiles)
 
         print(f"[Densify iter {iteration}] parents={len(parents)}, "
-              f"proposed={n_proposed}, passed_filter={n_passed}, "
-              f"added={len(add_smiles)}, library_size={self.library_size}")
+              f"proposed={n_proposed}, quality_rejected={n_quality_rej} "
+              f"({n_pains_rej} PAINS + {n_synth_rej} synth + "
+              f"{n_parse_rej} unparseable), quality_accepted={len(analogs)}, "
+              f"passed_filter={n_passed}, added={len(add_smiles)}, "
+              f"library_size={self.library_size}")
 
     # ------------------------------------------------------------------ #
     # Pareto / hypervolume helpers (on the currently-active objectives)
@@ -665,7 +712,10 @@ if __name__ == "__main__":
     parser.add_argument("--densify-per-parent", type=int, default=20,
                         help="Target analogs generated per front molecule.")
     parser.add_argument("--densify-max-pool", type=int, default=None,
-                        help="Cap the total library size after densification.")
+                        help="Cap the TOTAL library size after densification (not "
+                             "the number of analogs added). Must be ABOVE the "
+                             "current library size or densification is a no-op; "
+                             "omit for no cap.")
     args = parser.parse_args()
 
     # Resolve the run profile: --smoke -> SMOKE_PARAMS, else the Grand Campaign;

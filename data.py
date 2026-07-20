@@ -37,6 +37,7 @@ from tdc.generation import MolGen
 
 from utils.featurize import batch_smiles_to_morgan
 from admet_oracle import ADMETOracle
+import quality_filter
 
 
 # Order of the ADMET columns in the cached score matrix. Kept as a module-level
@@ -394,6 +395,53 @@ def _apply_heavy_atom_floor(smiles, fingerprints, admet_scores, floor):
     return kept_smiles, fingerprints[keep], admet_scores[keep]
 
 
+def _apply_quality_filter(smiles, fingerprints, admet_scores):
+    """Drop molecules matching PAINS or failing the synthesizability screen.
+
+    Applied ONCE in ``load_library``, immediately after the heavy-atom floor and
+    on the same three row-aligned arrays, so the MOGP loop and every baseline
+    see the SAME filtered candidate pool (never per-method). The same
+    ``quality_filter.passes_quality`` gate is also applied to densify-generated
+    analogs (``loop.BOLoop._densify``) so injected molecules cannot bypass a
+    filter the base library passes through. Never touches the docking cache
+    (keyed by SMILES) -- dropped molecules are simply never queried.
+    """
+    # Fail loudly here too if the thresholds ever shift enough to exclude a
+    # known active -- the base library must never quietly discard a real drug.
+    quality_filter.assert_known_actives_survive()
+
+    keep = []
+    pains_drops = 0
+    synth_drops = 0
+    unparseable = 0
+    for s in smiles:
+        mol = Chem.MolFromSmiles(s)
+        if mol is None:
+            unparseable += 1
+            keep.append(False)
+            continue
+        ok, reason = quality_filter.passes_quality(mol)
+        if ok:
+            keep.append(True)
+            continue
+        keep.append(False)
+        if reason and reason.startswith("PAINS"):
+            pains_drops += 1
+        else:
+            synth_drops += 1
+
+    keep = np.asarray(keep, dtype=bool)
+    n_before, n_after = len(smiles), int(keep.sum())
+    kept_smiles = [s for s, k in zip(smiles, keep) if k]
+    print(
+        f"load_library: quality screen ({quality_filter.ACTIVE_SYNTH_METRIC}): "
+        f"{n_after}/{n_before} molecules survive "
+        f"({pains_drops} PAINS + {synth_drops} synth + {unparseable} unparseable "
+        f"removed). Known actives asserted to survive."
+    )
+    return kept_smiles, fingerprints[keep], admet_scores[keep]
+
+
 def load_library(library_dir="data/library", heavy_atom_floor=HEAVY_ATOM_FLOOR):
     """Load the cached molecule library from disk, applying the shared size floor.
 
@@ -444,6 +492,13 @@ def load_library(library_dir="data/library", heavy_atom_floor=HEAVY_ATOM_FLOOR):
         smiles, fingerprints, admet_scores = _apply_heavy_atom_floor(
             smiles, fingerprints, admet_scores, heavy_atom_floor
         )
+
+    # Shared, once-only quality gate: PAINS + synthesizability. Applied here so
+    # every method (MOGP + all baselines) searches the same filtered pool. The
+    # same gate is applied to densify-generated analogs in loop.BOLoop._densify.
+    smiles, fingerprints, admet_scores = _apply_quality_filter(
+        smiles, fingerprints, admet_scores
+    )
 
     return {
         "smiles": smiles,

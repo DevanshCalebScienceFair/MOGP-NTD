@@ -46,6 +46,7 @@ Run with, e.g.::
 import os
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
+import sys
 import time
 import argparse
 
@@ -57,14 +58,24 @@ from loop import BOLoop
 from baseline_random import RandomSearchBaseline
 from baseline_single_obj import SingleObjectiveBOLoop
 from baseline_greedy import GreedyFilterThenDock
+from baseline_gpmobo import (
+    GPMOBOBaseline, DEFAULT_MC_SAMPLES, DEFAULT_EHVI_IMPL,
+)
 from run_all import ensure_library, LIBRARY_DIR, fmt_time
 import docking
 
 
 # One entry per method: (display label, subdirectory key, plot color). Colors
 # match the single-run comparison plots in the baselines.
+#
+# GP-MOBO is the external comparator (anabelyong/GP-MOBO — independent Tanimoto
+# GPs + MC EHVI, q=1): the closest PUBLISHED method to this repo's MOGP loop, as
+# opposed to the three internal controls, so a paired win over it is the load-
+# bearing result. See baseline_gpmobo.py for what differs and how fairness is
+# maintained.
 METHODS = [
     ("MOGP", "mogp", "tab:blue"),
+    ("GP-MOBO", "gpmobo", "tab:purple"),
     ("Random Search", "random", "tab:red"),
     ("Single-Obj BO", "single_obj", "tab:orange"),
     ("Greedy Filter", "greedy", "tab:green"),
@@ -77,12 +88,16 @@ METHODS = [
 # ---------------------------------------------------------------------- #
 def _build_runner(method_key, params, seed):
     """Construct the runner for ``method_key`` at ``seed`` with shared params."""
+    # Every arm searches the SAME library; params["library_dir"] lets the whole
+    # benchmark be pointed at a sub-library (e.g. the zero-docking cached arena
+    # from build_cached_arena.py) without any arm being able to diverge from it.
+    library_dir = params.get("library_dir", LIBRARY_DIR)
     if method_key == "mogp":
         # Only the MOGP loop supports densification (growing candidates around
         # the Pareto front); the baselines have no acquisition to feed. With
         # --densify off, this is exactly the base MOGP run.
         return BOLoop(
-            library_dir=LIBRARY_DIR, seed=seed,
+            library_dir=library_dir, seed=seed,
             n_init=params["n_init"], batch_size=params["batch_size"],
             n_iterations=params["n_iterations"],
             mogp_train_iters=params["mogp_iters"],
@@ -93,13 +108,13 @@ def _build_runner(method_key, params, seed):
         )
     if method_key == "random":
         return RandomSearchBaseline(
-            library_dir=LIBRARY_DIR, seed=seed,
+            library_dir=library_dir, seed=seed,
             n_init=params["n_init"], batch_size=params["batch_size"],
             n_iterations=params["n_iterations"],
         )
     if method_key == "single_obj":
         return SingleObjectiveBOLoop(
-            library_dir=LIBRARY_DIR, seed=seed,
+            library_dir=library_dir, seed=seed,
             n_init=params["n_init"], batch_size=params["batch_size"],
             n_iterations=params["n_iterations"],
             gp_train_iters=params["mogp_iters"],
@@ -108,8 +123,21 @@ def _build_runner(method_key, params, seed):
         # Greedy has no iteration loop; it docks a budget equal to the total the
         # other methods evaluate (n_init + n_iterations * batch_size).
         return GreedyFilterThenDock(
-            library_dir=LIBRARY_DIR, seed=seed,
+            library_dir=library_dir, seed=seed,
             batch_size=params["batch_size"], n_total=params["n_total"],
+        )
+    if method_key == "gpmobo":
+        # External comparator. Same seed, same library, same docking budget; it
+        # spends that budget as batch_size sequential q=1 picks per recorded
+        # round, which is MORE model updates per dock than the batch arms get.
+        return GPMOBOBaseline(
+            library_dir=library_dir, seed=seed,
+            n_init=params["n_init"], batch_size=params["batch_size"],
+            n_iterations=params["n_iterations"],
+            n_mc_samples=params.get("gpmobo_mc_samples", DEFAULT_MC_SAMPLES),
+            ehvi_impl=params.get("gpmobo_ehvi_impl", DEFAULT_EHVI_IMPL),
+            objective_frame=params.get("gpmobo_frame", "raw"),
+            hparam_mode=params.get("gpmobo_hparam_mode", "budget"),
         )
     raise ValueError(f"Unknown method key {method_key!r}")
 
@@ -519,7 +547,14 @@ def main():
     parser.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2],
                         help="Random seeds; every method is run once per seed.")
     parser.add_argument("--lib-size", type=int, default=1000,
-                        help="Library pull size (built once, shared by all runs).")
+                        help="Library pull size (built once, shared by all runs). "
+                             "Ignored when --library-dir is given.")
+    parser.add_argument(
+        "--library-dir", default=None,
+        help="Search this library instead of building the default one. Point it "
+             "at data/library_cached_arena (build_cached_arena.py) to run the "
+             "whole benchmark off the docking cache with zero Vina calls.",
+    )
     parser.add_argument("--n-init", type=int, default=10)
     parser.add_argument("--batch-size", type=int, default=10)
     parser.add_argument("--n-iterations", type=int, default=10)
@@ -532,6 +567,12 @@ def main():
              "sem/ci95 are more honest for few seeds (they shrink as seeds are "
              "added, whereas std does not).",
     )
+    parser.add_argument(
+        "--aggregate-only", action="store_true",
+        help="Skip running anything; just aggregate the per-seed CSVs already "
+             "in --output-dir. Use this to salvage a long run that was cut "
+             "short: pass only the seeds that actually finished (every method "
+             "must have a history.csv for a seed to be counted).")
     parser.add_argument("--no-cache", action="store_true",
                         help="Disable the persistent docking cache for this run.")
     parser.add_argument("--clear-cache", action="store_true",
@@ -544,8 +585,26 @@ def main():
     )
     parser.add_argument("--densify-per-parent", type=int, default=20,
                         help="Target analogs generated per front molecule.")
+    parser.add_argument(
+        "--gpmobo-mc-samples", type=int, default=DEFAULT_MC_SAMPLES,
+        help=f"MC draws per candidate in GP-MOBO's EHVI (upstream: "
+             f"{DEFAULT_MC_SAMPLES}).")
+    parser.add_argument(
+        "--gpmobo-frame", choices=["raw", "normalized"], default="raw",
+        help="Objective frame handed to GP-MOBO's selection machinery. 'raw' "
+             "(default) is faithful to upstream; 'normalized' hands it our "
+             "shared [0,1] frame and is generous to GP-MOBO.")
+    parser.add_argument(
+        "--gpmobo-hparam-mode", choices=["budget", "holdout"], default="budget",
+        help="'budget' (default) fits GP-MOBO's hyperparameters from its own "
+             "evaluated molecules; 'holdout' reproduces upstream's separate "
+             "evaluated block (extra free oracle calls).")
     parser.add_argument("--densify-max-pool", type=int, default=None,
-                        help="Cap the total MOGP library size after densification.")
+                        help="Cap the TOTAL MOGP library size after densification "
+                             "(not the number of analogs added). Must be ABOVE the "
+                             "current library size or densification is a no-op "
+                             "(the run now raises rather than silently no-op); omit "
+                             "for no cap.")
     args = parser.parse_args()
 
     if args.clear_cache:
@@ -555,6 +614,7 @@ def main():
         docking.set_cache_enabled(False)
         print("Docking cache disabled (--no-cache).")
 
+    library_dir = args.library_dir or LIBRARY_DIR
     params = {
         "n_init": args.n_init,
         "batch_size": args.batch_size,
@@ -564,20 +624,85 @@ def main():
         "densify": args.densify,
         "densify_per_parent": args.densify_per_parent,
         "densify_max_pool": args.densify_max_pool,
+        "library_dir": library_dir,
+        "gpmobo_mc_samples": args.gpmobo_mc_samples,
+        "gpmobo_frame": args.gpmobo_frame,
+        "gpmobo_hparam_mode": args.gpmobo_hparam_mode,
     }
 
-    print("=" * 64)
-    print("MULTI-SEED BENCHMARK — MOGP vs baselines")
-    print("=" * 64)
-    print(f"Seeds:        {args.seeds}")
-    print(f"Per method:   {params['n_total']} molecules "
-          f"(= {args.n_init} init + {args.n_iterations} x {args.batch_size})")
-    print(f"Densify:      {'ON' if args.densify else 'off'}"
-          + (f" (per_parent={args.densify_per_parent}, "
-             f"max_pool={args.densify_max_pool})" if args.densify else ""))
-    print(f"Output dir:   {args.output_dir}/")
+    # The run configuration below describes work this invocation is about to do.
+    # --aggregate-only does none of it — printing budget/library/GP-MOBO settings
+    # there would describe a run that is not happening, and none of those flags
+    # affect reading CSVs off disk.
+    if not args.aggregate_only:
+        print("=" * 64)
+        print("MULTI-SEED BENCHMARK — MOGP vs baselines")
+        print("=" * 64)
+        print(f"Seeds:        {args.seeds}")
+        print(f"Per method:   {params['n_total']} molecules "
+              f"(= {args.n_init} init + {args.n_iterations} x {args.batch_size})")
+        print(f"Densify:      {'ON' if args.densify else 'off'}"
+              + (f" (per_parent={args.densify_per_parent}, "
+                 f"max_pool={args.densify_max_pool})" if args.densify else ""))
+        print(f"Library:      {library_dir}")
+        print(f"GP-MOBO:      mc_samples={args.gpmobo_mc_samples}, "
+              f"frame={args.gpmobo_frame}, hparams={args.gpmobo_hparam_mode}")
+        print(f"Output dir:   {args.output_dir}/")
 
-    ensure_library(args.lib_size)
+    if args.aggregate_only:
+        print("=" * 64)
+        print(f"AGGREGATE ONLY — {args.output_dir}/  seeds {args.seeds}")
+        print("=" * 64)
+        # Salvage path: the per-seed CSVs are already on disk, so re-aggregate
+        # them without re-running anything. Bail out loudly when there is
+        # nothing to read — an empty table followed by a crash inside pandas is
+        # a far worse answer than "you have not run the benchmark yet".
+        print("\n(--aggregate-only: reading existing per-seed CSVs, running "
+              "nothing)")
+        if not os.path.isdir(args.output_dir):
+            print(f"\nERROR: {args.output_dir}/ does not exist, so there are no "
+                  "results to aggregate.")
+            print("       --aggregate-only only re-reads a run that already "
+                  "happened; it never runs the benchmark.")
+            print("       Start the benchmark first (drop --aggregate-only).")
+            return 2
+
+        found = {
+            key: [s for s in args.seeds
+                  if _load_history(args.output_dir, key, s) is not None]
+            for _, key, _ in METHODS
+        }
+        complete = [s for s in args.seeds
+                    if all(s in found[key] for _, key, _ in METHODS)]
+        if not complete:
+            print(f"\nERROR: no seed in {args.seeds} has a history.csv for all "
+                  f"{len(METHODS)} methods under {args.output_dir}/.")
+            for label, key, _ in METHODS:
+                got = found[key]
+                print(f"       {label:<16} {len(got)} seed(s)"
+                      + (f": {got}" if got else ""))
+            print("       Paired tests need every method present for a seed. "
+                  "Pass only seeds that finished.")
+            return 2
+
+        if complete != list(args.seeds):
+            missing = [s for s in args.seeds if s not in complete]
+            print(f"NOTE: seeds {missing} are incomplete and are being skipped; "
+                  f"aggregating {complete}.")
+
+        print_final_table(args.output_dir, complete)
+        sig_recs = print_significance_table(args.output_dir, complete)
+        save_aggregate_csv(args.output_dir, complete)
+        save_significance_csv(sig_recs, args.output_dir)
+        save_figure(args.output_dir, complete, band=args.band)
+        return
+
+    if args.library_dir is None:
+        ensure_library(args.lib_size)
+    else:
+        # An explicit library is used as-is: rebuilding it would defeat the
+        # point of a curated sub-library like the cached arena.
+        print(f"(using {library_dir} as-is; skipping library build)")
     os.makedirs(args.output_dir, exist_ok=True)
 
     overall_start = time.time()
@@ -597,4 +722,6 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # main() returns a non-zero code for the "nothing to aggregate" cases so a
+    # shell/CI caller can tell a failed salvage from a successful one.
+    sys.exit(main() or 0)

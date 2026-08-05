@@ -59,7 +59,7 @@ from baseline_random import RandomSearchBaseline
 from baseline_single_obj import SingleObjectiveBOLoop
 from baseline_greedy import GreedyFilterThenDock
 from baseline_gpmobo import (
-    GPMOBOBaseline, DEFAULT_MC_SAMPLES, DEFAULT_EHVI_IMPL,
+    GPMOBOBaseline, DEFAULT_MC_SAMPLES, DEFAULT_EHVI_IMPL, EHVI_IMPLS,
 )
 from run_all import ensure_library, LIBRARY_DIR, fmt_time
 import docking
@@ -586,9 +586,16 @@ def main():
     parser.add_argument("--densify-per-parent", type=int, default=20,
                         help="Target analogs generated per front molecule.")
     parser.add_argument(
+        "--gpmobo-ehvi-impl", choices=sorted(EHVI_IMPLS),
+        default=DEFAULT_EHVI_IMPL,
+        help="GP-MOBO's EHVI estimator. 'analytic' (default) is exact and has "
+             "no sampling axis; 'fast' and 'reference' are the sampled forms "
+             "(correctness oracles — far too slow for a real run at five "
+             "objectives).")
+    parser.add_argument(
         "--gpmobo-mc-samples", type=int, default=DEFAULT_MC_SAMPLES,
-        help=f"MC draws per candidate in GP-MOBO's EHVI (upstream: "
-             f"{DEFAULT_MC_SAMPLES}).")
+        help=f"MC draws per candidate for the SAMPLED GP-MOBO estimators "
+             f"(upstream: {DEFAULT_MC_SAMPLES}). Ignored by 'analytic'.")
     parser.add_argument(
         "--gpmobo-frame", choices=["raw", "normalized"], default="raw",
         help="Objective frame handed to GP-MOBO's selection machinery. 'raw' "
@@ -626,6 +633,7 @@ def main():
         "densify_max_pool": args.densify_max_pool,
         "library_dir": library_dir,
         "gpmobo_mc_samples": args.gpmobo_mc_samples,
+        "gpmobo_ehvi_impl": args.gpmobo_ehvi_impl,
         "gpmobo_frame": args.gpmobo_frame,
         "gpmobo_hparam_mode": args.gpmobo_hparam_mode,
     }
@@ -645,8 +653,14 @@ def main():
               + (f" (per_parent={args.densify_per_parent}, "
                  f"max_pool={args.densify_max_pool})" if args.densify else ""))
         print(f"Library:      {library_dir}")
-        print(f"GP-MOBO:      mc_samples={args.gpmobo_mc_samples}, "
-              f"frame={args.gpmobo_frame}, hparams={args.gpmobo_hparam_mode}")
+        # mc_samples only means something to the SAMPLED estimators; the analytic
+        # one has no sampling axis, so printing a sample count next to it would
+        # misdescribe the run in its own provenance record.
+        gpmobo_desc = f"ehvi={args.gpmobo_ehvi_impl}"
+        if args.gpmobo_ehvi_impl != "analytic":
+            gpmobo_desc += f", mc_samples={args.gpmobo_mc_samples}"
+        print(f"GP-MOBO:      {gpmobo_desc}, frame={args.gpmobo_frame}, "
+              f"hparams={args.gpmobo_hparam_mode}")
         print(f"Output dir:   {args.output_dir}/")
 
     if args.aggregate_only:

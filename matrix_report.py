@@ -47,10 +47,10 @@ HISTORY_FILE = "history.csv"
 PARETO_FILE = "pareto_front.csv"
 EVALUATED_FILE = "evaluated.csv"
 
-# Raw-kcal companions to the two docking objectives (the TASK_NAMES columns
-# themselves are size-corrected ligand efficiency, per loop.save_results).
-PF_KCAL = "PfDHFR_Docking_kcal"
-HD_KCAL = "hDHFR_Docking_kcal"
+# The TASK_NAMES docking columns ARE raw kcal/mol since the Day-11 objective
+# switch; ligand efficiency is carried alongside as a reported "*_LE" column.
+PF_KCAL = "PfDHFR_Docking"
+HD_KCAL = "hDHFR_Docking"
 
 # Families group the cases for colouring. Order matters: the first prefix that
 # matches wins, so the more specific 'gpmobo' sits ahead of 'baseline'.
@@ -169,8 +169,7 @@ def best_by_objective(case_id, pareto):
     rows = []
     signs = dict(zip(TASK_NAMES, evaluation.OBJECTIVE_SIGNS))
     extra = [(evaluation.SELECTIVITY_COLUMN, +1),
-             (evaluation.SELECTIVITY_KCAL_COLUMN, +1),
-             (PF_KCAL, -1), (HD_KCAL, +1)]
+             (evaluation.SELECTIVITY_LE_COLUMN, +1)]
     for col, sign in list(signs.items()) + extra:
         if col not in pareto.columns:
             continue
@@ -220,7 +219,7 @@ def summarize(case_id, path):
         if best_row is not None:
             row["best_SMILES"] = best_row["SMILES"]
         for col in (evaluation.SELECTIVITY_COLUMN,
-                    evaluation.SELECTIVITY_KCAL_COLUMN):
+                    evaluation.SELECTIVITY_LE_COLUMN):
             if col in pareto.columns and not pareto[col].isna().all():
                 row["best_" + col] = float(pareto[col].max())
         # Strongest parasite binder: docking kcal, so most negative wins.

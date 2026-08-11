@@ -91,11 +91,11 @@ LIBRARY_TASKS, DOCKING_TASKS, DOCKING_TARGETS = resolve_objective_layout(
 # columns filled by docking.
 DOCKING_COLUMNS = [j for j, _ in DOCKING_TASKS]
 
-# Margin (kcal/mol per heavy atom) below evaluation.DOCKING_LE_MIN at which we
+# Margin (kcal/mol) below evaluation.DOCKING_KCAL_MIN at which we
 # warn that observed docking ligand efficiencies are saturating the fixed
 # normalization floor (see BOLoop._warn_if_docking_saturates). On the LE scale
 # (range ~0.55 wide) this is far smaller than the old raw-kcal margin.
-DOCKING_SATURATION_MARGIN = 0.02
+DOCKING_SATURATION_MARGIN = 0.25
 
 
 # The two GP models this loop can run over the docking objectives. The
@@ -274,7 +274,7 @@ class BOLoop:
         # Raw docking kcal/mol (docking columns only; NaN elsewhere), row-aligned
         # to Y_evaluated. The OPTIMIZED docking columns in Y_evaluated are ligand
         # efficiency; this keeps the raw kcal for reporting so it is never lost.
-        self.raw_docking = np.empty((0, N_OBJECTIVES), dtype=np.float64)
+        self.ligand_efficiency = np.empty((0, N_OBJECTIVES), dtype=np.float64)
         self.history = []
 
     # ------------------------------------------------------------------ #
@@ -292,12 +292,12 @@ class BOLoop:
         objective is size-corrected LIGAND EFFICIENCY (raw / heavy-atom count, via
         ``docking.raw_to_ligand_efficiency``), applied here — downstream of the
         cache — so the GP and hypervolume see LE while the cache stays raw and
-        valid. The raw kcal is retained separately (``Y_raw``) for reporting.
+        valid. The raw kcal is retained separately (``Y_le``) for reporting.
 
         Returns:
-            A tuple ``(Y, Y_raw, docking_by_target)`` where ``Y`` has shape
+            A tuple ``(Y, Y_le, docking_by_target)`` where ``Y`` has shape
             ``(k, N_OBJECTIVES)`` with LIGAND EFFICIENCY in the docking columns,
-            ``Y_raw`` has the same shape with RAW kcal/mol in the docking columns
+            ``Y_le`` has the same shape with RAW kcal/mol in the docking columns
             (NaN elsewhere), and ``docking_by_target`` maps each target name to
             its ``(k,)`` RAW docking-score vector.
         """
@@ -309,22 +309,23 @@ class BOLoop:
         docking_by_target = batch_dock_targets(smiles, DOCKING_TARGETS)
 
         Y = np.full((len(library_indices), N_OBJECTIVES), np.nan, dtype=np.float64)
-        Y_raw = np.full((len(library_indices), N_OBJECTIVES), np.nan, dtype=np.float64)
+        Y_le = np.full((len(library_indices), N_OBJECTIVES), np.nan, dtype=np.float64)
         for j, col in LIBRARY_TASKS:
             Y[:, j] = admet_rows[:, col]
         for j, target in DOCKING_TASKS:
             raw = docking_by_target[target]
-            Y_raw[:, j] = raw
-            # Convert raw kcal -> ligand efficiency per molecule (size-corrected);
+            Y[:, j] = raw
+            # Ligand efficiency is REPORTED, not optimized: computable from the
+            # same dock, so a front can be re-ranked by LE without re-docking.
             # NaN raw / unparseable SMILES propagate to NaN, like a failed dock.
-            Y[:, j] = [raw_to_ligand_efficiency(r, s) for r, s in zip(raw, smiles)]
-        return Y, Y_raw, docking_by_target
+            Y_le[:, j] = [raw_to_ligand_efficiency(r, s) for r, s in zip(raw, smiles)]
+        return Y, Y_le, docking_by_target
 
     def _warn_if_docking_saturates(self, Y_new):
         """Warn if any observed docking LE sits at/below the normalization floor.
 
         The docking columns are now size-corrected ligand efficiency, so the
-        relevant floor is ``evaluation.DOCKING_LE_MIN`` (kcal/mol per heavy atom),
+        relevant floor is ``evaluation.DOCKING_KCAL_MIN`` (kcal/mol),
         the fixed lower bound of the shared docking LE normalization. An LE at or
         below it maps to the best normalized value (1.0) and clips, so an even
         more efficient binder earns NO additional hypervolume — the metric
@@ -332,7 +333,7 @@ class BOLoop:
         efficient binders. We only WARN (via ``warnings.warn``, so result files
         are untouched); we deliberately do NOT move the bound, because changing it
         mid-study would break cross-method hypervolume comparability. Widen
-        ``evaluation.DOCKING_LE_MIN`` yourself, once, for a fresh comparison if
+        ``evaluation.DOCKING_KCAL_MIN`` yourself, once, for a fresh comparison if
         this fires.
         """
         if not DOCKING_COLUMNS:
@@ -342,12 +343,12 @@ class BOLoop:
         if finite.size == 0:
             return
         strongest = float(finite.min())
-        if strongest < evaluation.DOCKING_LE_MIN + DOCKING_SATURATION_MARGIN:
+        if strongest < evaluation.DOCKING_KCAL_MIN + DOCKING_SATURATION_MARGIN:
             warnings.warn(
                 f"Observed docking ligand efficiency {strongest:.3f} kcal/mol/atom "
                 f"is within {DOCKING_SATURATION_MARGIN} of (or below) the "
-                f"normalization floor evaluation.DOCKING_LE_MIN="
-                f"{evaluation.DOCKING_LE_MIN}; such values saturate to hypervolume "
+                f"normalization floor evaluation.DOCKING_KCAL_MIN="
+                f"{evaluation.DOCKING_KCAL_MIN}; such values saturate to hypervolume "
                 "1.0 and stop earning credit. Consider widening DOCKING_LE_MIN for "
                 "a fresh comparison (do NOT change it mid-study — it breaks "
                 "comparability)."
@@ -509,11 +510,11 @@ class BOLoop:
         init_indices = [int(i) for i in init_indices]
 
         print(f"Initializing with {self.n_init} random molecules...")
-        Y, Y_raw, docking = self._evaluate(init_indices)
+        Y, Y_le, docking = self._evaluate(init_indices)
 
         self.evaluated_indices = list(init_indices)
         self.Y_evaluated = Y
-        self.raw_docking = Y_raw
+        self.ligand_efficiency = Y_le
 
         print(f"Initialized {self.n_init} molecules; "
               f"docked {docked_summary(docking, self.n_init)}.")
@@ -582,13 +583,13 @@ class BOLoop:
             "select_batch returned an already-evaluated molecule"
 
         # --- Dock the selected batch (against every target) ---
-        Y_new, Y_raw_new, docking_new = self._evaluate(list(selected_library_indices))
+        Y_new, Y_le_new, docking_new = self._evaluate(list(selected_library_indices))
         batch_docked = docked_summary(docking_new, len(selected_library_indices))
         self._warn_if_docking_saturates(Y_new)
 
         self.evaluated_indices.extend(int(i) for i in selected_library_indices)
         self.Y_evaluated = np.vstack([self.Y_evaluated, Y_new])
-        self.raw_docking = np.vstack([self.raw_docking, Y_raw_new])
+        self.ligand_efficiency = np.vstack([self.ligand_efficiency, Y_le_new])
 
         # --- Track Pareto front + hypervolume + size-drift monitor ---
         pareto_mask = self._pareto_mask()
@@ -665,7 +666,7 @@ class BOLoop:
             "indices": indices,
             "smiles": smiles,
             "objectives": objectives,
-            "raw_docking": self.raw_docking[rows],   # raw kcal/mol (docking cols)
+            "ligand_efficiency": self.ligand_efficiency[rows],   # raw kcal/mol (docking cols)
             "task_names": TASK_NAMES,
         }
 
@@ -697,7 +698,7 @@ class BOLoop:
         for j, name in enumerate(TASK_NAMES):
             evaluated_df[name] = self.Y_evaluated[:, j]
         for j, _target in DOCKING_TASKS:
-            evaluated_df[f"{TASK_NAMES[j]}_kcal"] = self.raw_docking[:, j]
+            evaluated_df[f"{TASK_NAMES[j]}_LE"] = self.ligand_efficiency[:, j]
         evaluation.add_selectivity_index(evaluated_df)
         evaluated_path = os.path.join(output_dir, "evaluated.csv")
         evaluated_df.to_csv(evaluated_path, index=False)
@@ -710,7 +711,7 @@ class BOLoop:
         for j, name in enumerate(TASK_NAMES):
             pareto_df[name] = pareto["objectives"][:, j]
         for j, _target in DOCKING_TASKS:
-            pareto_df[f"{TASK_NAMES[j]}_kcal"] = pareto["raw_docking"][:, j]
+            pareto_df[f"{TASK_NAMES[j]}_LE"] = pareto["ligand_efficiency"][:, j]
         evaluation.add_selectivity_index(pareto_df)
         pareto_path = os.path.join(output_dir, "pareto_front.csv")
         pareto_df.to_csv(pareto_path, index=False)

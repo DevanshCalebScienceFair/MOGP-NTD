@@ -20,9 +20,19 @@ in this fixed order (`mogp.TASK_NAMES` is the single source of truth):
 
 Direction signs: `acquisition.DEFAULT_OBJECTIVE_SIGNS = [-1, +1, -1, +1, +1]`.
 
+The two docking objectives are **raw kcal/mol**. They were briefly size-corrected
+**ligand efficiency** (raw / heavy atoms) because the *apo* oracle's raw score was
+size-confounded; the NADPH fix removed most of that confound, leaving LE
+over-correcting toward fragments, so the objective reverted to raw kcal. Ligand
+efficiency is still computed and REPORTED as `*_LE` columns (and
+`Selectivity_Index_LE`), so a finished front can be re-ranked by LE without
+re-docking. Normalization bounds live in `evaluation.DOCKING_KCAL_MIN/MAX`
+(-11.0 to -5.0), derived from the observed holo distribution.
+
 The two docking objectives are the selectivity pair: strong PfDHFR (parasite)
 binding but **weak** hDHFR (human) binding, so `hDHFR_Docking` is *maximized*.
 `evaluation.add_selectivity_index` reports a derived **Selectivity Index**
+(whole-molecule kcal/mol; `Selectivity_Index_LE` is the per-atom companion)
 (`hDHFR_Docking - PfDHFR_Docking`) that is **not** an optimized objective.
 
 Core idea: the 3 ADMET objectives are cheap and precomputed for the whole

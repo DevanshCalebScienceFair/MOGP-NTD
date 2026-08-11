@@ -394,7 +394,7 @@ def _parse_best_affinity(stdout):
 
 
 def dock_target(smiles, target=DEFAULT_TARGET, n_poses=9,
-                seed=DEFAULT_VINA_SEED, use_cache=True):
+                seed=DEFAULT_VINA_SEED, use_cache=True, out_path=None):
     """Dock a single molecule into a NAMED target's active site; return the score.
 
     Runs the full pipeline (download -> clean protein -> prepare ligand ->
@@ -428,7 +428,10 @@ def dock_target(smiles, target=DEFAULT_TARGET, n_poses=9,
     # --- Cache lookup (canonical SMILES + target key) ---
     caching = use_cache and _CACHE_ENABLED
     canonical = canonicalize_smiles(smiles) if caching else None
-    if caching:
+    # A caller asking for poses (out_path) needs Vina to actually run, so the
+    # cache READ is skipped in that case. The write below still happens, so a
+    # pose-producing call keeps warming the cache for everyone else.
+    if caching and out_path is None:
         cached = get_cache().get(canonical, target)
         if cached is not None:
             status, affinity = cached
@@ -438,6 +441,7 @@ def dock_target(smiles, target=DEFAULT_TARGET, n_poses=9,
 
     ligand_pdbqt = None
     out_pdbqt = None
+    keep_out = out_path is not None
     try:
         download_protein(target)
         clean_pdb = prepare_protein(target)
@@ -446,10 +450,16 @@ def dock_target(smiles, target=DEFAULT_TARGET, n_poses=9,
 
         # Vina requires an --out path for the docked poses even though we only
         # need the score from stdout; use a temp file that the finally block
-        # always removes.
-        out_file = tempfile.NamedTemporaryFile(suffix=".pdbqt", delete=False)
-        out_pdbqt = out_file.name
-        out_file.close()
+        # always removes. When the caller supplies out_path they want the poses,
+        # so that file is written where they asked and is theirs to clean up.
+        if out_path is not None:
+            out_pdbqt = out_path
+            keep_out = True
+        else:
+            out_file = tempfile.NamedTemporaryFile(suffix=".pdbqt", delete=False)
+            out_pdbqt = out_file.name
+            out_file.close()
+            keep_out = False
 
         # Binding box from the target registry, centered on the folate/active
         # site (the co-crystallized inhibitor's folate-mimicking head — see
@@ -489,7 +499,8 @@ def dock_target(smiles, target=DEFAULT_TARGET, n_poses=9,
             get_cache().put(canonical, target, None, STATUS_FAIL, seed=seed)
         return None
     finally:
-        for path in (ligand_pdbqt, out_pdbqt):
+        cleanup = [ligand_pdbqt] if keep_out else [ligand_pdbqt, out_pdbqt]
+        for path in cleanup:
             if path is not None and os.path.exists(path):
                 os.remove(path)
 

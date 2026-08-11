@@ -395,7 +395,38 @@ def _apply_heavy_atom_floor(smiles, fingerprints, admet_scores, floor):
     return kept_smiles, fingerprints[keep], admet_scores[keep]
 
 
-def _apply_quality_filter(smiles, fingerprints, admet_scores):
+REJECT_LOG_NAME = "quality_rejected.csv"
+
+
+def _write_reject_log(rows, library_dir):
+    """Record every screened-out molecule with the class that rejected it.
+
+    A filter that silently deletes a defensible compound class is an unrecorded
+    judgment call. The chalcones and cinnamate esters caught by the Michael
+    acceptor pattern are the live example: genuinely electrophilic, but with a
+    real antimalarial literature behind them (via mitochondrial electron
+    transport, not DHFR — so they do not belong on a DHFR Pareto front, but the
+    call is arguable). Writing them out with their rejection class keeps the
+    decision auditable and lets someone revisit a class deliberately.
+
+    Written atomically because a sweep runs many loaders concurrently; the
+    content is a deterministic function of the library, so last-writer-wins is
+    safe. A failure here is logged and never breaks a run.
+    """
+    path = os.path.join(library_dir, REJECT_LOG_NAME)
+    try:
+        df = pd.DataFrame(rows, columns=["SMILES", "rejection_class", "reason"])
+        tmp = path + f".tmp{os.getpid()}"
+        df.to_csv(tmp, index=False)
+        os.replace(tmp, path)
+    except OSError as exc:                                             # noqa: BLE001
+        print(f"load_library: could not write {path} ({exc}); continuing.")
+        return None
+    return path
+
+
+def _apply_quality_filter(smiles, fingerprints, admet_scores,
+                          library_dir=None):
     """Drop molecules matching PAINS or failing the synthesizability screen.
 
     Applied ONCE in ``load_library``, immediately after the heavy-atom floor and
@@ -411,7 +442,9 @@ def _apply_quality_filter(smiles, fingerprints, admet_scores):
     quality_filter.assert_known_actives_survive()
 
     keep = []
+    rejected = []
     pains_drops = 0
+    reactive_drops = 0
     synth_drops = 0
     unparseable = 0
     for s in smiles:
@@ -419,16 +452,26 @@ def _apply_quality_filter(smiles, fingerprints, admet_scores):
         if mol is None:
             unparseable += 1
             keep.append(False)
+            rejected.append((s, "unparseable", "unparseable"))
             continue
         ok, reason = quality_filter.passes_quality(mol)
         if ok:
             keep.append(True)
             continue
         keep.append(False)
+        # Attribute each drop to the screen that made it; lumping the reactive
+        # rejections in with synthesizability would hide how much each screen
+        # actually costs.
         if reason and reason.startswith("PAINS"):
             pains_drops += 1
+            rejection_class = "PAINS"
+        elif reason and reason.startswith("reactive:"):
+            reactive_drops += 1
+            rejection_class = reason.split(":", 1)[1]
         else:
             synth_drops += 1
+            rejection_class = "synthesizability"
+        rejected.append((s, rejection_class, reason))
 
     keep = np.asarray(keep, dtype=bool)
     n_before, n_after = len(smiles), int(keep.sum())
@@ -436,9 +479,14 @@ def _apply_quality_filter(smiles, fingerprints, admet_scores):
     print(
         f"load_library: quality screen ({quality_filter.ACTIVE_SYNTH_METRIC}): "
         f"{n_after}/{n_before} molecules survive "
-        f"({pains_drops} PAINS + {synth_drops} synth + {unparseable} unparseable "
-        f"removed). Known actives asserted to survive."
+        f"({pains_drops} PAINS + {reactive_drops} reactive + {synth_drops} synth "
+        f"+ {unparseable} unparseable removed). Known actives asserted to survive."
     )
+    if library_dir is not None and rejected:
+        written = _write_reject_log(rejected, library_dir)
+        if written:
+            print(f"load_library: {len(rejected)} screened-out molecules logged "
+                  f"with their rejection class to {written}")
     return kept_smiles, fingerprints[keep], admet_scores[keep]
 
 
@@ -497,7 +545,7 @@ def load_library(library_dir="data/library", heavy_atom_floor=HEAVY_ATOM_FLOOR):
     # every method (MOGP + all baselines) searches the same filtered pool. The
     # same gate is applied to densify-generated analogs in loop.BOLoop._densify.
     smiles, fingerprints, admet_scores = _apply_quality_filter(
-        smiles, fingerprints, admet_scores
+        smiles, fingerprints, admet_scores, library_dir=library_dir
     )
 
     return {

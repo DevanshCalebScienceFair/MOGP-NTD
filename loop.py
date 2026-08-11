@@ -354,6 +354,7 @@ class BOLoop:
         # could bypass a filter every library molecule respects.
         quality_kept = []
         n_pains_rej = 0
+        n_reactive_rej = 0
         n_synth_rej = 0
         n_parse_rej = 0
         for smi in analogs:
@@ -365,9 +366,12 @@ class BOLoop:
                 n_parse_rej += 1
             elif reason and reason.startswith("PAINS"):
                 n_pains_rej += 1
+            elif reason and reason.startswith("reactive:"):
+                n_reactive_rej += 1
             else:
                 n_synth_rej += 1
-        n_quality_rej = n_pains_rej + n_synth_rej + n_parse_rej
+        n_quality_rej = (n_pains_rej + n_reactive_rej + n_synth_rej
+                         + n_parse_rej)
         analogs = quality_kept
 
         # Respect the pool cap up front so we never ADMET-score analogs we cannot
@@ -378,7 +382,8 @@ class BOLoop:
             if room == 0:
                 print(f"[Densify iter {iteration}] parents={len(parents)}, "
                       f"proposed={n_proposed}, quality_rejected={n_quality_rej} "
-                      f"({n_pains_rej} PAINS + {n_synth_rej} synth + "
+                      f"({n_pains_rej} PAINS + {n_reactive_rej} reactive + "
+                      f"{n_synth_rej} synth + "
                       f"{n_parse_rej} unparseable), passed_filter=0, added=0 "
                       f"(pool cap {self.densify_max_pool} reached), "
                       f"library_size={self.library_size}")
@@ -414,7 +419,8 @@ class BOLoop:
 
         print(f"[Densify iter {iteration}] parents={len(parents)}, "
               f"proposed={n_proposed}, quality_rejected={n_quality_rej} "
-              f"({n_pains_rej} PAINS + {n_synth_rej} synth + "
+              f"({n_pains_rej} PAINS + {n_reactive_rej} reactive + "
+                      f"{n_synth_rej} synth + "
               f"{n_parse_rej} unparseable), quality_accepted={len(analogs)}, "
               f"passed_filter={n_passed}, added={len(add_smiles)}, "
               f"library_size={self.library_size}")

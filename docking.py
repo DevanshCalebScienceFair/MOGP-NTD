@@ -88,6 +88,12 @@ TARGETS = {
 # Default target for the backward-compatible dock()/batch_dock() helpers.
 DEFAULT_TARGET = "PfDHFR"
 
+# Het residues that ``prepare_protein`` RETAINS in the receptor. NADPH ("NDP")
+# is a structural part of the DHFR active site, not a strippable heteroatom —
+# see ProteinPlusCofactor in prepare_protein for why removing it corrupts both
+# docking objectives.
+COFACTOR_RESNAMES = {"NDP"}
+
 # Explicit Vina random seed. The RDKit conformer is already seeded (0xF00D in
 # prepare_ligand); seeding Vina too makes the whole docking oracle deterministic
 # — the same (SMILES, target) yields the same affinity every run. That is what
@@ -195,22 +201,35 @@ def prepare_protein(target=DEFAULT_TARGET, pdb_path=None):
 
     from Bio.PDB import PDBParser, PDBIO, Select
 
-    class ProteinOnly(Select):
-        """Accept only standard amino-acid ATOM records; reject HETATM/water."""
+    class ProteinPlusCofactor(Select):
+        """Keep protein ATOM records **and** the NADPH cofactor; drop the rest.
+
+        NADPH (het residue ``NDP``) is not an incidental heteroatom here: in both
+        DHFRs its nicotinamide ring forms one wall of the folate pocket. It lies
+        *inside* the docking box (17/48 atoms for PfDHFR, 19/48 for hDHFR) and
+        packs against the co-crystallized inhibitor at ~3.3 A. Dropping it merges
+        the folate and cofactor sites into a single oversized cavity, so Vina
+        scores volume-filling poses that cannot exist in the holo enzyme — which
+        both inflates affinities and erases the fine active-site differences that
+        interspecies selectivity depends on.
+        """
 
         def accept_residue(self, residue):
             # residue.id == (hetflag, resseq, icode); a blank hetflag (" ")
             # marks a standard polymer residue. Anything else (e.g. "W" for
-            # water, "H_..." for hetero ligands) is dropped.
+            # water, "H_..." for hetero ligands) is dropped unless it is a
+            # cofactor we deliberately retain.
             hetflag = residue.id[0]
-            return hetflag == " "
+            if hetflag == " ":
+                return True
+            return residue.get_resname().strip() in COFACTOR_RESNAMES
 
     parser = PDBParser(QUIET=True)
     structure = parser.get_structure(pdb_id, pdb_path)
 
     io = PDBIO()
     io.set_structure(structure)
-    io.save(clean_pdb, select=ProteinOnly())
+    io.save(clean_pdb, select=ProteinPlusCofactor())
     return clean_pdb
 
 

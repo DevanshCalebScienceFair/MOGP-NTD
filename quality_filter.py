@@ -68,33 +68,25 @@ SA_THRESHOLD = 6.0
 QED_THRESHOLD = 0.3
 
 
-def _try_import_sascorer():
-    """Return (sascorer_module or None). Guards the contrib import cleanly."""
-    try:
-        from rdkit.Chem import RDConfig
-        sa_dir = os.path.join(RDConfig.RDContribDir, "SA_Score")
-        if not os.path.isdir(sa_dir):
-            return None
-        if sa_dir not in sys.path:
-            sys.path.append(sa_dir)
-        import sascorer  # noqa: WPS433 - contrib module lives outside the package tree
-        return sascorer
-    except Exception as exc:                                           # noqa: BLE001
-        print(f"quality_filter: SA_Score contrib import failed ({exc}); "
-              f"will fall back to QED < {QED_THRESHOLD}.")
-        return None
+# SA scoring goes through sa_score, which patches the contrib's deprecated
+# fingerprint call (it SIGBUSes on some builds — see that module) and REFUSES to
+# import when the screen cannot run. Importing it here means a machine that
+# cannot score synthesizability fails at startup with an explanation, instead of
+# quietly screening on a weaker metric than the machine next to it.
+import sa_score
 
-
-_SASCORER = _try_import_sascorer()
+_SA_ACTIVE = sa_score.SA_AVAILABLE
 
 # Which synthesizability metric is active for this process. Printed once so runs
 # leave a paper trail of which screen was used.
-if _SASCORER is not None:
+if _SA_ACTIVE:
     ACTIVE_SYNTH_METRIC = f"SA_Score (reject SA > {SA_THRESHOLD})"
 else:
+    # Only reachable when MOGP_ALLOW_QED_FALLBACK=1 was set deliberately;
+    # sa_score raises otherwise.
     ACTIVE_SYNTH_METRIC = f"QED fallback (reject QED < {QED_THRESHOLD})"
 print(f"quality_filter: PAINS catalog loaded; synthesizability metric = "
-      f"{ACTIVE_SYNTH_METRIC}.")
+      f"{ACTIVE_SYNTH_METRIC} [{sa_score.SA_BACKEND}].")
 
 
 # ---------------------------------------------------------------------- #
@@ -107,9 +99,9 @@ def pains_hit(mol):
 
 def synth_reject_reason(mol):
     """Return None if the molecule passes synthesizability; else a short reason."""
-    if _SASCORER is not None:
+    if _SA_ACTIVE:
         try:
-            score = float(_SASCORER.calculateScore(mol))
+            score = float(sa_score.calculate_score(mol))
         except Exception as exc:                                       # noqa: BLE001
             return f"SA_error({exc.__class__.__name__})"
         if score > SA_THRESHOLD:
@@ -127,8 +119,8 @@ def synth_reject_reason(mol):
 def passes_quality(mol_or_smiles):
     """Return (ok, reason) for a SMILES or Mol.
 
-    ``ok`` is True iff the molecule parses AND passes both screens. ``reason`` is
-    a short label for the failure ("unparseable", "PAINS:<pattern>", or the
+    ``ok`` is True iff the molecule parses AND passes every screen. ``reason``
+    is a short label for the failure ("unparseable", "PAINS:<pattern>", or the
     synthesizability reason). Callers can log ``reason`` to make the drop count
     per iteration attributable to a specific screen.
     """

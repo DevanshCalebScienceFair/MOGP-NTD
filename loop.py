@@ -114,6 +114,41 @@ SMOKE_PARAMS = {"n_init": 5, "batch_size": 2, "n_iterations": 2}
 GRAND_CAMPAIGN_PARAMS = {"n_init": 40, "batch_size": 5, "n_iterations": 50}
 
 
+def assert_fast_acquisition_path():
+    """Fail loudly if botorch cannot compile its fused qLogEHVI kernel.
+
+    Calling the env's python by absolute path (rather than activating the env)
+    leaves the env's ``bin/`` off PATH, so torch cannot find ``ninja`` and
+    botorch silently drops to the pure-Python qLogEHVI — roughly 3x slower on
+    the acquisition hot path. Acquisition is about half the wall-clock of a BO
+    config, so on a full sweep that silent fallback costs hours.
+
+    It is silent by design upstream (a warning, not an error), which makes it
+    the performance equivalent of a silently wrong score: everything still
+    "works", just far slower and only on some machines. ``go.sh`` fixes the
+    PATH; this asserts the fix actually took. Set ``MOGP_ALLOW_SLOW_EHVI=1`` to
+    proceed anyway (a short run may not care).
+    """
+    if os.environ.get("MOGP_ALLOW_SLOW_EHVI") == "1":
+        return
+    try:
+        from torch.utils.cpp_extension import verify_ninja_availability
+        verify_ninja_availability()
+    except Exception as exc:                                           # noqa: BLE001
+        raise RuntimeError(
+            f"loop: botorch's fused qLogEHVI kernel cannot be built "
+            f"({exc.__class__.__name__}: {exc}).\n"
+            "  Acquisition would fall back to the ~3x slower pure-Python path, "
+            "silently.\n"
+            "  Usual cause: the conda env's bin/ is not on PATH because python "
+            "was invoked by absolute path.\n"
+            "  Fix: launch via go.sh, or export "
+            "PATH=\"$(dirname $(command -v python))/../bin:$PATH\" with the env "
+            "activated.\n"
+            "  Override: MOGP_ALLOW_SLOW_EHVI=1"
+        ) from exc
+
+
 def resolve_train_fn(model, rank=1):
     """Map a ``--model`` name to a ``train_fn`` with ``mogp.train_mogp``'s signature.
 
@@ -591,6 +626,9 @@ class BOLoop:
         no successor to select the new molecules) is followed by ``_densify``,
         which grows the candidate pool with analogs of the current front.
         """
+        # Checked here rather than in __init__ so constructing a loop stays
+        # cheap for tests, but no long run ever starts on the slow path.
+        assert_fast_acquisition_path()
         self.initialize()
         for iteration in range(1, self.n_iterations + 1):
             self.step()

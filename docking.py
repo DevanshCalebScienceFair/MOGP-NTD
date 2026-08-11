@@ -39,6 +39,7 @@ Install (if not already present in the `mogp-drug` conda env):
     # pip install biopython
 """
 
+import hashlib
 import os
 import re
 import subprocess
@@ -87,6 +88,15 @@ TARGETS = {
 
 # Default target for the backward-compatible dock()/batch_dock() helpers.
 DEFAULT_TARGET = "PfDHFR"
+
+# Vina search effort. Was inlined as a bare "8" in the command; named because it
+# changes the score and therefore belongs in the oracle fingerprint below.
+DEFAULT_EXHAUSTIVENESS = 8
+
+# Bumped whenever prepare_protein's selection logic changes in a way that alters
+# the receptor. Combined with COFACTOR_RESNAMES into the receptor prep stamp, so
+# a cached receptor built by older logic is rebuilt instead of silently reused.
+PREP_VERSION = 2  # v2: retain NADPH (see COFACTOR_RESNAMES)
 
 # Het residues that ``prepare_protein`` RETAINS in the receptor. NADPH ("NDP")
 # is a structural part of the DHFR active site, not a strippable heteroatom —
@@ -144,6 +154,101 @@ def _target_spec(target):
     return TARGETS[target]
 
 
+def _sha256_file(path):
+    """Hex sha256 of a file's bytes."""
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _prep_stamp(target):
+    """Identity of the receptor-preparation logic for ``target``.
+
+    Everything that determines the prepared receptor's CONTENT, short of the
+    file itself: the prep version, which het residues are retained, and the
+    target's PDB id. Written next to the cached receptor so a prep change forces
+    a rebuild rather than silently reusing a receptor built by older logic.
+    """
+    spec = _target_spec(target)
+    payload = "|".join([
+        f"prep_version={PREP_VERSION}",
+        f"cofactors={','.join(sorted(COFACTOR_RESNAMES))}",
+        f"pdb_id={spec['pdb_id']}",
+    ])
+    return hashlib.sha256(payload.encode()).hexdigest()
+
+
+def _stamp_path(path):
+    return path + ".stamp"
+
+
+def _stamp_matches(path, stamp):
+    """True if ``path`` exists and its sidecar stamp equals ``stamp``."""
+    if not os.path.exists(path):
+        return False
+    try:
+        with open(_stamp_path(path)) as fh:
+            return fh.read().strip() == stamp
+    except OSError:
+        return False
+
+
+def _write_stamp(path, stamp):
+    try:
+        with open(_stamp_path(path), "w") as fh:
+            fh.write(stamp)
+    except OSError as exc:                                             # noqa: BLE001
+        print(f"docking: could not write stamp for {path} ({exc})")
+
+
+def receptor_fingerprint(target=DEFAULT_TARGET):
+    """Hex sha256 of the prepared PDBQT receptor Vina actually reads.
+
+    Hashing the PDBQT rather than the cleaned PDB is deliberate: the PDBQT is
+    downstream of Open Babel, so it carries the added hydrogens and Gasteiger
+    partial charges. Hashing the PDB would catch a prep-logic change but miss an
+    Open Babel version bump silently altering charges — which changes every
+    score without changing any file we control.
+    """
+    clean_pdb = prepare_protein(target)
+    receptor_pdbqt = _prepare_receptor_pdbqt(target, clean_pdb)
+    return _sha256_file(receptor_pdbqt)
+
+
+def oracle_fingerprint(target=DEFAULT_TARGET,
+                       exhaustiveness=DEFAULT_EXHAUSTIVENESS,
+                       seed=None):
+    """Identity of everything that determines a docking score.
+
+    Receptor contents + binding box + search effort + RNG seed. A cached score
+    is only valid for the exact configuration that produced it, and each of
+    these silently changes the number:
+
+      * receptor  — the NADPH bug: same SMILES, same box, different cavity
+      * box       — recentre or resize and you are scoring a different pocket
+      * exhaustiveness — changes how thoroughly the pose space is searched
+      * seed      — Vina is only deterministic for a fixed seed
+
+    Folding all four into ONE value keeps the cache key a single column and
+    means a future change to any of them invalidates correctly, with nobody
+    having to remember to bump a version number.
+    """
+    if seed is None:
+        seed = DEFAULT_VINA_SEED
+    spec = _target_spec(target)
+    payload = "|".join([
+        f"target={target}",
+        f"receptor={receptor_fingerprint(target)}",
+        f"center={tuple(float(v) for v in spec['center'])}",
+        f"size={tuple(float(v) for v in spec['size'])}",
+        f"exhaustiveness={int(exhaustiveness)}",
+        f"seed={int(seed)}",
+    ])
+    return hashlib.sha256(payload.encode()).hexdigest()
+
+
 def _target_paths(target):
     """Local (raw, clean, pdbqt) receptor file names for ``target``."""
     pdb_id = _target_spec(target)["pdb_id"]
@@ -196,8 +301,15 @@ def prepare_protein(target=DEFAULT_TARGET, pdb_path=None):
     raw_pdb, clean_pdb, _ = _target_paths(target)
     if pdb_path is None:
         pdb_path = raw_pdb
-    if os.path.exists(clean_pdb):
+    stamp = _prep_stamp(target)
+    if _stamp_matches(clean_pdb, stamp):
         return clean_pdb
+    if os.path.exists(clean_pdb):
+        # Present but built by different prep logic (e.g. before NADPH was
+        # retained). Rebuild rather than reuse: a stale receptor is exactly how
+        # the cofactor bug persisted across runs.
+        print(f"docking: {clean_pdb} was built by different prep logic; "
+              f"regenerating.")
 
     from Bio.PDB import PDBParser, PDBIO, Select
 
@@ -230,6 +342,12 @@ def prepare_protein(target=DEFAULT_TARGET, pdb_path=None):
     io = PDBIO()
     io.set_structure(structure)
     io.save(clean_pdb, select=ProteinPlusCofactor())
+    _write_stamp(clean_pdb, stamp)
+    # The PDBQT is derived from this file, so it is now stale by construction.
+    _, _, receptor_pdbqt = _target_paths(target)
+    for path in (receptor_pdbqt, _stamp_path(receptor_pdbqt)):
+        if os.path.exists(path):
+            os.remove(path)
     return clean_pdb
 
 
@@ -336,7 +454,10 @@ def _prepare_receptor_pdbqt(target=DEFAULT_TARGET, clean_pdb_path=None):
     _, clean_pdb, receptor_pdbqt = _target_paths(target)
     if clean_pdb_path is None:
         clean_pdb_path = clean_pdb
-    if os.path.exists(receptor_pdbqt):
+    # Stamped with the SOURCE pdb's hash: if the cleaned protein changed, the
+    # converted receptor must be rebuilt from it.
+    stamp = _sha256_file(clean_pdb_path) if os.path.exists(clean_pdb_path) else ""
+    if _stamp_matches(receptor_pdbqt, stamp):
         return receptor_pdbqt
 
     try:
@@ -353,6 +474,7 @@ def _prepare_receptor_pdbqt(target=DEFAULT_TARGET, clean_pdb_path=None):
     # "r" => write a single rigid molecule (no torsion tree), as needed for a
     # docking receptor. Open Babel computes Gasteiger charges by default.
     protein.write("pdbqt", receptor_pdbqt, overwrite=True, opt={"r": None})
+    _write_stamp(receptor_pdbqt, stamp)
     return receptor_pdbqt
 
 
@@ -428,11 +550,14 @@ def dock_target(smiles, target=DEFAULT_TARGET, n_poses=9,
     # --- Cache lookup (canonical SMILES + target key) ---
     caching = use_cache and _CACHE_ENABLED
     canonical = canonicalize_smiles(smiles) if caching else None
+    # Computed before any lookup: the cached score is only valid for the exact
+    # receptor/box/effort/seed combination that produced it.
+    fingerprint = oracle_fingerprint(target, seed=seed) if caching else None
     # A caller asking for poses (out_path) needs Vina to actually run, so the
     # cache READ is skipped in that case. The write below still happens, so a
     # pose-producing call keeps warming the cache for everyone else.
     if caching and out_path is None:
-        cached = get_cache().get(canonical, target)
+        cached = get_cache().get(canonical, target, fingerprint)
         if cached is not None:
             status, affinity = cached
             # A cached failure is returned as-is (None); clearing the cache is
@@ -476,7 +601,7 @@ def dock_target(smiles, target=DEFAULT_TARGET, n_poses=9,
             "--size_x", str(sx),
             "--size_y", str(sy),
             "--size_z", str(sz),
-            "--exhaustiveness", "8",
+            "--exhaustiveness", str(DEFAULT_EXHAUSTIVENESS),
             "--num_modes", str(n_poses),
             # Explicit seed -> reproducible poses/scores across runs.
             "--seed", str(seed),
@@ -488,7 +613,8 @@ def dock_target(smiles, target=DEFAULT_TARGET, n_poses=9,
 
         affinity = _parse_best_affinity(result.stdout)
         if caching:
-            get_cache().put(canonical, target, float(affinity), STATUS_OK, seed=seed)
+            get_cache().put(canonical, target, float(affinity), STATUS_OK,
+                            fingerprint, seed=seed)
         return affinity
     except Exception as exc:
         warnings.warn(f"Docking failed for SMILES {smiles!r} against {target}: {exc}")
@@ -496,7 +622,8 @@ def dock_target(smiles, target=DEFAULT_TARGET, n_poses=9,
             # Record the failure (marked, affinity NULL) so we don't keep
             # re-attempting a molecule that reliably fails; clear the cache to
             # retry it.
-            get_cache().put(canonical, target, None, STATUS_FAIL, seed=seed)
+            get_cache().put(canonical, target, None, STATUS_FAIL,
+                            fingerprint, seed=seed)
         return None
     finally:
         cleanup = [ligand_pdbqt] if keep_out else [ligand_pdbqt, out_pdbqt]

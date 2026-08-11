@@ -575,6 +575,28 @@ def _capture(cmd, cwd=ROOT):
     return out.stdout.strip()
 
 
+def _objective_description(args):
+    """What the docking objectives optimize, for the manifest.
+
+    Two sweeps can otherwise be indistinguishable from their files: the Aug-8
+    run optimized ligand efficiency and this one optimizes raw kcal/mol, and
+    their hypervolumes are NOT commensurable. Recording it means a later audit
+    can tell them apart without reading the git log.
+    """
+    try:
+        out = _capture([args.python, "-c",
+                        "import json, evaluation;"
+                        "print(json.dumps({"
+                        "'docking_units': 'kcal/mol'"
+                        " if evaluation.DOCKING_KCAL_MIN < -1 else"
+                        " 'ligand_efficiency',"
+                        "'docking_bounds': [evaluation.DOCKING_KCAL_MIN,"
+                        " evaluation.DOCKING_KCAL_MAX]}))"])
+        return json.loads(out) if out else {"docking_units": "unknown"}
+    except (ValueError, OSError):
+        return {"docking_units": "unknown"}
+
+
 def write_manifest(args, cases, effective_lib):
     """Record what was run, against what code, with which dependencies.
 
@@ -624,6 +646,7 @@ def write_manifest(args, cases, effective_lib):
             "n_iterations": args.n_iterations,
             "mogp_iters": args.mogp_iters,
         },
+        "objective": _objective_description(args),
         "library_dir": effective_lib,
         "library_molecules": library_size(effective_lib),
         "arena": bool(args.arena),
@@ -730,6 +753,12 @@ def main():
     parser.add_argument("--batch-size", type=int, default=None)
     parser.add_argument("--n-iterations", type=int, default=None)
     parser.add_argument("--mogp-iters", type=int, default=None)
+    parser.add_argument("--output-root", default=None,
+                        help="Directory for this sweep's artifacts (default "
+                             "matrix_results). Use a fresh name to leave a "
+                             "previous sweep untouched — required when the two "
+                             "are not comparable, e.g. across an objective "
+                             "change.")
     parser.add_argument("--no-report", action="store_true",
                         help="Skip the aggregate table + comparison figure "
                              "that normally run after the last case.")
@@ -739,6 +768,15 @@ def main():
                              "run_benchmark_seeds' --lib-size, so every case "
                              "searches one library.")
     args = parser.parse_args()
+
+    # Rebind the artifact paths before anything writes. Kept as module globals
+    # because Case.log_path and the writers below read them directly.
+    if args.output_root:
+        global OUT_ROOT, LOG_DIR, RESULTS_CSV, REPORT_MD
+        OUT_ROOT = os.path.abspath(args.output_root)
+        LOG_DIR = os.path.join(OUT_ROOT, "logs")
+        RESULTS_CSV = os.path.join(OUT_ROOT, "results.csv")
+        REPORT_MD = os.path.join(OUT_ROOT, "report.md")
 
     cases = build_cases(args)
 

@@ -116,13 +116,74 @@ def synth_reject_reason(mol):
     return None
 
 
+# ---------------------------------------------------------------------- #
+# Reactive-group screen (SEPARATE from PAINS, not a replacement)
+# ---------------------------------------------------------------------- #
+# PAINS catches frequent-hitter *assay interference*; it says nothing about
+# reactive chemistry, and was verified to pass acyl chlorides, epoxides,
+# aziridines, N-chlorosuccinimide and Michael acceptors. The gap matters here:
+# the best-scoring molecule in the whole library was a 1,3-dichlorohydantoin, a
+# chloramine oxidant that cannot be a reversible binder — docking it is
+# meaningless, but nothing rejected it.
+#
+# These patterns target covalently reactive electrophiles specifically. Kept
+# narrow on purpose: every clinical antifolate control must survive, which
+# `assert_known_actives_survive` enforces.
+REACTIVE_SMARTS = [
+    # N-halo imides/amides — chloramine oxidants (dichlorohydantoin, NCS).
+    ("N-halo amide/imide",
+     "[NX3;$([NX3][CX3]=[OX1]),$([NX3][SX4](=[OX1])=[OX1])][F,Cl,Br,I]"),
+    ("N-halo amine", "[NX3;!$([NX3][CX3]=[OX1])][Cl,Br,I]"),
+    ("acyl halide", "[CX3](=[OX1])[F,Cl,Br,I]"),
+    ("sulfonyl halide", "[SX4](=[OX1])(=[OX1])[F,Cl,Br,I]"),
+    ("epoxide", "[OX2r3]1[#6r3][#6r3]1"),
+    ("aziridine", "[NX3r3]1[#6r3][#6r3]1"),
+    ("peroxide", "[OX2][OX2]"),
+    # Michael acceptors. The enone pattern deliberately excludes vinylogous
+    # amides and enols (the !$([CX3][NX3]) / !$([CX3][OX2H1]) guards): without
+    # them it rejects the isoindolinone lead, whose C=C is conjugated to
+    # nitrogen rather than presenting an electrophilic beta carbon.
+    ("Michael acceptor (enone)",
+     "[CX3;!R]=[CX3;!R;!$([CX3][NX3]);!$([CX3][OX2H1])][CX3]=[OX1]"),
+    ("Michael acceptor (vinyl sulfone)",
+     "[CX3]=[CX3][SX4](=[OX1])(=[OX1])"),
+    ("alpha-halo carbonyl", "[CX3](=[OX1])[CX4][F,Cl,Br,I]"),
+    ("isocyanate/isothiocyanate", "[NX2]=[CX2]=[OX1,SX1]"),
+    ("acid anhydride", "[CX3](=[OX1])[OX2][CX3]=[OX1]"),
+]
+
+_REACTIVE_PATTERNS = []
+for _name, _smarts in REACTIVE_SMARTS:
+    _patt = Chem.MolFromSmarts(_smarts)
+    if _patt is None:                                                  # pragma: no cover
+        raise RuntimeError(f"quality_filter: invalid reactive SMARTS for {_name}")
+    _REACTIVE_PATTERNS.append((_name, _patt))
+
+# Escape hatch for a controlled A/B run (e.g. re-running a historical sweep
+# where the screen must match what that sweep actually used). Off means the
+# screen is SKIPPED, so it announces itself rather than disappearing quietly.
+REACTIVE_FILTER_ENABLED = os.environ.get("MOGP_DISABLE_REACTIVE_FILTER") != "1"
+if not REACTIVE_FILTER_ENABLED:
+    print("quality_filter: WARNING — reactive-group screen DISABLED via "
+          "MOGP_DISABLE_REACTIVE_FILTER=1; reactive electrophiles will be "
+          "scored as if they were viable binders.")
+
+
+def reactive_reject_reason(mol):
+    """Return a short reason if the molecule carries a reactive group, else None."""
+    for name, patt in _REACTIVE_PATTERNS:
+        if mol.HasSubstructMatch(patt):
+            return f"reactive:{name}"
+    return None
+
+
 def passes_quality(mol_or_smiles):
     """Return (ok, reason) for a SMILES or Mol.
 
     ``ok`` is True iff the molecule parses AND passes every screen. ``reason``
-    is a short label for the failure ("unparseable", "PAINS:<pattern>", or the
-    synthesizability reason). Callers can log ``reason`` to make the drop count
-    per iteration attributable to a specific screen.
+    is a short label for the failure ("unparseable", "PAINS:<pattern>",
+    "reactive:<group>", or the synthesizability reason). Callers can log
+    ``reason`` to make the drop count per iteration attributable to a screen.
     """
     if isinstance(mol_or_smiles, Chem.Mol):
         mol = mol_or_smiles
@@ -134,6 +195,11 @@ def passes_quality(mol_or_smiles):
     matches = PAINS_CATALOG.GetMatches(mol)
     if matches:
         return False, "PAINS:" + matches[0].GetDescription()
+
+    if REACTIVE_FILTER_ENABLED:
+        reason = reactive_reject_reason(mol)
+        if reason is not None:
+            return False, reason
 
     reason = synth_reject_reason(mol)
     if reason is not None:

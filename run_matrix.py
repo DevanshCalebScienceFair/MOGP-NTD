@@ -536,6 +536,7 @@ def run_case(case, env):
     """Execute one case, tee its output to a log, and return a result row."""
     os.makedirs(os.path.dirname(case.log_path), exist_ok=True)
     start = time.time()
+    started_at = datetime.datetime.now()
     with open(case.log_path, "w") as log:
         log.write("$ {}\n\n".format(case.pretty()))
         log.flush()
@@ -553,6 +554,7 @@ def run_case(case, env):
             code = -2
             status = "error"
             log.write("\n\n*** COULD NOT LAUNCH: {} ***\n".format(exc))
+    ended_at = datetime.datetime.now()
     return {
         "id": case.id,
         "group": case.group,
@@ -560,6 +562,12 @@ def run_case(case, env):
         "status": status,
         "exit_code": code,
         "seconds": round(time.time() - start, 1),
+        # Wall-clock start/end per case. A long run's timing outliers are
+        # otherwise undiagnosable after the fact: duration alone cannot
+        # distinguish "this case did more work" from "something else was
+        # competing for the CPU during that window".
+        "started_at": started_at.isoformat(timespec="seconds"),
+        "ended_at": ended_at.isoformat(timespec="seconds"),
         "log": os.path.relpath(case.log_path, ROOT),
         "command": case.pretty(),
     }
@@ -672,8 +680,8 @@ def write_results(rows):
     must not erase the record of a full sweep. Rows from this run replace
     same-id rows from a previous one; everything else is preserved.
     """
-    fields = ["id", "group", "tier", "status", "exit_code", "seconds", "log",
-              "command"]
+    fields = ["id", "group", "tier", "status", "exit_code", "seconds",
+              "started_at", "ended_at", "log", "command"]
     merged = {}
     if os.path.exists(RESULTS_CSV):
         try:
@@ -870,8 +878,9 @@ def main():
     def report(row, index):
         mark = {"pass": "PASS", "fail": "FAIL", "timeout": "TIME",
                 "error": "ERR "}[row["status"]]
-        print("[{:>3}/{}] {} {:<34} {:>7.1f}s"
-              .format(index, len(cases), mark, row["id"], row["seconds"]))
+        print("[{:>3}/{}] {} {:<34} {:>7.1f}s  {}..{}"
+              .format(index, len(cases), mark, row["id"], row["seconds"],
+                      row["started_at"][11:], row["ended_at"][11:]))
         if row["status"] != "pass":
             print("          log: {}".format(row["log"]))
 

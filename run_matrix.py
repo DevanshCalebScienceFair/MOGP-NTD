@@ -605,6 +605,15 @@ def _objective_description(args):
         return {"docking_units": "unknown"}
 
 
+def is_partial_invocation(args):
+    """True when this run covers a SUBSET of the sweep rather than all of it.
+
+    A selection flag means the invocation cannot describe the sweep as a whole,
+    so it must not be allowed to author the sweep's provenance record.
+    """
+    return bool(args.only or args.skip or args.group or args.resume)
+
+
 def write_manifest(args, cases, effective_lib):
     """Record what was run, against what code, with which dependencies.
 
@@ -613,7 +622,36 @@ def write_manifest(args, cases, effective_lib):
     you can tell which commit produced it. This captures all of that up front,
     so the sweep's outputs stay interpretable later. Best-effort throughout —
     a missing git or vina degrades a field rather than failing the run.
+
+    A PARTIAL invocation (--only / --skip / --group / --resume) never overwrites
+    an existing manifest. Re-running one failed case out of sixty would
+    otherwise replace the sweep's provenance with a record of the recovery —
+    n_cases=1, the recovery command line, the recovery timestamp — destroying
+    the only machine-readable description of what actually ran. This is the same
+    failure write_results had; there it cost the timing table, here it would
+    cost the provenance. The recovery is appended to ``recovery_invocations``
+    instead, so the fact of it is still recorded.
     """
+    manifest_path = os.path.join(OUT_ROOT, "manifest.json")
+    if is_partial_invocation(args) and os.path.exists(manifest_path):
+        try:
+            with open(manifest_path) as fh:
+                existing = json.load(fh)
+        except (OSError, ValueError):
+            existing = None
+        if existing:
+            existing.setdefault("recovery_invocations", []).append({
+                "at": datetime.datetime.now().isoformat(timespec="seconds"),
+                "invocation": " ".join(shlex.quote(a) for a in sys.argv),
+                "n_cases": len(cases),
+                "cases": [c.id for c in cases],
+            })
+            with open(manifest_path, "w") as fh:
+                json.dump(existing, fh, indent=2)
+            print(f"manifest: preserved the existing sweep record; logged this "
+                  f"partial run under recovery_invocations "
+                  f"({len(cases)} case(s)).")
+            return existing
     versions = _capture([
         args.python, "-c",
         "import json,sys;"
@@ -655,6 +693,22 @@ def write_manifest(args, cases, effective_lib):
             "mogp_iters": args.mogp_iters,
         },
         "objective": _objective_description(args),
+        # What a later reader may and may not compare this sweep against.
+        # Settings comparability and METRIC comparability are different things:
+        # two sweeps can share every scale parameter and still have hypervolumes
+        # that mean different things, because hypervolume is defined relative to
+        # the objective's units and normalization bounds.
+        "comparability": {
+            "note": ("Compare hypervolume ONLY against sweeps recording the "
+                     "same objective block. Scale settings matching is NOT "
+                     "sufficient."),
+            "scale_settings": {
+                "tier": args.tier, "lib_pull": args.lib_pull,
+                "n_init": args.n_init, "batch_size": args.batch_size,
+                "n_iterations": args.n_iterations,
+                "mogp_iters": args.mogp_iters,
+            },
+        },
         "library_dir": effective_lib,
         "library_molecules": library_size(effective_lib),
         "arena": bool(args.arena),

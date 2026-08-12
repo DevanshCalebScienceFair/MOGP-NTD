@@ -11,6 +11,7 @@ primary key, so a configuration change is a cache MISS rather than a wrong
 answer. These tests pin that.
 """
 
+import json
 import os
 import sqlite3
 import tempfile
@@ -146,3 +147,63 @@ def test_validate_docking_reads_the_cache_with_the_current_api():
     canon = [validate_docking.canonicalize_smiles(s) for s in smiles]
     scores = validate_docking.scores_from_cache(smiles, canon, skip_indices=set())
     assert isinstance(scores, dict)          # hits are incidental; the call is the test
+
+
+# --------------------------------------------------------------------------- #
+# Provenance: a partial invocation must not author a sweep's manifest.
+# --------------------------------------------------------------------------- #
+class _Args:
+    """Minimal stand-in for the parsed CLI namespace write_manifest reads."""
+
+    def __init__(self, **kw):
+        defaults = dict(only=[], skip=[], group=[], resume=False, tier="full",
+                        lib_pull=6000, n_init=20, batch_size=5, n_iterations=10,
+                        mogp_iters=100, arena=False, python="python3",
+                        library_dir="data/library")
+        defaults.update(kw)
+        self.__dict__.update(defaults)
+
+
+@pytest.mark.parametrize("selection", [
+    {"only": ["validate-docking"]},
+    {"resume": True},
+    {"skip": ["bo-*"]},
+    {"group": ["bo"]},
+])
+def test_partial_invocation_is_detected(selection):
+    """Every selection flag marks the run as covering a subset."""
+    import run_matrix
+    assert run_matrix.is_partial_invocation(_Args(**selection))
+
+
+def test_full_invocation_is_not_partial():
+    import run_matrix
+    assert not run_matrix.is_partial_invocation(_Args())
+
+
+def test_partial_run_preserves_an_existing_manifest(tmp_path, monkeypatch):
+    """The regression this guards: re-running one failed case out of sixty
+    replaced the sweep's provenance with a record of the recovery — n_cases=1,
+    the recovery command line, the recovery timestamp. That destroyed the only
+    machine-readable description of what actually ran, and it had to be
+    reconstructed from console.log. The recovery is now appended instead.
+    """
+    import run_matrix
+
+    monkeypatch.setattr(run_matrix, "OUT_ROOT", str(tmp_path))
+    manifest = tmp_path / "manifest.json"
+    original = {"n_cases": 60, "started": "2026-08-11T14:52:08",
+                "invocation": "the real sweep", "cases": [f"case-{i}" for i in range(60)]}
+    manifest.write_text(json.dumps(original))
+
+    case = run_matrix.Case("validate-docking", "validate", "full", ["true"])
+    returned = run_matrix.write_manifest(
+        _Args(only=["validate-docking"]), [case], "data/library")
+
+    on_disk = json.loads(manifest.read_text())
+    assert on_disk["n_cases"] == 60, "partial run overwrote the sweep record"
+    assert on_disk["started"] == "2026-08-11T14:52:08"
+    assert on_disk["invocation"] == "the real sweep"
+    assert len(on_disk["recovery_invocations"]) == 1
+    assert on_disk["recovery_invocations"][0]["cases"] == ["validate-docking"]
+    assert returned["n_cases"] == 60

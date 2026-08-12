@@ -1,8 +1,8 @@
 {
-  "started": "2026-08-11T22:35:19",
+  "started": "2026-08-11T14:52:08",
   "host": "Mac.attlocal.net",
   "platform": "macOS-26.5.2-arm64-arm-64bit",
-  "invocation": "run_matrix.py --output-root matrix_results_holo --tier full --lib-pull 6000 --n-init 20 --batch-size 5 --n-iterations 10 --mogp-iters 100 --only validate-docking --resume --no-report",
+  "invocation": "run_matrix.py --tier full --lib-pull 6000 --n-init 20 --batch-size 5 --n-iterations 10 --mogp-iters 100 --output-root matrix_results_holo",
   "python": "/opt/anaconda3/envs/mogp-drug/bin/python",
   "packages": {
     "python": "3.11.14",
@@ -45,8 +45,98 @@
   "library_dir": "data/library",
   "library_molecules": 3610,
   "arena": false,
-  "n_cases": 1,
+  "n_cases": 60,
   "cases": [
-    "validate-docking"
-  ]
+    "compile-all",
+    "compile-streamlit",
+    "import-acquisition",
+    "import-admet_oracle",
+    "import-densify",
+    "import-docking",
+    "import-docking_cache",
+    "import-evaluation",
+    "import-kernel",
+    "import-mogp",
+    "import-mogp_coregionalized",
+    "import-quality_filter",
+    "import-utils-featurize",
+    "cli-loop",
+    "cli-launch",
+    "cli-data",
+    "cli-rebuild-library",
+    "cli-run-ablation",
+    "cli-run-benchmark-seeds",
+    "cli-baseline-random",
+    "cli-baseline-greedy",
+    "cli-baseline-single-obj",
+    "cli-validate-docking",
+    "cli-validate-known-actives",
+    "cli-train-admet-oracle",
+    "unit-gp",
+    "unit-acquisition",
+    "unit-admet-oracle",
+    "unit-coregionalized",
+    "unit-densify",
+    "unit-evaluation",
+    "dryrun-known-actives-nodock",
+    "bo-independent-nodensify",
+    "bo-independent-densify-every1",
+    "bo-independent-densify-every2-cap",
+    "bo-coreg-r1-nodensify",
+    "bo-coreg-r1-densify-every1",
+    "bo-coreg-r1-densify-every2-cap",
+    "bo-coreg-r2-nodensify",
+    "bo-coreg-r2-densify-every1",
+    "bo-coreg-r2-densify-every2-cap",
+    "launch-independent",
+    "launch-coreg-r1",
+    "launch-coreg-r2",
+    "profile-smoke-loop",
+    "profile-smoke-launch",
+    "baseline-random",
+    "baseline-single-obj",
+    "baseline-greedy-default",
+    "baseline-greedy-permissive",
+    "harness-ablation",
+    "harness-seeds-band-std",
+    "harness-seeds-band-sem",
+    "harness-seeds-band-ci95",
+    "harness-seeds-densify",
+    "harness-seeds-nocache",
+    "dryrun-rebuild-library",
+    "validate-docking",
+    "validate-known-actives",
+    "verification-harness"
+  ],
+  "launched_via": "go.sh matrix_results_holo",
+  "total_runtime_seconds": 27717.4,
+  "total_runtime_hours": 7.7,
+  "finished": "2026-08-11T22:34:05",
+  "reconstructed": {
+    "at": "2026-08-12T10:20:30",
+    "reason": "the original manifest was overwritten by a partial recovery run (--only validate-docking --resume --no-report) before write_manifest refused to clobber on partial invocations",
+    "sources": [
+      "console.log header and per-case lines",
+      "per-case logs under logs/"
+    ],
+    "git_commit_left_as_recorded": "67069df \u2014 what actually ran; later commits are analysis-only and did not produce these results"
+  },
+  "recovery_invocations": [
+    {
+      "at": "2026-08-11T22:35:19",
+      "invocation": "run_matrix.py --output-root matrix_results_holo --tier full --lib-pull 6000 --n-init 20 --batch-size 5 --n-iterations 10 --mogp-iters 100 --only validate-docking --resume --no-report",
+      "n_cases": 1,
+      "cases": [
+        "validate-docking"
+      ],
+      "note": "recovery run that overwrote this manifest; restored 2026-08-12"
+    }
+  ],
+  "comparability": {
+    "comparable_to": "matrix_results/",
+    "same_settings": "tier=full, lib_pull=6000, n_init=20, batch_size=5, n_iterations=10, mogp_iters=100, same 3610-molecule cached library, same package versions",
+    "NOT_comparable": "HYPERVOLUME. matrix_results/ optimized size-corrected LIGAND EFFICIENCY; this sweep optimizes RAW kcal/mol. Hypervolume is defined relative to the objective's units and normalization bounds, so the two numbers measure different volumes and must never share an axis.",
+    "also_differs": "receptor (this sweep retains the NADPH cofactor; matrix_results/ did not) and the reactive-group screen (ON here, absent there: 3268 vs 3381 searched molecules)",
+    "what_IS_comparable": "the MOGP-vs-baselines contrast WITHIN each sweep, since all methods share an objective there; and raw kcal quantities such as Selectivity_Index, which are in the same units on both sides"
+  }
 }

@@ -66,7 +66,11 @@ the 2 docking columns; ADMET scores that fall out of domain arrive as NaN and
 | `kernel.py` | `TanimotoKernel` for GPyTorch. |
 | `mogp.py` | Multi-output Tanimoto GP (one independent scaled-Tanimoto GP per objective). Owns `TASK_NAMES`. |
 | `acquisition.py` | Monte-Carlo EHVI, Pareto front / hypervolume / reference-point helpers, diverse `select_batch`. |
-| `docking.py` | DHFR docking oracle against **named** targets (`PfDHFR` 1J3I + `hDHFR` 1U72): SMILES → 3D conformer → Vina → kcal/mol. `batch_dock_targets()` docks a batch vs several targets; returns NaN on failure. |
+| `docking.py` | DHFR docking oracle against **named** targets (`PfDHFR` 1J3I + `hDHFR` 1U72): SMILES → 3D conformer → Vina → kcal/mol. `batch_dock_targets()` docks a batch vs several targets; returns NaN on failure. `prepare_protein` **retains the NADPH cofactor** (`COFACTOR_RESNAMES = {"NDP"}`) — see below. Exposes `oracle_fingerprint()`, the cache key. |
+| `sa_score.py` | Crash-safe SA (synthetic accessibility) scoring. The RDKit contrib scorer SIGBUSes on some builds; this patches its deprecated fingerprint call and **raises rather than degrading silently** if the screen cannot run. |
+| `quality_filter.py` | Shared candidate gate: PAINS + **reactive-group screen** + synthesizability. Also `structural_alerts()` — reporting-only annotations, never a filter. |
+| `annotate_leads.py` | Classifies leads by MECHANISM (recognition vs size exclusion) from docked-pose geometry. |
+| `validate_redock.py` | Self-docking RMSD control (crystal ligand → own structure). |
 | `loop.py` | The multi-objective BO loop (`BOLoop`): train MOGP → EHVI select → dock → update Pareto/hypervolume → save. |
 | `dashboard.py` | Streamlit results viewer (reads the 3 result CSVs). |
 | `run.py` | Interactive end-to-end runner (train → build library → BO loop → launch dashboard). |
@@ -124,7 +128,68 @@ library and same scale** (n_init / batch_size / n_iterations).
   fidelity) than this repo implements; its tests intentionally skip (see
   `verification/README.md`).
 
-## Recent work (2026-07-03)
+## Critical corrections (2026-08-10 → 08-12)
+
+Four corrections that invalidate earlier numbers. Anything produced before them —
+including `matrix_results/` — is superseded.
+
+**1. NADPH was being deleted from both receptors.** `prepare_protein` stripped all
+HETATM records, removing the NADPH cofactor (resname `NDP`). NADPH is structural,
+not incidental: it lies INSIDE both Vina boxes and packs against the
+co-crystallized inhibitor at ~3.3 Å. Deleting it merged the folate and cofactor
+sites into one oversized cavity, so Vina rewarded volume-filling over active-site
+recognition, and every docked pose overlapped the NADPH position by 0.14–1.72 Å.
+Fixed via `COFACTOR_RESNAMES`. **Every docking score computed before this is
+wrong**, and not by a constant offset — the shift reorders molecules.
+
+Validation: redocking reproduces both crystal poses (WR99210 → 1J3I 0.98 Å,
+methotrexate → 1U72 0.94 Å; `validate_redock.py`). `test_docking_controls.py`
+asserts no pose comes within 2.0 Å of NADPH — it reads NADPH from the RAW PDB,
+NOT the prepared receptor, or it would be a tautology.
+
+**2. The objective reverted from ligand efficiency to raw kcal/mol.** LE was
+adopted because the *apo* oracle's raw score was size-confounded. Correcting the
+receptor removed most of that: paired Spearman(score, heavy_atoms) went −0.726 →
+−0.257, while LE's counter-bias barely moved (+0.891 → +0.880). LE was correcting
+~3.4× harder than the remaining distortion, in the opposite direction. LE is still
+computed and REPORTED as `*_LE` columns.
+
+**3. A reactive-group screen runs alongside PAINS.** PAINS targets assay
+interference and passes acyl halides, epoxides, aziridines and Michael acceptors.
+The best-scoring molecule in the entire library was a 1,3-dichlorohydantoin — a
+chloramine oxidant that cannot be a reversible binder. Screened-out molecules are
+logged to `data/library/quality_rejected.csv` with their rejection class.
+
+**4. The docking cache is keyed on `oracle_fingerprint`.** The old key was
+`(smiles, target)`, so changing the receptor, box, exhaustiveness or seed returned
+stale scores silently — the mechanism that let the NADPH bug persist across runs.
+The fingerprint hashes the receptor **PDBQT** (downstream of Open Babel, so it
+catches charge changes too) plus box centre/size, exhaustiveness and seed.
+Prepared receptors carry sidecar `.stamp` files and rebuild on mismatch.
+
+### Results status
+
+- `matrix_results/` — apo, LE objective. **Superseded; keep for provenance only.**
+- `matrix_results_holo/` — corrected receptor, raw-kcal objective, reactive screen
+  on. 60/60, 7.70 h. `FINAL_LEADS.csv` is the paper's lead table.
+- Hypervolumes from the two are **NOT commensurable** (different objective units).
+  Never plot them on one axis. The MOGP-vs-baselines comparison *within* a sweep
+  is unaffected — all methods share an objective there.
+
+### Known limitations
+
+- **Selectivity Index is partly size-driven.** Spearman(heavy_atoms, SI) = +0.267
+  across the pooled front; a large molecule can post a high SI just by not fitting
+  the human pocket. Rank leads by mechanism (`annotate_leads.py`), not SI: of the
+  top 50 by SI, 30% are off-site in hDHFR.
+- **The logP confound is NOT fixed** (paired Spearman −0.293 → −0.245) and raw
+  kcal inherits it. The size ceiling is a real constraint the holo receptor
+  imposes; there is no equivalent brake on lipophilicity.
+- **SI is not calibrated.** WR99210 scores −0.17 despite being ~1000× selective.
+  Usable as a relative ranking under identical conditions, never as a value.
+- Vina scores are rankings, not affinities. Never report them as Kd or IC50.
+
+## Earlier work (2026-07-03)
 
 - Expanded `TASK_NAMES` from the 3-objective selectivity set to the **5-objective**
   set `[PfDHFR_Docking, hDHFR_Docking, hERG_Toxicity_Prob, Caco2_logPapp,

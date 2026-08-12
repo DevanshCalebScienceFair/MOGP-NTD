@@ -209,6 +209,72 @@ def passes_quality(mol_or_smiles):
 
 
 # ---------------------------------------------------------------------- #
+# Structural alerts — REPORTING ONLY, never a filter
+# ---------------------------------------------------------------------- #
+# These are liabilities to DISCLOSE, not grounds for rejection. They differ from
+# the reactive screen above in kind: a chloramine cannot be a reversible binder
+# at all, whereas a nitroaromatic or an ester is a real, developable motif that
+# simply carries risk a reader must be told about.
+#
+# Deliberately not wired into `passes_quality`. Silently dropping molecules on
+# these patterns would repeat the chalcone judgment call without recording it —
+# and unlike the chalcones, there is no mechanistic argument that these compounds
+# do not belong on a DHFR front. Annotate, disclose, let a human decide.
+#
+# Why each one matters:
+#   nitroaromatic         mutagenicity flag (nitroreduction to reactive
+#                         intermediates), AND a known Vina over-scoring artifact
+#                         — so it inflates the very score that selected it
+#   thioamide/thiourea    metabolic and hepatotoxicity liability
+#   methylenedioxyphenyl  mechanism-based CYP3A4 inhibition; a serious
+#                         drug-drug-interaction liability
+#   ester/lactone         hydrolytic lability (plasma esterases); often a
+#                         short-half-life problem rather than a toxicity one
+STRUCTURAL_ALERTS = [
+    ("nitroaromatic", "[a][$([NX3](=O)=O),$([NX3+](=O)[O-])]"),
+    ("thioamide/thiourea", "[NX3][CX3]=[SX1]"),
+    ("methylenedioxyphenyl", "[c][OX2][CH2X4][OX2][c]"),
+    ("ester/lactone", "[#6][CX3](=[OX1])[OX2][#6]"),
+]
+
+_ALERT_PATTERNS = []
+for _name, _smarts in STRUCTURAL_ALERTS:
+    _patt = Chem.MolFromSmarts(_smarts)
+    if _patt is None:                                                  # pragma: no cover
+        raise RuntimeError(f"quality_filter: invalid alert SMARTS for {_name}")
+    _ALERT_PATTERNS.append((_name, _patt))
+
+
+def structural_alerts(mol_or_smiles):
+    """Return ``{alert_name: count}`` for a molecule. Never rejects anything.
+
+    Counts rather than booleans because multiplicity matters: two
+    methylenedioxyphenyl groups is a stronger CYP3A4 signal than one.
+    """
+    if isinstance(mol_or_smiles, Chem.Mol):
+        mol = mol_or_smiles
+    else:
+        mol = Chem.MolFromSmiles(str(mol_or_smiles))
+    if mol is None:
+        return {}
+    found = {}
+    for name, patt in _ALERT_PATTERNS:
+        n = len(mol.GetSubstructMatches(patt))
+        if n:
+            found[name] = n
+    return found
+
+
+def format_structural_alerts(mol_or_smiles):
+    """Human-readable alert string, or "clean" — for tables and reports."""
+    alerts = structural_alerts(mol_or_smiles)
+    if not alerts:
+        return "clean"
+    return "; ".join(f"{name} x{n}" if n > 1 else name
+                     for name, n in alerts.items())
+
+
+# ---------------------------------------------------------------------- #
 # Known-actives safety assertion
 # ---------------------------------------------------------------------- #
 def assert_known_actives_survive():

@@ -75,3 +75,43 @@ def test_screen_is_enabled_by_default():
     assert qf.REACTIVE_FILTER_ENABLED, (
         "reactive screen disabled — set MOGP_DISABLE_REACTIVE_FILTER only for "
         "a deliberate controlled comparison")
+
+
+# --------------------------------------------------------------------------- #
+# Structural alerts are REPORTING ONLY — they must never reject anything.
+# --------------------------------------------------------------------------- #
+ALERT_EXAMPLES = {
+    "nitroaromatic": "O=[N+]([O-])c1ccccc1",
+    "thioamide/thiourea": "CC(=S)Nc1ccccc1",
+    "methylenedioxyphenyl": "C1OC2=CC=CC=C2O1",
+    "ester/lactone": "CCOC(=O)c1ccccc1",
+}
+
+
+@pytest.mark.parametrize("alert,smiles", sorted(ALERT_EXAMPLES.items()))
+def test_structural_alerts_are_detected(alert, smiles):
+    assert alert in qf.structural_alerts(smiles)
+
+
+@pytest.mark.parametrize("alert,smiles", sorted(ALERT_EXAMPLES.items()))
+def test_structural_alerts_never_reject(alert, smiles):
+    """The whole point: disclose the liability, do not silently drop the molecule.
+
+    Filtering on these would repeat the chalcone judgment call without recording
+    it — and unlike the chalcones there is no mechanistic argument that these
+    compounds do not belong on a DHFR front.
+    """
+    ok, reason = qf.passes_quality(smiles)
+    assert ok is True, f"{alert} was rejected as {reason}; alerts must not filter"
+
+
+def test_alert_counts_are_multiplicities():
+    """Two methylenedioxyphenyls is a stronger CYP3A4 signal than one."""
+    lead = "COC(=O)c1cc(-c2c(C(=O)OC)cc(OC)c3c2OCO3)c2c(c1OC)OCO2"
+    alerts = qf.structural_alerts(lead)
+    assert alerts["methylenedioxyphenyl"] == 2
+    assert "x2" in qf.format_structural_alerts(lead)
+
+
+def test_clean_molecule_reports_clean():
+    assert qf.format_structural_alerts("CCC1=C(C(=NC(=N1)N)N)C2=CC=C(C=C2)Cl") == "clean"

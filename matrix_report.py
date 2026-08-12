@@ -31,6 +31,7 @@ Usage::
 """
 
 import argparse
+import json
 import os
 
 import numpy as np
@@ -79,6 +80,93 @@ def family_of(case_id):
         if case_id.startswith(prefix) or prefix in case_id:
             return label
     return "other"
+
+
+# Groups whose cases each write a per-case result set into their --output-dir.
+RESULT_GROUPS = {"bo", "baseline", "harness"}
+
+# Cases that pass but legitimately leave no per-case artifacts, so their absence
+# is not evidence of an incomplete sweep. run_ablation.py --save writes
+# results_coregionalized/ and results_independent/ at the REPO ROOT rather than
+# into its --output-dir, so harness-ablation never populates runs/.
+ARTIFACT_EXEMPT = {"harness-ablation"}
+
+
+def assess_completeness(sweep_dir, discovered_case_ids):
+    """Is this sweep finished, or are we looking at a subset of it?
+
+    ``discover`` reads the artifacts on disk, which is the right way to build a
+    sweep-level file (see CLAUDE.md) — but on its own it cannot tell a finished
+    sweep from a partial one. Run it mid-sweep, or against a directory an
+    earlier partial run left behind, and it produces a confident,
+    complete-looking summary from whatever happens to be present.
+
+    So cross-check the artifacts against the sweep's own record of what ran:
+
+      * results.csv rows vs the manifest's n_cases — catches a run that never
+        finished, or a partial invocation
+      * every passing result-producing case has a directory under runs/ —
+        catches artifacts that were deleted or never written
+
+    Both sides come from disk; nothing here trusts in-memory state.
+    """
+    result = {"complete": True, "reasons": [], "manifest_cases": None,
+              "results_rows": None, "discovered": len(discovered_case_ids),
+              "missing_artifacts": []}
+
+    manifest_path = os.path.join(sweep_dir, "manifest.json")
+    manifest = None
+    if os.path.exists(manifest_path):
+        try:
+            with open(manifest_path) as fh:
+                manifest = json.load(fh)
+        except (OSError, ValueError):
+            manifest = None
+    if manifest is None:
+        result["complete"] = False
+        result["reasons"].append(
+            "no readable manifest.json — cannot confirm this is a whole sweep")
+        return result
+    result["manifest_cases"] = manifest.get("n_cases")
+
+    results_csv = read_csv(os.path.join(sweep_dir, "results.csv"))
+    top_level = {cid.split("/")[0] for cid in discovered_case_ids}
+
+    if results_csv is None:
+        # No run record: fall back to the manifest's case list. Conservative —
+        # most cases never produce artifacts, so this can only say "clearly
+        # short", never "complete".
+        expected = set(manifest.get("cases") or [])
+        missing = sorted(expected - top_level - ARTIFACT_EXEMPT)
+        if expected and missing:
+            result["complete"] = False
+            result["missing_artifacts"] = missing
+            result["reasons"].append(
+                f"no results.csv; manifest lists {len(expected)} cases but only "
+                f"{len(top_level)} have artifacts on disk")
+        return result
+
+    result["results_rows"] = len(results_csv)
+    n_cases = result["manifest_cases"]
+    if n_cases is not None and len(results_csv) < n_cases:
+        result["complete"] = False
+        result["reasons"].append(
+            f"results.csv has {len(results_csv)} rows but the manifest records "
+            f"{n_cases} cases — the sweep did not finish, or this directory "
+            f"holds a partial run")
+
+    if {"id", "group", "status"} <= set(results_csv.columns):
+        expected = {r["id"] for _, r in results_csv.iterrows()
+                    if r["group"] in RESULT_GROUPS and r["status"] == "pass"}
+        missing = sorted(expected - top_level - ARTIFACT_EXEMPT)
+        if missing:
+            result["complete"] = False
+            result["missing_artifacts"] = missing
+            result["reasons"].append(
+                f"{len(missing)} case(s) passed but left no artifacts: "
+                + ", ".join(missing[:5])
+                + (" ..." if len(missing) > 5 else ""))
+    return result
 
 
 def discover(runs_dir):
@@ -228,7 +316,7 @@ def summarize(case_id, path):
     return row, best_row, (pareto if pareto is not None else None)
 
 
-def plot(summary, histories, paretos, out_path):
+def plot(summary, histories, paretos, out_path, partial=False):
     """Four-panel overlay of every combination in the sweep."""
     fig, axes = plt.subplots(3, 2, figsize=(19, 19))
     ax_hv, ax_bar, ax_sel, ax_score, ax_time, ax_eff = axes.ravel()
@@ -341,7 +429,11 @@ def plot(summary, histories, paretos, out_path):
         ax_eff.legend(fontsize=8)
         ax_eff.grid(alpha=0.3)
 
-    fig.suptitle("MOGP-NTD feature matrix — all combinations", fontsize=15)
+    title = "MOGP-NTD feature matrix — all combinations"
+    if partial:
+        title += "   [PARTIAL SWEEP — not all cases present]"
+    fig.suptitle(title, fontsize=15,
+                 color=("#b00020" if partial else "black"))
     fig.tight_layout(rect=(0, 0, 1, 0.97))
     fig.savefig(out_path, dpi=150)
     plt.close(fig)
@@ -368,6 +460,9 @@ def main():
         print("No case produced a {} under {}.".format(HISTORY_FILE, runs_dir))
         return 1
 
+    completeness = assess_completeness(args.sweep_dir, [c for c, _ in cases])
+    sweep_status = "complete" if completeness["complete"] else "PARTIAL"
+
     timings = load_timings(args.sweep_dir)
 
     rows, champions, per_objective = [], [], []
@@ -390,6 +485,9 @@ def main():
 
     summary = pd.DataFrame(rows).sort_values(
         "final_hypervolume", ascending=False, na_position="last")
+    # Stamped on every row: anyone loading this CSV sees the sweep's status
+    # without having to know to look for a separate file.
+    summary.insert(0, "sweep_status", sweep_status)
 
     summary_path = os.path.join(args.sweep_dir, "summary.csv")
     summary.to_csv(summary_path, index=False)
@@ -402,12 +500,24 @@ def main():
 
     out_path = args.output or os.path.join(args.sweep_dir,
                                            "matrix_comparison.png")
-    plot(summary, histories, paretos, out_path)
+    plot(summary, histories, paretos, out_path,
+         partial=not completeness["complete"])
 
     # --- Console summary ---------------------------------------------------
     print("=" * 78)
-    print("MATRIX REPORT — {} case(s) with results".format(len(cases)))
+    if completeness["complete"]:
+        print("MATRIX REPORT — {} case(s) with results".format(len(cases)))
+    else:
+        print("MATRIX REPORT — *** PARTIAL SWEEP *** {} case(s) with results"
+              .format(len(cases)))
     print("=" * 78)
+    if not completeness["complete"]:
+        print("This report does NOT describe a complete sweep:")
+        for reason in completeness["reasons"]:
+            print(f"  - {reason}")
+        print("  Every row of summary.csv is stamped sweep_status=PARTIAL.")
+        print("  Do not quote these numbers as the sweep's result.")
+        print("=" * 78)
     shown = summary.head(15)
     print("{:<38} {:>12} {:>8} {:>10} {:>9}".format(
         "case", "final HV", "Pareto", "best score", "minutes"))

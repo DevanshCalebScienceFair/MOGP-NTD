@@ -176,6 +176,36 @@ Prepared receptors carry sidecar `.stamp` files and rebuild on mismatch.
   Never plot them on one axis. The MOGP-vs-baselines comparison *within* a sweep
   is unaffected — all methods share an objective there.
 
+### The sweep-file rule (read before writing any sweep-level output)
+
+> **Any process writing a sweep-level file must derive it from the artifacts on
+> disk, never from the set of cases the current invocation ran.**
+
+A sweep-level file describes the WHOLE sweep. An invocation knows only what it
+itself did. When the two are conflated, a recovery run that re-runs one failed
+case out of sixty authors a description of all sixty from a sample of one — and
+does it silently, because nothing is obviously wrong with the file afterwards.
+
+This has now been introduced three times:
+
+| where | failure | fixed |
+|---|---|---|
+| `run_matrix.write_results` | rewrote `results.csv` from the current run's rows; a one-case `--only/--resume` recovery erased 60 rows of timings | `75cb9f9` — merges by case id |
+| `run_matrix.write_manifest` | rebuilt `manifest.json` unconditionally; the same recovery run left `n_cases=1` and the recovery command line as the sweep's provenance | `d04a1c2` — a partial invocation preserves the record and appends to `recovery_invocations` |
+| `matrix_report.discover` | **no failure — this is the pattern to copy.** Walks `runs_dir` and builds the summary from what is on disk, so a partial invocation cannot shrink it | — |
+
+`matrix_report.discover` got it right by construction, which is why `summary.csv`
+survived the clobber that destroyed `manifest.json`. Reading from disk is
+necessary but not sufficient, though: it cannot tell a finished sweep from a
+partial one. `matrix_report.assess_completeness` supplies the missing half by
+cross-checking the artifacts against the sweep's own record — `results.csv` row
+count against the manifest's `n_cases`, and every passing result-producing case
+having a directory under `runs/`. A shortfall stamps every row of `summary.csv`
+with `sweep_status=PARTIAL` and says so on stdout.
+
+When adding a new sweep-level output, do both: build it from disk, and check
+completeness before presenting it as the sweep's result.
+
 ### Known limitations
 
 - **Selectivity Index is partly size-driven.** Spearman(heavy_atoms, SI) = +0.267

@@ -160,11 +160,16 @@ def scores_from_cache(library_smiles, canon_list, skip_indices):
     library-index -> score for cache HITS (finite affinity) only.
     """
     cache = docking.get_cache()
+    # The cache is keyed on the oracle fingerprint (receptor + box + effort +
+    # seed), so a read must name the configuration it wants. Asking for the
+    # CURRENT one means scores computed against a different receptor are misses
+    # rather than silently mixed into this sample.
+    fingerprint = docking.oracle_fingerprint(DOCK_TARGET)
     index_to_score = {}
     for idx, canon in enumerate(canon_list):
         if idx in skip_indices:
             continue
-        cached = cache.get(canon, DOCK_TARGET)
+        cached = cache.get(canon, DOCK_TARGET, fingerprint)
         if cached is None:
             continue
         status, affinity = cached

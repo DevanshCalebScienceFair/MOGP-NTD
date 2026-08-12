@@ -666,8 +666,26 @@ def write_manifest(args, cases, effective_lib):
 
 
 def write_results(rows):
+    """Write results.csv, MERGING with any rows already recorded there.
+
+    A partial invocation (--only / --resume, e.g. re-running one failed case)
+    must not erase the record of a full sweep. Rows from this run replace
+    same-id rows from a previous one; everything else is preserved.
+    """
     fields = ["id", "group", "tier", "status", "exit_code", "seconds", "log",
               "command"]
+    merged = {}
+    if os.path.exists(RESULTS_CSV):
+        try:
+            with open(RESULTS_CSV, newline="") as fh:
+                for prev in csv.DictReader(fh):
+                    if prev.get("id"):
+                        merged[prev["id"]] = prev
+        except (OSError, csv.Error):
+            pass
+    for row in rows:
+        merged[row["id"]] = row
+    rows = list(merged.values())
     with open(RESULTS_CSV, "w", newline="") as fh:
         writer = csv.DictWriter(fh, fieldnames=fields)
         writer.writeheader()

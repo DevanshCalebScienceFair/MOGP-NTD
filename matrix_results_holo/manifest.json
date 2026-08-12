@@ -1,0 +1,52 @@
+{
+  "started": "2026-08-11T22:35:19",
+  "host": "Mac.attlocal.net",
+  "platform": "macOS-26.5.2-arm64-arm-64bit",
+  "invocation": "run_matrix.py --output-root matrix_results_holo --tier full --lib-pull 6000 --n-init 20 --batch-size 5 --n-iterations 10 --mogp-iters 100 --only validate-docking --resume --no-report",
+  "python": "/opt/anaconda3/envs/mogp-drug/bin/python",
+  "packages": {
+    "python": "3.11.14",
+    "numpy": "2.4.6",
+    "torch": "2.12.1",
+    "gpytorch": "1.15.2",
+    "botorch": "0.18.1",
+    "sklearn": "1.9.0",
+    "rdkit": "2024.03.6",
+    "pandas": "3.0.3",
+    "matplotlib": "3.10.9"
+  },
+  "git": {
+    "commit": "67069dfeb86e2b0ed317aae4a4425a20f4bf7fa9",
+    "branch": "Devansh_Local",
+    "dirty": [
+      "M test_cache_invalidation.py",
+      " M validate_docking.py",
+      "?? matrix_results_holo/"
+    ]
+  },
+  "vina": [
+    "AutoDock Vina v1.2.7"
+  ],
+  "tier": "full",
+  "scale": {
+    "lib_pull": 6000,
+    "n_init": 20,
+    "batch_size": 5,
+    "n_iterations": 10,
+    "mogp_iters": 100
+  },
+  "objective": {
+    "docking_units": "kcal/mol",
+    "docking_bounds": [
+      -11.0,
+      -5.0
+    ]
+  },
+  "library_dir": "data/library",
+  "library_molecules": 3610,
+  "arena": false,
+  "n_cases": 1,
+  "cases": [
+    "validate-docking"
+  ]
+}

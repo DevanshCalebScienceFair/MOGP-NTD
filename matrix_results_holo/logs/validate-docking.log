@@ -1,0 +1,90 @@
+$ /opt/anaconda3/envs/mogp-drug/bin/python validate_docking.py --library-dir data/library --n-sample 20 --top-k 5 --seed 42 --output /Users/devansh/mogp-main-vscode/MOGP-NTD/matrix_results_holo/validate_docking_scatter.png
+
+quality_filter: PAINS catalog loaded; synthesizability metric = SA_Score (reject SA > 6.0) [SA_Score (MorganGenerator shim)].
+==============================================================================
+DOCKING OBJECTIVE VALIDATION — size / lipophilicity artifact check
+==============================================================================
+load_library: heavy-atom floor >= 14: 3600/3610 molecules survive (10 fragment(s) removed); surviving heavy atoms [14, 44], MW [200.2, 599.8]. Known actives retained (smallest 17 heavy atoms).
+load_library: quality screen (SA_Score (reject SA > 6.0)): 3268/3600 molecules survive (215 PAINS + 115 reactive + 2 synth + 0 unparseable removed). Known actives asserted to survive.
+load_library: 332 screened-out molecules logged with their rejection class to data/library/quality_rejected.csv
+Loaded library: 3268 molecules from data/library.
+
+==============================================================================
+2. ASSEMBLING PfDHFR DOCKING SAMPLE
+==============================================================================
+
+  Docking-score sample: 609 molecule(s) with descriptors —
+       72 reused from existing run outputs (results_coregionalized, results_independent)
+      537 reused from the docking cache
+        0 freshly docked this run (written to the cache)
+
+==============================================================================
+3. SIZE / LIPOPHILICITY CONFOUND — RAW docking vs LIGAND EFFICIENCY
+==============================================================================
+  Docking score = PfDHFR affinity (kcal/mol, more negative = stronger binding).  n = 609.
+  A negative r means BIGGER / GREASIER molecules get 'better' (more negative) scores.
+
+  docking vs MW    Pearson r = -0.102 (weak), Spearman rho = -0.167 (weak)
+      -> ok: no strong MW dependence (|r| <= 0.5).
+  docking vs logP  Pearson r = -0.274 (weak), Spearman rho = -0.293 (weak)
+      -> ok: no strong logP dependence (|r| <= 0.5).
+
+  Now the SAME descriptors vs LIGAND EFFICIENCY (LE = docking / heavy_atoms):
+  The fix works if LE's |r| vs MW drops toward 0 — size no longer buys score.
+  LE vs MW         Pearson r = +0.857 (STRONG), Spearman rho = +0.866 (STRONG)   [raw |r|=0.10 -> LE |r|=0.86]
+      -> SIZE OVER-SWING: LE now tracks MW STRONGLY in the opposite sense (it favours smaller molecules); watch the known-drug LE percentile and LE-top size for fragment bias.
+  LE vs logP       Pearson r = +0.191 (weak), Spearman rho = +0.197 (weak)   [raw |r|=0.27 -> LE |r|=0.19]
+      -> logP confound now weak (|r| <= 0.3).
+
+==============================================================================
+4. LIGAND EFFICIENCY (size-debiased):  LE = docking / heavy_atoms
+==============================================================================
+  Top 5 by RAW docking score vs top 5 by LIGAND EFFICIENCY:
+    shared molecules:            0/5 (0%)
+    raw-score leaders LE demotes: 5/5
+    Spearman(LE, MW) = +0.866 (closer to 0 = LE has removed more of the size trend)
+
+  Raw-score leaders demoted by LE (likely size-driven):
+      lib#   docking       MW  heavy       LE
+       794    -11.17    290.3     22   -0.508
+      2262    -11.01    440.4     32   -0.344
+      1053    -10.90    306.3     23   -0.474
+       671    -10.86    474.5     35   -0.310
+       178    -10.82    413.4     30   -0.361
+
+  -> LE substantially re-ranks the leaders (0% overlap): raw docking was rewarding SIZE. Prefer LE (or add a size penalty) downstream.
+
+==============================================================================
+5. KNOWN CLINICAL ANTIFOLATES vs THE LIBRARY — RAW and LE percentiles
+==============================================================================
+  Library sample (n=609): raw docking best -11.17, median -8.47 kcal/mol;  best LE -0.573.
+  pRaw = % of library this drug OUT-DOCKS; pLE = % it OUT-EFFICIENCIES (both higher = better).
+
+  compound          PfDHFR      MW   logP  heavy      LE   pRaw    pLE
+  --------------------------------------------------------------------
+  Pyrimethamine      -9.18   248.7   2.52     17  -0.540    78%    99%
+  Cycloguanil        -9.11   251.7   1.53     17  -0.536    75%    99%
+  WR99210            -8.82   394.7   3.03     24  -0.367    64%    63%
+  P218               -8.55   360.4   2.07     26  -0.329    54%    44%
+
+  Median known-active percentile: raw 70% -> LE 81%  (drugs ROSE under LE).
+  Real drugs climb once size is corrected -> the raw 'winners' were size-inflated, and LE ranks the drugs more fairly.
+
+Saved scatter figure to /Users/devansh/mogp-main-vscode/MOGP-NTD/matrix_results_holo/validate_docking_scatter.png
+
+==============================================================================
+SUMMARY VERDICT (read this first):  RAW docking  ->  LIGAND EFFICIENCY
+==============================================================================
+  - MW confound:    |r| 0.10 (weak)  ->  0.86 (STRONG)
+  - logP confound:  |r| 0.27 (weak)  ->  0.19 (weak)
+  - LE re-ranking:  top-5 raw-vs-LE overlap 0% (low => raw score was size-driven)
+  - known drugs:    median library percentile 70%  ->  81%  (should RISE if size was the confound)
+  - LE top-5 size:  median 16 heavy atoms (< 15 => LE favouring fragments)
+
+  VERDICT: SIZE OVER-SWING — LE did NOT just remove the size trend, it INVERTED it
+  (MW |r| 0.10 -> 0.86, now favouring smaller molecules). Here it HELPS:
+  the known drugs rise 70% -> 81% and the logP confound is gone (0.27 -> 0.19), and LE-top are still
+  drug-sized (median 16 heavy atoms). But LE is now a size-ANTIcorrelated objective:
+  floor the minimum size and monitor LE-top so optimization does not drift into fragments.
+
+  (Corroborate with the RAW-vs-LE panels in the figure and the percentiles above.)

@@ -1,0 +1,2 @@
+$ /opt/anaconda3/envs/mogp-drug/bin/python -m py_compile app.py dashboard.py dashboard_compare.py
+

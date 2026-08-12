@@ -1,0 +1,48 @@
+$ /opt/anaconda3/envs/mogp-drug/bin/python validate_known_actives.py --independent-dir /Users/devansh/mogp-main-vscode/MOGP-NTD/matrix_results_holo/runs/bo-independent-nodensify --coregionalized-dir /Users/devansh/mogp-main-vscode/MOGP-NTD/matrix_results_holo/runs/bo-coreg-r1-nodensify
+
+==============================================================================
+1. KNOWN-ACTIVE REFERENCE PROFILE (potency / selectivity ground truth)
+==============================================================================
+  Known actives (canonical SMILES hardcoded from):
+    Pyrimethamine   PubChem CID 4993
+    Cycloguanil     PubChem CID 9049
+    WR99210         PubChem CID 121749 (free base of the listed HCl salt)
+    P218            ChEMBL CHEMBL3040038
+
+compound           hERG    PfDHFR     hDHFR    SelIdx
+-----------------------------------------------------
+Pyrimethamine     0.125     -9.18     -8.98      0.20
+Cycloguanil       0.026     -9.11     -9.06      0.05
+WR99210           0.610     -8.82     -8.98     -0.17
+P218              0.837     -8.55     -9.12     -0.58
+
+  Selectivity Index = hDHFR - PfDHFR docking (kcal/mol). Positive means
+  the compound binds the PARASITE enzyme more tightly than the human one
+  -> selective. These are the reference points the loop should rediscover.
+
+==============================================================================
+2. RECOVERY FROM FINAL PARETO FRONTS (Tanimoto >= 0.4)
+==============================================================================
+method                 Pyrimethami Cycloguanil     WR99210        P218   #recov
+-------------------------------------------------------------------------------
+Independent MOGP            0.327       0.250       0.136       0.186         0
+Coregionalized MOGP         0.327       0.250       0.136       0.186         0
+Random Search         (no pareto_front.csv at baseline_random_results/)
+Single-Obj BO         (no pareto_front.csv at baseline_single_obj_results/)
+Greedy Filter         (no pareto_front.csv at baseline_greedy_results/)
+
+  '*' marks a recovered active (>= 0.4). 4 known actives total.
+
+==============================================================================
+3. HEADLINE VALIDATION RESULT
+==============================================================================
+  REDISCOVERY: no — no known active was recovered at threshold 0.4. Loosen --threshold or evaluate more molecules.
+
+  DOCKING CALLS TO FIRST RECOVER (evaluation order; lower is better):
+    active           Independent  Coregionalized        winner
+    Pyrimethamine              —               —             —
+    Cycloguanil                —               —             —
+    WR99210                    —               —             —
+    P218                       —               —             —
+
+  EFFICIENCY: inconclusive — coregionalized 0, independent 0, ties 0.

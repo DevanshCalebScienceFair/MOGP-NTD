@@ -1,0 +1,11 @@
+$ /opt/anaconda3/envs/mogp-drug/bin/python test_gp.py
+
+Loss: start=1.3954  end=1.3160
+Training loss decreased and stayed finite: passed
+Test targets:    [-1.0872617  -0.69633615]
+Pred mean:       [0.27414137 0.288108  ]
+Pred variance:   [0.84390205 0.83652997]
+Predictions finite with positive variance: passed
+diag path matches full diagonal and self-similarity == 1.0: passed
+
+ALL END-TO-END CHECKS PASSED

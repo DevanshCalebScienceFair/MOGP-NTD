@@ -1,0 +1,10 @@
+$ /opt/anaconda3/envs/mogp-drug/bin/python train_admet_oracle.py --help
+
+usage: train_admet_oracle.py [-h] [--refit-on-full]
+
+Train the ADMET Oracle models.
+
+options:
+  -h, --help       show this help message and exit
+  --refit-on-full  After reporting 80/20 metrics, refit each model on 100% of
+                   the data to maximize production accuracy.

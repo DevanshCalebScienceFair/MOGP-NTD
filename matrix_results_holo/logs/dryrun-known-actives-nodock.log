@@ -1,0 +1,42 @@
+$ /opt/anaconda3/envs/mogp-drug/bin/python validate_known_actives.py --skip-docking
+
+==============================================================================
+1. KNOWN-ACTIVE REFERENCE PROFILE (potency / selectivity ground truth)
+==============================================================================
+  (--skip-docking: docking omitted; hERG still reported)
+  Known actives (canonical SMILES hardcoded from):
+    Pyrimethamine   PubChem CID 4993
+    Cycloguanil     PubChem CID 9049
+    WR99210         PubChem CID 121749 (free base of the listed HCl salt)
+    P218            ChEMBL CHEMBL3040038
+
+compound           hERG    PfDHFR     hDHFR    SelIdx
+-----------------------------------------------------
+Pyrimethamine     0.125       nan       nan       nan
+Cycloguanil       0.026       nan       nan       nan
+WR99210           0.610       nan       nan       nan
+P218              0.837       nan       nan       nan
+
+  Selectivity Index = hDHFR - PfDHFR docking (kcal/mol). Positive means
+  the compound binds the PARASITE enzyme more tightly than the human one
+  -> selective. These are the reference points the loop should rediscover.
+
+==============================================================================
+2. RECOVERY FROM FINAL PARETO FRONTS (Tanimoto >= 0.4)
+==============================================================================
+method                 Pyrimethami Cycloguanil     WR99210        P218   #recov
+-------------------------------------------------------------------------------
+Independent MOGP      (no pareto_front.csv at results/)
+Coregionalized MOGP         0.327       0.250       0.136       0.186         0
+Random Search         (no pareto_front.csv at baseline_random_results/)
+Single-Obj BO         (no pareto_front.csv at baseline_single_obj_results/)
+Greedy Filter         (no pareto_front.csv at baseline_greedy_results/)
+
+  '*' marks a recovered active (>= 0.4). 4 known actives total.
+
+==============================================================================
+3. HEADLINE VALIDATION RESULT
+==============================================================================
+  REDISCOVERY: no — no known active was recovered at threshold 0.4. Loosen --threshold or evaluate more molecules.
+
+  EFFICIENCY: cannot compare — missing evaluated.csv under 'results/'. Provide both ablation arms to judge docking-call efficiency.

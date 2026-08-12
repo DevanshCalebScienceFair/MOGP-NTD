@@ -128,3 +128,21 @@ def test_fingerprint_covers_every_score_determining_input():
         assert docking.oracle_fingerprint("PfDHFR") != base
     finally:
         docking.TARGETS["PfDHFR"]["size"] = original_size
+
+
+@pytest.mark.slow
+def test_validate_docking_reads_the_cache_with_the_current_api():
+    """Guard the OTHER caller of DockingCache.get.
+
+    Adding oracle_fingerprint to get() broke validate_docking.scores_from_cache,
+    and nothing caught it: the fast suite only runs `validate_docking.py --help`,
+    which never reaches the cache. The failure surfaced 7.7 hours into a sweep.
+    Exercising the helper directly keeps a signature change from hiding there
+    again.
+    """
+    import validate_docking
+
+    smiles = ["CCO", "CCC"]
+    canon = [validate_docking.canonicalize_smiles(s) for s in smiles]
+    scores = validate_docking.scores_from_cache(smiles, canon, skip_indices=set())
+    assert isinstance(scores, dict)          # hits are incidental; the call is the test

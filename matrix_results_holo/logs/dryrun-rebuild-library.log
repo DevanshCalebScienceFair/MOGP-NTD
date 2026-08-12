@@ -1,0 +1,35 @@
+$ /opt/anaconda3/envs/mogp-drug/bin/python rebuild_library.py --dry-run --target-size 200
+
+quality_filter: PAINS catalog loaded; synthesizability metric = SA_Score (reject SA > 6.0) [SA_Score (MorganGenerator shim)].
+
+========================================================================
+0. CURRENT LIBRARY (before rebuild)
+========================================================================
+load_library: heavy-atom floor >= 14: 3600/3610 molecules survive (10 fragment(s) removed); surviving heavy atoms [14, 44], MW [200.2, 599.8]. Known actives retained (smallest 17 heavy atoms).
+load_library: quality screen (SA_Score (reject SA > 6.0)): 3268/3600 molecules survive (215 PAINS + 115 reactive + 2 synth + 0 unparseable removed). Known actives asserted to survive.
+load_library: 332 screened-out molecules logged with their rejection class to data/library/quality_rejected.csv
+  On disk:            3610
+  Usable after floor: 3268
+Backed up 5 file(s) to data/library_backup_pre_resize/: smiles.csv, fingerprints.npy, admet_scores.csv, .run_all_build_size, evaluation_bounds.json
+
+========================================================================
+1. SIZING THE PULL for a target of 200 molecules
+========================================================================
+Found local copy...
+Loading...
+Done!
+Pulled 1000 molecules from ChEMBL_V29.
+Drug-likeness filter: 738 passed, 262 filtered out (of 1000; 0 unparseable).
+Found local copy...
+Loading...
+Done!
+Pulled 2000 molecules from ChEMBL_V29.
+Drug-likeness filter: 1472 passed, 528 filtered out (of 2000; 0 unparseable).
+  drug-like rate      0.7360
+  ADMET keep-rate     1.0000  (from existing library)
+  => overall yield    0.7360 final molecules per molecule pulled
+
+  Pull size = 200 / 0.7360 x 1.05 = 286
+  Expected final: ~210 molecules
+
+--dry-run: stopping before the build.

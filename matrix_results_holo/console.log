@@ -1,0 +1,105 @@
+========================================================================
+MOGP-NTD FEATURE MATRIX  |  tier=full  cases=60  jobs=1
+python: /opt/anaconda3/envs/mogp-drug/bin/python
+commit: 67069dfeb (Devansh_Local) DIRTY
+library: data/library (3610 molecules)
+started: 2026-08-11T14:52:08
+========================================================================
+[  1/60] PASS compile-all                            0.1s
+[  2/60] PASS compile-streamlit                      0.0s
+[  3/60] PASS import-acquisition                     1.3s
+[  4/60] PASS import-admet_oracle                    0.5s
+[  5/60] PASS import-densify                         0.2s
+[  6/60] PASS import-docking                         0.8s
+[  7/60] PASS import-docking_cache                   0.1s
+[  8/60] PASS import-evaluation                      1.3s
+[  9/60] PASS import-kernel                          0.8s
+[ 10/60] PASS import-mogp                            1.0s
+[ 11/60] PASS import-mogp_coregionalized             1.1s
+[ 12/60] PASS import-quality_filter                  0.3s
+[ 13/60] PASS import-utils-featurize                 0.2s
+[ 14/60] PASS cli-loop                               2.7s
+[ 15/60] PASS cli-launch                             2.2s
+[ 16/60] PASS cli-data                               1.6s
+[ 17/60] PASS cli-rebuild-library                    1.5s
+[ 18/60] PASS cli-run-ablation                       2.1s
+[ 19/60] PASS cli-run-benchmark-seeds                2.1s
+[ 20/60] PASS cli-baseline-random                    2.2s
+[ 21/60] PASS cli-baseline-greedy                    2.2s
+[ 22/60] PASS cli-baseline-single-obj                2.1s
+[ 23/60] PASS cli-validate-docking                   1.5s
+[ 24/60] PASS cli-validate-known-actives             0.4s
+[ 25/60] PASS cli-train-admet-oracle                 1.4s
+[ 26/60] PASS unit-gp                                1.4s
+[ 27/60] PASS unit-acquisition                      73.4s
+[ 28/60] PASS unit-admet-oracle                      0.8s
+[ 29/60] PASS unit-coregionalized                    3.6s
+[ 30/60] PASS unit-densify                          12.9s
+[ 31/60] PASS unit-evaluation                        2.5s
+[ 32/60] PASS dryrun-known-actives-nodock            1.6s
+[ 33/60] PASS bo-independent-nodensify            1263.1s
+[ 34/60] PASS bo-independent-densify-every1        888.8s
+[ 35/60] PASS bo-independent-densify-every2-cap   3258.2s
+[ 36/60] PASS bo-coreg-r1-nodensify                970.3s
+[ 37/60] PASS bo-coreg-r1-densify-every1           839.0s
+[ 38/60] PASS bo-coreg-r1-densify-every2-cap       979.6s
+[ 39/60] PASS bo-coreg-r2-nodensify                959.3s
+[ 40/60] PASS bo-coreg-r2-densify-every1          1162.0s
+[ 41/60] PASS bo-coreg-r2-densify-every2-cap       981.8s
+[ 42/60] PASS launch-independent                  1034.7s
+[ 43/60] PASS launch-coreg-r1                     1025.0s
+[ 44/60] PASS launch-coreg-r2                      972.6s
+[ 45/60] PASS profile-smoke-loop                    26.2s
+[ 46/60] PASS profile-smoke-launch                  24.6s
+[ 47/60] PASS baseline-random                      483.3s
+[ 48/60] PASS baseline-single-obj                  389.6s
+[ 49/60] PASS baseline-greedy-default              389.4s
+[ 50/60] PASS baseline-greedy-permissive           382.0s
+[ 51/60] PASS harness-ablation                    3658.4s
+[ 52/60] PASS harness-seeds-band-std              2025.4s
+[ 53/60] PASS harness-seeds-band-sem              1025.3s
+[ 54/60] PASS harness-seeds-band-ci95             1021.2s
+[ 55/60] PASS harness-seeds-densify                935.6s
+[ 56/60] PASS harness-seeds-nocache               2856.1s
+[ 57/60] PASS dryrun-rebuild-library                17.0s
+[ 58/60] FAIL validate-docking                      13.7s
+          log: matrix_results_holo/logs/validate-docking.log
+[ 59/60] PASS validate-known-actives                 7.0s
+[ 60/60] PASS verification-harness                   2.3s
+
+Building matrix report...
+==============================================================================
+MATRIX REPORT — 38 case(s) with results
+==============================================================================
+case                                       final HV   Pareto best score   minutes
+bo-coreg-r2-densify-every1                   0.6819       43      0.870      19.4
+bo-coreg-r2-densify-every2-cap               0.5100       38      0.804      16.4
+bo-coreg-r1-densify-every2-cap               0.5083       38      0.804      16.3
+bo-coreg-r1-densify-every1                   0.5063       37      0.801      14.0
+harness-seeds-densify/mogp/seed_0            0.4584       39      0.792      15.6
+bo-independent-densify-every2-cap            0.4201       40      0.775      54.3
+bo-independent-densify-every1                0.4168       36      0.792      14.8
+harness-seeds-band-sem/mogp/seed_0           0.3926       48      0.720      17.1
+harness-seeds-band-ci95/mogp/seed_0          0.3926       48      0.720      17.0
+harness-seeds-band-std/mogp/seed_0           0.3926       48      0.720      33.8
+launch-independent                           0.3926       47      0.720      17.2
+bo-independent-nodensify                     0.3926       47      0.720      21.1
+harness-seeds-nocache/mogp/seed_0            0.3924       47      0.720      47.6
+bo-coreg-r2-nodensify                        0.3924       47      0.720      16.0
+launch-coreg-r2                              0.3924       47      0.720      16.2
+... 23 more in summary.csv
+
+Best combination by hypervolume: bo-coreg-r2-densify-every1
+  champion molecule: COc1cc(Cl)c(N2C(=O)/C(=C3/C(=O)Nc4ccc(F)c(N)c43)c3ccccc32)c(N)c1Cl
+
+Wrote:
+  /Users/devansh/mogp-main-vscode/MOGP-NTD/matrix_results_holo/summary.csv
+  /Users/devansh/mogp-main-vscode/MOGP-NTD/matrix_results_holo/best_molecules.csv
+  /Users/devansh/mogp-main-vscode/MOGP-NTD/matrix_results_holo/best_per_objective.csv
+  /Users/devansh/mogp-main-vscode/MOGP-NTD/matrix_results_holo/matrix_comparison.png
+========================================================================
+59/60 passed in 27719.8s
+report:  matrix_results_holo/report.md
+results: matrix_results_holo/results.csv
+========================================================================
+  validate-docking                   fail     matrix_results_holo/logs/validate-docking.log

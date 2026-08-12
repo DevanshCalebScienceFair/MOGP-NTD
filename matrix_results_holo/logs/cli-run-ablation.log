@@ -1,0 +1,26 @@
+$ /opt/anaconda3/envs/mogp-drug/bin/python run_ablation.py --help
+
+quality_filter: PAINS catalog loaded; synthesizability metric = SA_Score (reject SA > 6.0) [SA_Score (MorganGenerator shim)].
+usage: run_ablation.py [-h] [--seeds SEEDS] [--library-dir LIBRARY_DIR]
+                       [--n-init N_INIT] [--batch-size BATCH_SIZE]
+                       [--n-iterations N_ITERATIONS] [--mogp-iters MOGP_ITERS]
+                       [--rank RANK] [--max-library MAX_LIBRARY]
+                       [--models MODELS] [--save]
+
+Ablation: independent vs coregionalized GP across seeds.
+
+options:
+  -h, --help            show this help message and exit
+  --seeds SEEDS         Comma list of seeds ('0,1,2') or a count ('5' ->
+                        0..4).
+  --library-dir LIBRARY_DIR
+  --n-init N_INIT
+  --batch-size BATCH_SIZE
+  --n-iterations N_ITERATIONS
+  --mogp-iters MOGP_ITERS
+  --rank RANK           IndexKernel rank for the coregionalized arm.
+  --max-library MAX_LIBRARY
+                        Optional cap on library size (for quick runs).
+  --models MODELS       Comma list of models to compare.
+  --save                Save each arm's last-seed run for
+                        validate_known_actives.py.

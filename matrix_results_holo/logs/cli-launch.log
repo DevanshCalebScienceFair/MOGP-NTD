@@ -1,0 +1,29 @@
+$ /opt/anaconda3/envs/mogp-drug/bin/python launch.py --help
+
+quality_filter: PAINS catalog loaded; synthesizability metric = SA_Score (reject SA > 6.0) [SA_Score (MorganGenerator shim)].
+usage: launch.py [-h] [--smoke] [--library-dir LIBRARY_DIR] [--n-init N_INIT]
+                 [--batch-size BATCH_SIZE] [--n-iterations N_ITERATIONS]
+                 [--mogp-iters MOGP_ITERS]
+                 [--model {coregionalized,independent}] [--rank RANK]
+                 [--output-dir OUTPUT_DIR]
+
+Safe launcher for the multi-objective BO loop (injects the Apple-Silicon
+threading guard, then runs loop.py).
+
+options:
+  -h, --help            show this help message and exit
+  --smoke               Fast end-to-end smoke test (n_init=5, batch_size=2,
+                        n_iterations=2). Without it the launcher runs the
+                        locked-in Grand Campaign (n_init=40, batch_size=5,
+                        n_iterations=50). Explicit --n-init / --batch-size /
+                        --n-iterations override either profile.
+  --library-dir LIBRARY_DIR
+  --n-init N_INIT
+  --batch-size BATCH_SIZE
+  --n-iterations N_ITERATIONS
+  --mogp-iters MOGP_ITERS
+  --model {coregionalized,independent}
+                        GP model over the docking objectives: coregionalized
+                        (ICM, primary) or independent.
+  --rank RANK           IndexKernel rank for the coregionalized model.
+  --output-dir OUTPUT_DIR

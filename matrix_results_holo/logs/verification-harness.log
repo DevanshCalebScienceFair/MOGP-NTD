@@ -1,0 +1,11 @@
+$ /opt/anaconda3/envs/mogp-drug/bin/python -m pytest verification -q
+
+...ssssssssssssssss                                                      [100%]
+=============================== warnings summary ===============================
+../../../../opt/anaconda3/envs/mogp-drug/lib/python3.11/site-packages/torch/jit/_script.py:1488
+../../../../opt/anaconda3/envs/mogp-drug/lib/python3.11/site-packages/torch/jit/_script.py:1488
+  /opt/anaconda3/envs/mogp-drug/lib/python3.11/site-packages/torch/jit/_script.py:1488: DeprecationWarning: `torch.jit.script` is deprecated. Please switch to `torch.compile` or `torch.export`.
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+3 passed, 16 skipped, 2 warnings in 1.49s

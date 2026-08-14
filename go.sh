@@ -15,14 +15,40 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
-PYTHON=/opt/anaconda3/envs/mogp-drug/bin/python
+# Locate the mogp-drug env. The prefix is NOT the same on every machine
+# (/opt/anaconda3/envs on one, ~/miniconda3/envs on another), so hardcoding it
+# makes this script fail on the other checkout with a bare "no such file".
+# Resolution order: explicit override -> already-activated env -> ask conda.
+ENV_NAME="${MOGP_ENV:-mogp-drug}"
+
+if [ -n "${MOGP_PYTHON:-}" ]; then
+  ENV_PREFIX="$(dirname "$(dirname "$MOGP_PYTHON")")"
+elif [ "$(basename "${CONDA_PREFIX:-}")" = "$ENV_NAME" ]; then
+  ENV_PREFIX="$CONDA_PREFIX"
+elif command -v conda >/dev/null 2>&1; then
+  # `conda env list` prints "<name>  <prefix>"; the active env also carries a
+  # "*" column, so take the LAST field rather than the second.
+  ENV_PREFIX="$(conda env list | awk -v n="$ENV_NAME" '$1 == n {print $NF}')"
+fi
+
+if [ -z "${ENV_PREFIX:-}" ] || [ ! -x "$ENV_PREFIX/bin/python" ]; then
+  echo "ERROR: could not locate the '$ENV_NAME' conda env." >&2
+  echo "       Activate it (conda activate $ENV_NAME) or set MOGP_PYTHON to" >&2
+  echo "       that env's python before running this script." >&2
+  exit 1
+fi
+
+PYTHON="$ENV_PREFIX/bin/python"
 
 # Put the env's bin/ on PATH. Calling the env's python by absolute path is NOT
 # the same as activating the env: the env's bin/ stays off PATH, so torch
 # cannot find `ninja` and botorch silently falls back to the pure-Python
 # qLogEHVI ("Failed to compile fused qLogEHVI C++ extension") — roughly 3x
 # slower on the acquisition hot path, which dominates a full-scale sweep.
-export PATH="/opt/anaconda3/envs/mogp-drug/bin:$PATH"
+# `vina` lives in the same bin/ and must be on PATH for docking.
+export PATH="$ENV_PREFIX/bin:$PATH"
+
+echo "Using env: $ENV_PREFIX"
 
 # Archive any previous sweep rather than deleting it. The docking cache lives
 # in data/docking_cache/, OUTSIDE matrix_results/, so every dock from previous

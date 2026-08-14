@@ -81,24 +81,119 @@ class DockingCache:
         self._lock = threading.Lock()
         self._init_schema()
 
+    # Sentinel written to rows migrated from the pre-fingerprint schema. It can
+    # never equal a real fingerprint (which is a sha256 hex digest), so an
+    # unstamped legacy row misses every lookup until it is stamped deliberately.
+    LEGACY_FINGERPRINT = ""
+
     def _init_schema(self):
+        """Create the table, migrating the pre-fingerprint schema if present.
+
+        The original key was ``(smiles, target)``, which silently returned
+        scores computed against a different receptor, box, exhaustiveness or
+        seed — none of which were part of the key even though all four change
+        the number. Migration preserves existing rows but marks them
+        ``LEGACY_FINGERPRINT`` so they cannot be served until stamped.
+        """
         with self._lock:
+            existing = self._conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' "
+                "AND name='docking_scores'"
+            ).fetchone()
+            if existing is not None:
+                cols = {row[1] for row in self._conn.execute(
+                    "PRAGMA table_info(docking_scores)")}
+                if "oracle_fingerprint" not in cols:
+                    # SQLite cannot alter a PRIMARY KEY in place: build the new
+                    # table, copy rows in unstamped, then swap.
+                    self._conn.executescript(
+                        """
+                        CREATE TABLE docking_scores_new (
+                            smiles             TEXT NOT NULL,
+                            target             TEXT NOT NULL,
+                            oracle_fingerprint TEXT NOT NULL,
+                            affinity           REAL,
+                            status             TEXT NOT NULL,
+                            seed               INTEGER,
+                            PRIMARY KEY (smiles, target, oracle_fingerprint)
+                        );
+                        INSERT INTO docking_scores_new
+                            (smiles, target, oracle_fingerprint, affinity,
+                             status, seed)
+                        SELECT smiles, target, '', affinity, status, seed
+                        FROM docking_scores;
+                        DROP TABLE docking_scores;
+                        ALTER TABLE docking_scores_new RENAME TO docking_scores;
+                        """
+                    )
+                    self._conn.commit()
+                    return
+
             self._conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS docking_scores (
-                    smiles   TEXT NOT NULL,
-                    target   TEXT NOT NULL,
-                    affinity REAL,
-                    status   TEXT NOT NULL,
-                    seed     INTEGER,
-                    PRIMARY KEY (smiles, target)
+                    smiles             TEXT NOT NULL,
+                    target             TEXT NOT NULL,
+                    oracle_fingerprint TEXT NOT NULL,
+                    affinity           REAL,
+                    status             TEXT NOT NULL,
+                    seed               INTEGER,
+                    PRIMARY KEY (smiles, target, oracle_fingerprint)
                 )
                 """
             )
             self._conn.commit()
 
-    def get(self, canonical_smiles, target):
-        """Look up a cached dock.
+    def stamp_legacy_rows(self, fingerprint_by_target):
+        """Assign fingerprints to rows migrated from the old schema.
+
+        Only for rows whose provenance is known good — i.e. they were computed
+        under exactly the configuration ``fingerprint_by_target`` describes.
+        Stamping anything else would reintroduce the staleness this key exists
+        to prevent, which is why it is an explicit call and not automatic.
+
+        Returns the number of rows stamped.
+        """
+        stamped = 0
+        with self._lock:
+            for target, fingerprint in fingerprint_by_target.items():
+                # A legacy row can be superseded by one already recomputed under
+                # the current fingerprint. Stamping it would collide on the
+                # primary key, so drop the legacy duplicate and keep the row
+                # that was actually computed under this configuration.
+                self._conn.execute(
+                    "DELETE FROM docking_scores AS legacy "
+                    "WHERE legacy.target = ? AND legacy.oracle_fingerprint = ? "
+                    "AND EXISTS (SELECT 1 FROM docking_scores AS current "
+                    "            WHERE current.smiles = legacy.smiles "
+                    "              AND current.target = legacy.target "
+                    "              AND current.oracle_fingerprint = ?)",
+                    (target, self.LEGACY_FINGERPRINT, fingerprint),
+                )
+                cur = self._conn.execute(
+                    "UPDATE docking_scores SET oracle_fingerprint = ? "
+                    "WHERE target = ? AND oracle_fingerprint = ?",
+                    (fingerprint, target, self.LEGACY_FINGERPRINT),
+                )
+                stamped += cur.rowcount
+            self._conn.commit()
+        return stamped
+
+    def count_legacy_rows(self):
+        """Rows still carrying no fingerprint (unservable until stamped)."""
+        with self._lock:
+            (n,) = self._conn.execute(
+                "SELECT COUNT(*) FROM docking_scores WHERE oracle_fingerprint = ?",
+                (self.LEGACY_FINGERPRINT,),
+            ).fetchone()
+        return int(n)
+
+    def get(self, canonical_smiles, target, oracle_fingerprint):
+        """Look up a cached dock computed under ``oracle_fingerprint``.
+
+        The fingerprint is part of the key, so a score produced against a
+        different receptor, box, exhaustiveness or seed is a MISS rather than a
+        wrong answer.
 
         Returns:
             ``None`` on a cache miss, otherwise ``(status, affinity)`` where
@@ -108,21 +203,24 @@ class DockingCache:
         with self._lock:
             row = self._conn.execute(
                 "SELECT status, affinity FROM docking_scores "
-                "WHERE smiles = ? AND target = ?",
-                (canonical_smiles, target),
+                "WHERE smiles = ? AND target = ? AND oracle_fingerprint = ?",
+                (canonical_smiles, target, oracle_fingerprint),
             ).fetchone()
         if row is None:
             return None
         status, affinity = row
         return status, affinity
 
-    def put(self, canonical_smiles, target, affinity, status, seed=None):
-        """Insert or replace the cached score for ``(canonical_smiles, target)``."""
+    def put(self, canonical_smiles, target, affinity, status,
+            oracle_fingerprint, seed=None):
+        """Insert or replace the score for ``(smiles, target, fingerprint)``."""
         with self._lock:
             self._conn.execute(
                 "INSERT OR REPLACE INTO docking_scores "
-                "(smiles, target, affinity, status, seed) VALUES (?, ?, ?, ?, ?)",
-                (canonical_smiles, target, affinity, status, seed),
+                "(smiles, target, oracle_fingerprint, affinity, status, seed) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (canonical_smiles, target, oracle_fingerprint, affinity,
+                 status, seed),
             )
             self._conn.commit()
 

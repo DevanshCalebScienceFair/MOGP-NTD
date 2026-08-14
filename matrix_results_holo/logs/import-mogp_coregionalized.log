@@ -1,0 +1,2 @@
+$ /opt/anaconda3/envs/mogp-drug/bin/python -c 'import mogp_coregionalized'
+

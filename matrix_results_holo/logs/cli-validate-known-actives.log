@@ -1,0 +1,19 @@
+$ /opt/anaconda3/envs/mogp-drug/bin/python validate_known_actives.py --help
+
+usage: validate_known_actives.py [-h] [--threshold THRESHOLD]
+                                 [--independent-dir INDEPENDENT_DIR]
+                                 [--coregionalized-dir COREGIONALIZED_DIR]
+                                 [--skip-docking]
+
+Validate the BO loop against known selective antifolate antimalarials.
+
+options:
+  -h, --help            show this help message and exit
+  --threshold THRESHOLD
+                        Tanimoto recovery threshold (default 0.4).
+  --independent-dir INDEPENDENT_DIR
+                        Results dir for the independent-MOGP ablation arm.
+  --coregionalized-dir COREGIONALIZED_DIR
+                        Results dir for the coregionalized (ICM) arm.
+  --skip-docking        Skip Part-1 docking of the known actives (still
+                        reports hERG). Parts 2-3 are unaffected.

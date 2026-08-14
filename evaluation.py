@@ -26,7 +26,11 @@ FIXED, shared frame that never depends on evaluated data.
        docked up front). Which objective is which comes from
        ``mogp.OBJECTIVE_SOURCES`` — nothing is hard-coded to a column position.
 
-       NOTE: the two docking objectives are now SIZE-CORRECTED LIGAND EFFICIENCY
+       NOTE: the two docking objectives are RAW kcal/mol (see the Day-11
+       objective switch: the corrected holo receptor removed most of the size
+       confound that motivated ligand efficiency, leaving LE over-correcting).
+       Ligand efficiency is still REPORTED alongside. Historical note — they were
+       SIZE-CORRECTED LIGAND EFFICIENCY
        (raw Vina kcal/mol divided by heavy-atom count, see
        ``docking.raw_to_ligand_efficiency``), NOT raw kcal/mol. Raw Vina scores
        are confounded by molecular size/lipophilicity; ``validate_docking.py``
@@ -88,14 +92,20 @@ OBJECTIVE_SIGNS = list(DEFAULT_OBJECTIVE_SIGNS)
 # directions (PfDHFR strong = minimize, hDHFR weak = maximize) are handled by
 # their signs in ``normalize``, not by different bounds. Lower (more negative) LE
 # = stronger binding per atom = better, so DOCKING_LE_MIN is the best corner.
-DOCKING_LE_MIN = -0.65
-DOCKING_LE_MAX = -0.10
+DOCKING_KCAL_MIN = -11.0
+DOCKING_KCAL_MAX = -5.0
+
+# Backwards-compatible aliases: several modules referred to the LE-scaled names.
+DOCKING_LE_MIN = DOCKING_KCAL_MIN
+DOCKING_LE_MAX = DOCKING_KCAL_MAX
 
 # Column name of the reported-only Selectivity Index (see add_selectivity_index).
 # The primary Selectivity_Index is now computed on the LE columns (per-atom
 # selectivity); a raw-kcal counterpart is emitted when the *_kcal columns exist.
 SELECTIVITY_COLUMN = "Selectivity_Index"
-SELECTIVITY_KCAL_COLUMN = "Selectivity_Index_kcal"
+SELECTIVITY_LE_COLUMN = "Selectivity_Index_LE"
+# Kept as an alias: the primary column is now whole-molecule kcal.
+SELECTIVITY_KCAL_COLUMN = SELECTIVITY_COLUMN
 
 # Where the shared bounds are persisted so every method/run reads identical
 # numbers. Lives next to this module.
@@ -108,7 +118,7 @@ BOUNDS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
 # ---------------------------------------------------------------------- #
 def compute_objective_bounds(library_dir="data/library",
                              bounds_path=BOUNDS_PATH,
-                             docking_min=DOCKING_LE_MIN, docking_max=DOCKING_LE_MAX,
+                             docking_min=DOCKING_KCAL_MIN, docking_max=DOCKING_KCAL_MAX,
                              force=False):
     """Return per-objective ``(min, max)`` bounds used for normalization.
 
@@ -349,9 +359,9 @@ def add_selectivity_index(df):
     """
     if "hDHFR_Docking" in df.columns and "PfDHFR_Docking" in df.columns:
         df[SELECTIVITY_COLUMN] = df["hDHFR_Docking"] - df["PfDHFR_Docking"]
-    if "hDHFR_Docking_kcal" in df.columns and "PfDHFR_Docking_kcal" in df.columns:
-        df[SELECTIVITY_KCAL_COLUMN] = (
-            df["hDHFR_Docking_kcal"] - df["PfDHFR_Docking_kcal"]
+    if "hDHFR_Docking_LE" in df.columns and "PfDHFR_Docking_LE" in df.columns:
+        df[SELECTIVITY_LE_COLUMN] = (
+            df["hDHFR_Docking_LE"] - df["PfDHFR_Docking_LE"]
         )
     return df
 

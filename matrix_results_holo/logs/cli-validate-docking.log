@@ -1,0 +1,20 @@
+$ /opt/anaconda3/envs/mogp-drug/bin/python validate_docking.py --help
+
+quality_filter: PAINS catalog loaded; synthesizability metric = SA_Score (reject SA > 6.0) [SA_Score (MorganGenerator shim)].
+usage: validate_docking.py [-h] [--library-dir LIBRARY_DIR]
+                           [--n-sample N_SAMPLE] [--top-k TOP_K] [--seed SEED]
+                           [--output OUTPUT]
+
+Diagnose whether the PfDHFR docking objective tracks real binding or a
+molecular-size / lipophilicity artifact.
+
+options:
+  -h, --help            show this help message and exit
+  --library-dir LIBRARY_DIR
+                        Cached library directory (default data/library).
+  --n-sample N_SAMPLE   Target docking-score sample size (default 150).
+                        Existing outputs + cache are reused first; only the
+                        shortfall is docked fresh.
+  --top-k TOP_K         Top-K set size for the LE re-ranking comparison.
+  --seed SEED           RNG seed for the random fresh-dock top-up sample.
+  --output OUTPUT       Path for the saved scatter figure.

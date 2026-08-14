@@ -1,0 +1,17 @@
+$ /opt/anaconda3/envs/mogp-drug/bin/python rebuild_library.py --help
+
+quality_filter: PAINS catalog loaded; synthesizability metric = SA_Score (reject SA > 6.0) [SA_Score (MorganGenerator shim)].
+usage: rebuild_library.py [-h] [--target-size TARGET_SIZE]
+                          [--pull-size PULL_SIZE] [--dry-run]
+
+Rebuild the molecule library at a larger target size.
+
+options:
+  -h, --help            show this help message and exit
+  --target-size TARGET_SIZE
+                        Target number of molecules ON DISK with complete ADMET
+                        (default: 10000). The ChEMBL pull is sized up from
+                        this using the measured yield.
+  --pull-size PULL_SIZE
+                        Override the computed pull size (advanced).
+  --dry-run             Size the pull and report, but build nothing.

@@ -1,0 +1,43 @@
+$ /opt/anaconda3/envs/mogp-drug/bin/python run_benchmark_seeds.py --help
+
+quality_filter: PAINS catalog loaded; synthesizability metric = SA_Score (reject SA > 6.0) [SA_Score (MorganGenerator shim)].
+usage: run_benchmark_seeds.py [-h] [--seeds SEEDS [SEEDS ...]]
+                              [--lib-size LIB_SIZE] [--n-init N_INIT]
+                              [--batch-size BATCH_SIZE]
+                              [--n-iterations N_ITERATIONS]
+                              [--mogp-iters MOGP_ITERS]
+                              [--output-dir OUTPUT_DIR]
+                              [--band {std,sem,ci95}] [--no-cache]
+                              [--clear-cache] [--densify]
+                              [--densify-per-parent DENSIFY_PER_PARENT]
+                              [--densify-max-pool DENSIFY_MAX_POOL]
+
+Multi-seed benchmark of MOGP vs baselines with mean±std aggregation.
+
+options:
+  -h, --help            show this help message and exit
+  --seeds SEEDS [SEEDS ...]
+                        Random seeds; every method is run once per seed.
+  --lib-size LIB_SIZE   Library pull size (built once, shared by all runs).
+  --n-init N_INIT
+  --batch-size BATCH_SIZE
+  --n-iterations N_ITERATIONS
+  --mogp-iters MOGP_ITERS
+  --output-dir OUTPUT_DIR
+  --band {std,sem,ci95}
+                        Shaded band on the curves: 'std' = ±1 std (default,
+                        back-compat), 'sem' = ±1 standard error, 'ci95' = 95%
+                        CI (mean ± 1.96·sem). sem/ci95 are more honest for few
+                        seeds (they shrink as seeds are added, whereas std
+                        does not).
+  --no-cache            Disable the persistent docking cache for this run.
+  --clear-cache         Wipe the docking cache before running (retry
+                        failures).
+  --densify             Enable Pareto-front analog densification in the MOGP
+                        loop (the baselines are unaffected). Lets you quantify
+                        the hypervolume gain from densification with error
+                        bars across seeds.
+  --densify-per-parent DENSIFY_PER_PARENT
+                        Target analogs generated per front molecule.
+  --densify-max-pool DENSIFY_MAX_POOL
+                        Cap the total MOGP library size after densification.

@@ -1,0 +1,26 @@
+$ /opt/anaconda3/envs/mogp-drug/bin/python baseline_single_obj.py --help
+
+quality_filter: PAINS catalog loaded; synthesizability metric = SA_Score (reject SA > 6.0) [SA_Score (MorganGenerator shim)].
+usage: baseline_single_obj.py [-h] [--library-dir LIBRARY_DIR]
+                              [--n-init N_INIT] [--batch-size BATCH_SIZE]
+                              [--n-iterations N_ITERATIONS]
+                              [--mogp-iters MOGP_ITERS] [--seed SEED]
+                              [--output-dir OUTPUT_DIR]
+                              [--mogp-results-dir MOGP_RESULTS_DIR]
+
+Run a single-objective (docking-only) BO baseline for the PfDHFR MOGP
+pipeline.
+
+options:
+  -h, --help            show this help message and exit
+  --library-dir LIBRARY_DIR
+  --n-init N_INIT
+  --batch-size BATCH_SIZE
+  --n-iterations N_ITERATIONS
+  --mogp-iters MOGP_ITERS
+                        GP training iterations per round.
+  --seed SEED
+  --output-dir OUTPUT_DIR
+  --mogp-results-dir MOGP_RESULTS_DIR
+                        Directory holding the MOGP run's history.csv for
+                        comparison.

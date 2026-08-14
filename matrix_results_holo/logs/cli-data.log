@@ -1,0 +1,12 @@
+$ /opt/anaconda3/envs/mogp-drug/bin/python data.py --help
+
+quality_filter: PAINS catalog loaded; synthesizability metric = SA_Score (reject SA > 6.0) [SA_Score (MorganGenerator shim)].
+usage: data.py [-h] [--n-molecules N_MOLECULES]
+
+Build and cache the molecule search library.
+
+options:
+  -h, --help            show this help message and exit
+  --n-molecules N_MOLECULES
+                        Number of molecules to pull from ChEMBL before
+                        filtering.

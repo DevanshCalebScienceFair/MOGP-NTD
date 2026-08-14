@@ -1,0 +1,27 @@
+$ /opt/anaconda3/envs/mogp-drug/bin/python baseline_greedy.py --help
+
+quality_filter: PAINS catalog loaded; synthesizability metric = SA_Score (reject SA > 6.0) [SA_Score (MorganGenerator shim)].
+usage: baseline_greedy.py [-h] [--library-dir LIBRARY_DIR]
+                          [--batch-size BATCH_SIZE] [--n-total N_TOTAL]
+                          [--herg-threshold HERG_THRESHOLD]
+                          [--halflife-min HALFLIFE_MIN]
+                          [--caco2-min CACO2_MIN] [--seed SEED]
+                          [--output-dir OUTPUT_DIR]
+                          [--mogp-results-dir MOGP_RESULTS_DIR]
+
+Run the industry-standard filter-then-dock baseline for the PfDHFR MOGP
+pipeline.
+
+options:
+  -h, --help            show this help message and exit
+  --library-dir LIBRARY_DIR
+  --batch-size BATCH_SIZE
+  --n-total N_TOTAL     Total molecules to dock (same budget as the MOGP run).
+  --herg-threshold HERG_THRESHOLD
+  --halflife-min HALFLIFE_MIN
+  --caco2-min CACO2_MIN
+  --seed SEED
+  --output-dir OUTPUT_DIR
+  --mogp-results-dir MOGP_RESULTS_DIR
+                        Directory holding the MOGP run's history.csv for
+                        comparison.

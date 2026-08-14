@@ -1,0 +1,3 @@
+$ /opt/anaconda3/envs/mogp-drug/bin/python -c 'import quality_filter'
+
+quality_filter: PAINS catalog loaded; synthesizability metric = SA_Score (reject SA > 6.0) [SA_Score (MorganGenerator shim)].

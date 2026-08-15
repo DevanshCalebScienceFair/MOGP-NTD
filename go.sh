@@ -72,10 +72,23 @@ fi
 mkdir -p "$OUTDIR"
 
 # caffeinate -i keeps the Mac awake for what is a multi-hour run; without it a
-# sleep stalls the sweep silently partway through.
+# sleep stalls the sweep silently partway through. It does NOT survive the
+# battery running out — start this on mains power.
+#
+# --lib-pull is a ChEMBL PULL size, not a library size: roughly 60% survives
+# drug-likeness, the ADMET applicability-domain check and the quality screens
+# (50000 -> 26660 here). It also drives run_benchmark_seeds' --lib-size, so
+# every case in the sweep searches one shared library. Lowering it REBUILDS
+# data/library smaller, so it is the one flag to check before a long run.
+#
+# Note the cost shape: qNEHVI scores every un-evaluated candidate each
+# iteration (acquisition.py:86), so wall-clock grows with --lib-pull x
+# --n-iterations, while docking grows only with the molecule budget
+# (--n-init + --batch-size x --n-iterations). Measured here: ~66 s/iteration
+# of acquisition at 26660 candidates against ~2.4 s per dock.
 nohup caffeinate -i "$PYTHON" -u run_matrix.py \
   --tier full \
-  --lib-pull 6000 \
+  --lib-pull 50000 \
   --n-init 20 \
   --batch-size 5 \
   --n-iterations 10 \

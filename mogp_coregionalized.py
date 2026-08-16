@@ -53,7 +53,7 @@ import torch
 from kernel import TanimotoKernel
 # TASK_NAMES + the grey-box docking-task indices are the single source of truth;
 # re-exported so callers importing from either module agree on the layout.
-from mogp import TASK_NAMES, DOCKING_TASK_INDICES
+from mogp import TASK_NAMES, DOCKING_TASK_INDICES, should_log_train_iter
 
 
 class MOGPCoregionalized(gpytorch.models.ExactGP):
@@ -177,8 +177,9 @@ def train_mogp_coregionalized(train_x, train_y, n_iterations=200, lr=0.1, rank=1
         loss = -mll(output, train_y_t)
         loss.backward()
         optimizer.step()
-        if (i + 1) % 20 == 0:
-            print(f"Iter {i + 1:>4}/{n_iterations} - loss: {loss.item():.4f}")
+        if should_log_train_iter(i, n_iterations):
+            print(f"Iter {i + 1:>4}/{n_iterations} - loss: {loss.item():.4f}",
+                  flush=True)
 
     return model, likelihood, y_mean, y_std
 

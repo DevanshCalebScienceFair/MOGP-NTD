@@ -44,6 +44,8 @@ the composite objective, uses the known ADMET exactly rather than a GP estimate.
 ``evaluation.py``, ``loop.py`` and the baselines.
 """
 
+import os
+import time
 import warnings
 
 import numpy as np
@@ -92,8 +94,32 @@ N_MC_SAMPLES = 128
 # memory. Docking dominates wall-clock, so the extra Python-level calls are free.
 CANDIDATE_CHUNK = 128
 
+# Progress reporting for the candidate scan. Scoring a full library-sized pool
+# takes MINUTES and used to print nothing at all, so in a log the scan is
+# indistinguishable from a hang — the gap between "[Iteration N] Training GP..."
+# and "[Iteration N] evaluated=..." is dead air. Emit ~PROGRESS_STEPS updates
+# with a running rate and ETA instead. Purely informational: printing cannot
+# change a score. Set MOGP_QNEHVI_PROGRESS=0 to silence it.
+PROGRESS_STEPS = 20
+# Below this many candidates the scan is quick enough that progress lines are
+# just noise (unit tests score a handful of candidates).
+PROGRESS_MIN_CANDIDATES = 512
+
 # BoTorch multi-objective utilities work in double precision.
 _DTYPE = torch.double
+
+
+def _progress_enabled():
+    """Whether the qNEHVI scan should report progress (env-overridable)."""
+    return os.environ.get("MOGP_QNEHVI_PROGRESS", "1") not in ("0", "false", "False")
+
+
+def _fmt_duration(seconds):
+    """Compact m/s duration for progress lines."""
+    seconds = int(round(seconds))
+    if seconds < 60:
+        return f"{seconds}s"
+    return f"{seconds // 60}m{seconds % 60:02d}s"
 
 
 def _default_signs(num_objectives):
@@ -403,7 +429,7 @@ def compute_qnehvi(model, likelihood, y_mean, y_std,
                    X_baseline, baseline_admet,
                    objective_signs=None, bounds=None,
                    ref_point=None, n_mc_samples=N_MC_SAMPLES, layout=None,
-                   candidate_chunk=CANDIDATE_CHUNK):
+                   candidate_chunk=CANDIDATE_CHUNK, progress=None):
     """Noisy Expected Hypervolume Improvement (qNEHVI) per candidate.
 
     Builds a 2-output docking posterior and a composite objective that folds each
@@ -499,12 +525,38 @@ def compute_qnehvi(model, likelihood, y_mean, y_std,
     # single-shot call, since the quasi-MC Sobol draws depend on t-batch size.
     Xc_q = Xc_aug.unsqueeze(1)
     chunk = max(1, int(candidate_chunk))
+    n_candidates = int(Xc_q.shape[0])
+
+    # Progress bookkeeping. `report_every` is a candidate count, not a chunk
+    # count, so the cadence stays ~PROGRESS_STEPS updates regardless of chunk size.
+    show_progress = (progress if progress is not None else _progress_enabled()) \
+        and n_candidates >= PROGRESS_MIN_CANDIDATES
+    report_every = max(chunk, n_candidates // max(1, PROGRESS_STEPS))
+    next_report = report_every
+    started = time.time()
+    if show_progress:
+        print(f"  qNEHVI: scoring {n_candidates} candidates "
+              f"({n_mc_samples} MC samples, chunk {chunk})...", flush=True)
+
     chunk_scores = []
     with torch.no_grad():
-        for start in range(0, Xc_q.shape[0], chunk):
+        for start in range(0, n_candidates, chunk):
             batch_scores = acqf(Xc_q[start:start + chunk])
             chunk_scores.append(batch_scores.detach().cpu())
+            done = min(start + chunk, n_candidates)
+            if show_progress and (done >= next_report or done == n_candidates):
+                elapsed = time.time() - started
+                rate = done / elapsed if elapsed > 0 else 0.0
+                remaining = (n_candidates - done) / rate if rate > 0 else 0.0
+                print(f"  qNEHVI: {done}/{n_candidates} "
+                      f"({100.0 * done / n_candidates:.0f}%) | "
+                      f"{rate:.0f} cand/s | elapsed {_fmt_duration(elapsed)} | "
+                      f"eta {_fmt_duration(remaining)}", flush=True)
+                next_report = done + report_every
     scores = torch.cat(chunk_scores, dim=0)
+    if show_progress:
+        print(f"  qNEHVI: scan complete in "
+              f"{_fmt_duration(time.time() - started)}.", flush=True)
     return np.asarray(scores.numpy(), dtype=float)
 
 
@@ -512,7 +564,8 @@ def select_batch(model, likelihood, y_mean, y_std,
                  X_candidates, candidate_admet,
                  X_baseline, baseline_admet,
                  batch_size=20, diversity_threshold=0.7,
-                 objective_signs=None, n_mc_samples=N_MC_SAMPLES, layout=None):
+                 objective_signs=None, n_mc_samples=N_MC_SAMPLES, layout=None,
+                 progress=None):
     """Greedily select a diverse, high-qNEHVI batch of candidates.
 
     Candidates are ranked by their qNEHVI score (``compute_qnehvi``), then walked
@@ -532,7 +585,8 @@ def select_batch(model, likelihood, y_mean, y_std,
         batch_size: Number of molecules to select.
         diversity_threshold: Max allowed Tanimoto similarity to any already-
             selected molecule.
-        objective_signs, n_mc_samples, layout: Passed through to ``compute_qnehvi``.
+        objective_signs, n_mc_samples, layout, progress: Passed through to
+            ``compute_qnehvi``.
 
     Returns:
         A tuple ``(selected_indices, selected_scores)`` of int and float arrays
@@ -544,6 +598,7 @@ def select_batch(model, likelihood, y_mean, y_std,
         model, likelihood, y_mean, y_std,
         X_candidates, candidate_admet, X_baseline, baseline_admet,
         objective_signs=objective_signs, n_mc_samples=n_mc_samples, layout=layout,
+        progress=progress,
     )
 
     # Rank candidates by qNEHVI score, highest first.

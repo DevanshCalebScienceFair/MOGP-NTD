@@ -96,6 +96,19 @@ DOCKING_TASK_INDICES = [
     if OBJECTIVE_SOURCES[name][0] == "dock"
 ]
 
+# How often the GP training loops print a loss line. Shared by every training
+# loop (independent, coregionalized, and the single-objective baseline) so a run
+# has one consistent progress cadence. The final iteration always prints, so a
+# short run cannot finish without a closing line — the old fixed stride of 20
+# left `--mogp-iters 70` reporting 20/40/60 and then going quiet at exactly the
+# point the expensive qNEHVI scan starts.
+TRAIN_LOG_EVERY = 10
+
+
+def should_log_train_iter(i, n_iterations, every=TRAIN_LOG_EVERY):
+    """Whether training iteration ``i`` (0-based) should print a loss line."""
+    return (i + 1) % every == 0 or (i + 1) == n_iterations
+
 
 def resolve_objective_layout(admet_columns):
     """Map the current ``TASK_NAMES`` onto their evaluation-time data sources.
@@ -312,8 +325,9 @@ def train_mogp(train_x, train_y, n_iterations=200, lr=0.1):
         loss = -mll(output, train_y_t)
         loss.backward()
         optimizer.step()
-        if (i + 1) % 20 == 0:
-            print(f"Iter {i + 1:>4}/{n_iterations} - loss: {loss.item():.4f}")
+        if should_log_train_iter(i, n_iterations):
+            print(f"Iter {i + 1:>4}/{n_iterations} - loss: {loss.item():.4f}",
+                  flush=True)
 
     return model, likelihood, y_mean, y_std
 

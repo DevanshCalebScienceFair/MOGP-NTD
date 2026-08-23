@@ -81,6 +81,28 @@ METHODS = [
     ("Greedy Filter", "greedy", "tab:green"),
 ]
 
+# The full registry of method keys, in METHODS (plot/legend) order.
+ALL_METHOD_KEYS = [key for _, key, _ in METHODS]
+
+
+def filter_methods(keys):
+    """Return the METHODS entries whose key is in ``keys``, in METHODS order.
+
+    METHODS order is preserved (not the order the keys were given) so plot
+    colors, legends and table rows stay stable regardless of how ``--methods``
+    was typed. Raises on an unknown key rather than silently dropping it, so a
+    typo like ``--methods mopg`` fails loudly instead of running a subset the
+    caller did not intend.
+    """
+    known = {key for _, key, _ in METHODS}
+    unknown = [k for k in keys if k not in known]
+    if unknown:
+        raise ValueError(
+            f"Unknown method key(s) {unknown}; known keys: {sorted(known)}"
+        )
+    wanted = set(keys)
+    return [m for m in METHODS if m[1] in wanted]
+
 
 # ---------------------------------------------------------------------- #
 # Per-method runner construction. Each builder returns a configured runner with
@@ -105,6 +127,7 @@ def _build_runner(method_key, params, seed):
             densify_every=params.get("densify_every", 1),
             densify_per_parent=params.get("densify_per_parent", 20),
             densify_max_pool=params.get("densify_max_pool"),
+            acquisition_pool_size=params.get("acquisition_pool_size"),
         )
     if method_key == "random":
         return RandomSearchBaseline(
@@ -138,6 +161,7 @@ def _build_runner(method_key, params, seed):
             ehvi_impl=params.get("gpmobo_ehvi_impl", DEFAULT_EHVI_IMPL),
             objective_frame=params.get("gpmobo_frame", "raw"),
             hparam_mode=params.get("gpmobo_hparam_mode", "budget"),
+            acquisition_pool_size=params.get("acquisition_pool_size"),
         )
     raise ValueError(f"Unknown method key {method_key!r}")
 
@@ -147,29 +171,69 @@ def seed_run_dir(output_dir, method_key, seed):
     return os.path.join(output_dir, method_key, f"seed_{seed}")
 
 
-def run_all_seeds(params, seeds, output_dir):
-    """Run every method at every seed, writing per-seed CSVs. Returns timings."""
-    elapsed_by_method = {label: 0.0 for label, _, _ in METHODS}
+def run_all_seeds(params, seeds, output_dir, methods=None):
+    """Run every method at every seed, writing per-seed CSVs.
+
+    Returns ``(elapsed_by_method, timing_records)`` where ``elapsed_by_method``
+    maps each method label to its total wall-clock across seeds (back-compat)
+    and ``timing_records`` is a list of per-(seed, method) dicts. Relative
+    runtime is a REPORTED result of the benchmark, not a nuisance, so the
+    per-seed granularity is preserved rather than only summed.
+    """
+    methods = methods if methods is not None else METHODS
+    elapsed_by_method = {label: 0.0 for label, _, _ in methods}
+    timing_records = []
 
     for seed in seeds:
         print("\n" + "#" * 64)
         print(f"# SEED {seed}")
         print("#" * 64)
-        for label, key, _ in METHODS:
+        for label, key, _ in methods:
             out_dir = seed_run_dir(output_dir, key, seed)
             print("\n" + "=" * 64)
             print(f"[seed {seed}] {label}")
             print("=" * 64)
             start = time.time()
+            ok = True
             try:
                 runner = _build_runner(key, params, seed)
+                # Point the arm's per-iteration timing log at its own run dir, so
+                # GP/acquisition/docking seconds are written incrementally there
+                # and are readable mid-run. Arms without acquisition (random,
+                # single_obj, greedy) simply don't have this attribute.
+                if hasattr(runner, "timing_log_path"):
+                    os.makedirs(out_dir, exist_ok=True)
+                    runner.timing_log_path = os.path.join(
+                        out_dir, "iteration_timings.csv")
                 runner.run()
                 runner.save_results(output_dir=out_dir)
             except Exception as exc:
+                ok = False
                 print(f"  ERROR: {label} (seed {seed}) failed: {exc}")
-            elapsed_by_method[label] += time.time() - start
+            dt = time.time() - start
+            elapsed_by_method[label] += dt
+            timing_records.append({
+                "seed": seed, "method": label, "method_key": key,
+                "seconds": dt, "wall_clock": fmt_time(dt), "ok": ok,
+            })
 
-    return elapsed_by_method
+    return elapsed_by_method, timing_records
+
+
+def save_timings_csv(timing_records, output_dir, csv_path=None):
+    """Persist per-(seed, method) wall-clock times to a CSV.
+
+    Written even for a single-seed pilot: the whole point of the pilot is to
+    measure per-method runtime, and that number has to survive the process, not
+    just scroll past on stdout.
+    """
+    if csv_path is None:
+        csv_path = os.path.join(output_dir, "benchmark_seeds_timings.csv")
+    cols = ["seed", "method", "method_key", "seconds", "wall_clock", "ok"]
+    df = pd.DataFrame.from_records(timing_records, columns=cols)
+    df.to_csv(csv_path, index=False)
+    print(f"Saved per-seed timings to {csv_path}")
+    return csv_path
 
 
 # ---------------------------------------------------------------------- #
@@ -274,7 +338,7 @@ MIN_SEEDS_FOR_POWER = 6
 MOGP_KEY = "mogp"
 
 
-def paired_significance(output_dir, seeds):
+def paired_significance(output_dir, seeds, methods=None):
     """Paired MOGP-vs-baseline tests on per-seed final hypervolume.
 
     For each baseline, the MOGP and baseline final-hypervolume vectors are
@@ -290,7 +354,7 @@ def paired_significance(output_dir, seeds):
     """
     mogp_map = dict(final_hv_by_seed(output_dir, MOGP_KEY, seeds))
     results = []
-    for label, key, _ in METHODS:
+    for label, key, _ in (methods if methods is not None else METHODS):
         if key == MOGP_KEY:
             continue
         base_map = dict(final_hv_by_seed(output_dir, key, seeds))
@@ -344,12 +408,12 @@ def paired_significance(output_dir, seeds):
     return results
 
 
-def print_significance_table(output_dir, seeds):
+def print_significance_table(output_dir, seeds, methods=None):
     """Print the paired MOGP-vs-baseline significance table to stdout.
 
     Returns the ``paired_significance`` records so callers can also persist them.
     """
-    recs = paired_significance(output_dir, seeds)
+    recs = paired_significance(output_dir, seeds, methods=methods)
     bar = "=" * 78
     print("\n" + bar)
     print("PAIRED SIGNIFICANCE — final hypervolume, MOGP vs each baseline")
@@ -415,7 +479,7 @@ BAND_LABELS = {
 }
 
 
-def save_figure(output_dir, seeds, fig_path=None, band="std"):
+def save_figure(output_dir, seeds, fig_path=None, band="std", methods=None):
     """Save the aggregated figure: hv + Pareto curves + final-hypervolume table.
 
     Each method draws its across-seed mean as a bold marker line, its individual
@@ -428,6 +492,7 @@ def save_figure(output_dir, seeds, fig_path=None, band="std"):
     matplotlib.use("Agg")          # headless: write a file, never open a window
     import matplotlib.pyplot as plt
 
+    methods = methods if methods is not None else METHODS
     if fig_path is None:
         fig_path = os.path.join(output_dir, "benchmark_seeds.png")
 
@@ -440,7 +505,7 @@ def save_figure(output_dir, seeds, fig_path=None, band="std"):
 
     n_seeds = len(seeds)
     plotted = 0
-    for label, key, color in METHODS:
+    for label, key, color in methods:
         for ax, ycol, ylabel in (
             (ax_hv, "hypervolume", "Hypervolume"),
             (ax_pareto, "pareto_size", "Pareto-front size"),
@@ -476,7 +541,7 @@ def save_figure(output_dir, seeds, fig_path=None, band="std"):
 
     # --- Final-hypervolume table (mean ± std across seeds) ---
     rows = []
-    for label, key, _ in METHODS:
+    for label, key, _ in methods:
         mean, std, k, _ = final_hypervolume_stats(output_dir, key, seeds)
         if k == 0:
             rows.append([label, "—", "0"])
@@ -502,13 +567,13 @@ def save_figure(output_dir, seeds, fig_path=None, band="std"):
     return fig_path
 
 
-def save_aggregate_csv(output_dir, seeds, csv_path=None):
+def save_aggregate_csv(output_dir, seeds, csv_path=None, methods=None):
     """Write the aggregated per-point mean/std curves to a tidy CSV."""
     if csv_path is None:
         csv_path = os.path.join(output_dir, "benchmark_seeds_aggregate.csv")
 
     records = []
-    for label, key, _ in METHODS:
+    for label, key, _ in (methods if methods is not None else METHODS):
         for ycol in ("hypervolume", "pareto_size"):
             x, mean, std, k = aggregate_method(output_dir, key, seeds, ycol)
             for xi, mi, si in zip(x, mean, std):
@@ -522,14 +587,14 @@ def save_aggregate_csv(output_dir, seeds, csv_path=None):
     return csv_path
 
 
-def print_final_table(output_dir, seeds):
+def print_final_table(output_dir, seeds, methods=None):
     """Print the final-hypervolume (mean ± std) summary table to stdout."""
     bar = "=" * 60
     print("\n" + bar)
     print(f"FINAL HYPERVOLUME (mean ± std over seeds {list(seeds)})")
     print(bar)
     print(f"{'Method':<18}{'mean ± std':>26}{'seeds':>8}")
-    for label, key, _ in METHODS:
+    for label, key, _ in (methods if methods is not None else METHODS):
         mean, std, k, _ = final_hypervolume_stats(output_dir, key, seeds)
         cell = "—" if k == 0 else f"{mean:.4f} ± {std:.4f}"
         print(f"{label:<18}{cell:>26}{k:>8}")
@@ -546,6 +611,14 @@ def main():
     )
     parser.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2],
                         help="Random seeds; every method is run once per seed.")
+    parser.add_argument(
+        "--methods", nargs="+", choices=ALL_METHOD_KEYS, default=ALL_METHOD_KEYS,
+        metavar="KEY",
+        help="Which methods to run/aggregate, by key (default: all -> "
+             f"{ALL_METHOD_KEYS}). Selection is a filter only: every selected "
+             "method still gets the SAME seeds, library, budget (n_init / "
+             "batch_size / n_iterations) and docking oracle, so the comparison "
+             "stays fair. E.g. --methods mogp gpmobo greedy.")
     parser.add_argument("--lib-size", type=int, default=1000,
                         help="Library pull size (built once, shared by all runs). "
                              "Ignored when --library-dir is given.")
@@ -559,6 +632,15 @@ def main():
     parser.add_argument("--batch-size", type=int, default=10)
     parser.add_argument("--n-iterations", type=int, default=10)
     parser.add_argument("--mogp-iters", type=int, default=200)
+    parser.add_argument(
+        "--acquisition-pool-size", type=int, default=None, metavar="N",
+        help="Cap the number of candidates EHVI-scored each iteration to a "
+             "uniform subsample of size N (reseeded per iteration from the run "
+             "seed, so it stays deterministic). Applied IDENTICALLY to MOGP and "
+             "GP-MOBO; Greedy has no acquisition and is unaffected. Default: "
+             "unset -> score the whole library (original behaviour). This is a "
+             "deliberate approximation that bounds the acquisition cost, which "
+             "otherwise dominates the loop and grows with the Pareto front.")
     parser.add_argument("--output-dir", default="benchmark_seeds_results")
     parser.add_argument(
         "--band", choices=["std", "sem", "ci95"], default="std",
@@ -621,6 +703,11 @@ def main():
         docking.set_cache_enabled(False)
         print("Docking cache disabled (--no-cache).")
 
+    # The active method set for this invocation. Everything downstream (running,
+    # aggregation, significance, figure, tables) iterates THIS list, never the
+    # global METHODS, so a subset run reports exactly the methods it ran.
+    active_methods = filter_methods(args.methods)
+
     library_dir = args.library_dir or LIBRARY_DIR
     params = {
         "n_init": args.n_init,
@@ -631,6 +718,7 @@ def main():
         "densify": args.densify,
         "densify_per_parent": args.densify_per_parent,
         "densify_max_pool": args.densify_max_pool,
+        "acquisition_pool_size": args.acquisition_pool_size,
         "library_dir": library_dir,
         "gpmobo_mc_samples": args.gpmobo_mc_samples,
         "gpmobo_ehvi_impl": args.gpmobo_ehvi_impl,
@@ -647,6 +735,7 @@ def main():
         print("MULTI-SEED BENCHMARK — MOGP vs baselines")
         print("=" * 64)
         print(f"Seeds:        {args.seeds}")
+        print(f"Methods:      {[key for _, key, _ in active_methods]}")
         print(f"Per method:   {params['n_total']} molecules "
               f"(= {args.n_init} init + {args.n_iterations} x {args.batch_size})")
         print(f"Densify:      {'ON' if args.densify else 'off'}"
@@ -684,14 +773,15 @@ def main():
         found = {
             key: [s for s in args.seeds
                   if _load_history(args.output_dir, key, s) is not None]
-            for _, key, _ in METHODS
+            for _, key, _ in active_methods
         }
         complete = [s for s in args.seeds
-                    if all(s in found[key] for _, key, _ in METHODS)]
+                    if all(s in found[key] for _, key, _ in active_methods)]
         if not complete:
             print(f"\nERROR: no seed in {args.seeds} has a history.csv for all "
-                  f"{len(METHODS)} methods under {args.output_dir}/.")
-            for label, key, _ in METHODS:
+                  f"{len(active_methods)} selected methods under "
+                  f"{args.output_dir}/.")
+            for label, key, _ in active_methods:
                 got = found[key]
                 print(f"       {label:<16} {len(got)} seed(s)"
                       + (f": {got}" if got else ""))
@@ -704,11 +794,13 @@ def main():
             print(f"NOTE: seeds {missing} are incomplete and are being skipped; "
                   f"aggregating {complete}.")
 
-        print_final_table(args.output_dir, complete)
-        sig_recs = print_significance_table(args.output_dir, complete)
-        save_aggregate_csv(args.output_dir, complete)
+        print_final_table(args.output_dir, complete, methods=active_methods)
+        sig_recs = print_significance_table(args.output_dir, complete,
+                                            methods=active_methods)
+        save_aggregate_csv(args.output_dir, complete, methods=active_methods)
         save_significance_csv(sig_recs, args.output_dir)
-        save_figure(args.output_dir, complete, band=args.band)
+        save_figure(args.output_dir, complete, band=args.band,
+                    methods=active_methods)
         return
 
     if args.library_dir is None:
@@ -720,17 +812,21 @@ def main():
     os.makedirs(args.output_dir, exist_ok=True)
 
     overall_start = time.time()
-    elapsed_by_method = run_all_seeds(params, args.seeds, args.output_dir)
+    elapsed_by_method, timing_records = run_all_seeds(
+        params, args.seeds, args.output_dir, methods=active_methods)
 
     # --- Aggregate + report ---
-    print_final_table(args.output_dir, args.seeds)
-    sig_recs = print_significance_table(args.output_dir, args.seeds)
-    save_aggregate_csv(args.output_dir, args.seeds)
+    print_final_table(args.output_dir, args.seeds, methods=active_methods)
+    sig_recs = print_significance_table(args.output_dir, args.seeds,
+                                        methods=active_methods)
+    save_aggregate_csv(args.output_dir, args.seeds, methods=active_methods)
     save_significance_csv(sig_recs, args.output_dir)
-    save_figure(args.output_dir, args.seeds, band=args.band)
+    save_figure(args.output_dir, args.seeds, band=args.band,
+                methods=active_methods)
+    save_timings_csv(timing_records, args.output_dir)
 
     print("\nPer-method total time across all seeds:")
-    for label, _, _ in METHODS:
+    for label, _, _ in active_methods:
         print(f"  {label:<18}{fmt_time(elapsed_by_method[label])}")
     print(f"\nTotal wall-clock time: {fmt_time(time.time() - overall_start)}")
 

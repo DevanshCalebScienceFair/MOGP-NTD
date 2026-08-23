@@ -198,6 +198,48 @@ def get_active_objectives(Y_evaluated):
     return active
 
 
+def subsample_candidates(candidate_indices, pool_size, run_seed, iteration,
+                         salt=0):
+    """Uniformly subsample candidate library indices to at most ``pool_size``.
+
+    A deliberate approximation, NOT a bug fix: EHVI acquisition scores every
+    un-evaluated candidate each iteration, and at five objectives that cost
+    dominates the loop and grows with the Pareto front. Capping the pool bounds
+    it. ``pool_size=None`` (or ``>= len(candidate_indices)``) returns the
+    candidates unchanged, so the full-library default preserves existing
+    behaviour exactly.
+
+    Determinism: the RNG is reseeded on every call from
+    ``(run_seed, iteration, salt)`` via ``SeedSequence``, so a given
+    ``(seed, iteration)`` always draws the same subsample (reproducible) while
+    the pool still changes across iterations. The choice is independent of
+    global RNG state, so it does not perturb — and is not perturbed by — the
+    rest of the run's randomness.
+
+    Both arms call this ONCE PER ITERATION (``salt=0``): the batch MOGP arm
+    per joint q=5 selection, and the GP-MOBO arm per recorded round, sharing the
+    single pool across its five sequential q=1 picks. This keeps distinct
+    candidate exposure per round equal across the arms. ``salt`` is a general
+    reseed offset (e.g. to draw independent pools within one iteration); it is
+    deliberately left at 0 by both arms, because a per-pick reseed would expose
+    GP-MOBO to ~5x more candidates than MOGP — an artifact of the harness, not
+    of the method.
+
+    Returns:
+        A 1-D ``int`` ``np.ndarray`` of the selected library indices, sorted
+        ascending (a stable order, independent of the draw order).
+    """
+    idx = np.asarray(candidate_indices, dtype=int)
+    n = len(idx)
+    if pool_size is None or pool_size >= n:
+        return idx
+    seed_seq = np.random.SeedSequence([int(run_seed), int(iteration), int(salt)])
+    rng = np.random.default_rng(seed_seq)
+    chosen = rng.choice(n, size=int(pool_size), replace=False)
+    chosen.sort()
+    return idx[chosen]
+
+
 # ---------------------------------------------------------------------- #
 # Grey-box composite pieces: a 2-output docking posterior + a composite
 # objective that folds in the KNOWN-EXACT ADMET values.

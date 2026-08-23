@@ -128,6 +128,46 @@ library and same scale** (n_init / batch_size / n_iterations).
   fidelity) than this repo implements; its tests intentionally skip (see
   `verification/README.md`).
 
+### Acquisition-pool cap + per-iteration timing (2026-08-23)
+
+A timing pilot showed the EHVI acquisition — not docking — is the wall-clock
+bottleneck: at five objectives it scores **every** un-evaluated candidate
+(~26,660) each iteration, and that cost *grows as the Pareto front grows*
+(measured ~29 min/iteration, ~97% acquisition, front 25→81 over 16 iterations).
+Docking is a few seconds per iteration by comparison. Two things were added:
+
+- **Per-iteration timing.** `loop.BOLoop` and `baseline_gpmobo.GPMOBOBaseline`
+  now log GP-training / acquisition / docking seconds separately, per iteration,
+  with a timestamp, via `timing.py`. It is written **incrementally (flushed +
+  fsynced)** to `<run_dir>/iteration_timings.csv` so it is readable *mid-run*,
+  and the split is also printed to the console. This is the number the pilot had
+  to *infer*; now it is measured.
+
+- **`--acquisition-pool-size N`** (`run_benchmark_seeds.py`, default: unset =
+  whole library). Uniformly subsamples candidates to `N` **before** EHVI scoring
+  each iteration, via `acquisition.subsample_candidates`, **reseeded per
+  iteration from the run seed** so it is deterministic. This is a **deliberate
+  approximation to bound acquisition cost — NOT a bug fix.** It is applied
+  **identically to MOGP and GP-MOBO**; an advantage from one method scoring more
+  candidates than the other would be a harness artifact, not a real result.
+  **Greedy has no acquisition and is unaffected.** For a valid cross-method
+  comparison, every arm in a sweep must use the SAME `--acquisition-pool-size`.
+
+  **Candidate-exposure decision (load-bearing for how the comparison is
+  described).** MOGP selects q=5 jointly, so it draws ONE pool of `N` per
+  iteration. GP-MOBO selects q=1 five times per recorded round. An earlier
+  implementation reseeded the subsample on each of those five picks, which
+  exposed GP-MOBO to a distinct-candidate union of ~4.3× `N` per round
+  (measured: 103,234 vs MOGP's 24,000 over 12 iterations at `N`=2000) — a
+  five-fold exposure advantage **created by the harness, not the method**.
+  Fixed: GP-MOBO now draws **one shared subsample per round** (`step` draws it;
+  the five picks filter out molecules already taken that round), so
+  distinct candidates-scored-per-round is **equal across arms** (24,000 vs
+  24,000). GP-MOBO still refits and rescores between its q=1 picks — that is its
+  method — but it never sees more distinct candidates than MOGP. The per-round
+  pool size is logged as `n_candidates_scored` in `iteration_timings.csv` so the
+  parity is auditable from disk.
+
 ## Critical corrections (2026-08-10 → 08-12)
 
 Four corrections that invalidate earlier numbers. Anything produced before them —

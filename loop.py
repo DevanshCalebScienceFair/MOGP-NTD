@@ -70,11 +70,13 @@ from mogp import train_mogp, predict, TASK_NAMES, resolve_objective_layout
 from mogp_coregionalized import train_mogp_coregionalized
 from acquisition import (
     select_batch,
+    subsample_candidates,
     compute_pareto_front,
     get_active_objectives,
     DEFAULT_OBJECTIVE_SIGNS,
 )
 import evaluation
+import timing
 from docking import batch_dock_targets, docked_summary, raw_to_ligand_efficiency
 
 
@@ -192,11 +194,22 @@ class BOLoop:
                  diversity_threshold=0.7,
                  model=DEFAULT_MODEL, coregionalization_rank=1, train_fn=None,
                  densify=False, densify_every=1, densify_per_parent=20,
-                 densify_max_pool=None):
+                 densify_max_pool=None, acquisition_pool_size=None):
         # --- Reproducibility ---
         self.seed = seed
         np.random.seed(seed)
         torch.manual_seed(seed)
+
+        # --- Acquisition pool cap (deliberate approximation; default OFF) ---
+        # None => score the whole un-evaluated library each iteration (original
+        # behaviour). A cap uniformly subsamples candidates before EHVI scoring,
+        # reseeded per iteration from `seed` (see acquisition.subsample_candidates).
+        # Applied IDENTICALLY here and in the GP-MOBO arm.
+        self.acquisition_pool_size = acquisition_pool_size
+
+        # --- Per-iteration timing (set by the benchmark harness before run) ---
+        self.timing_log_path = None
+        self.timing_method = "MOGP"
 
         # --- GP training function ---
         # The PRIMARY / headline model is the coregionalized (ICM) GP, which
@@ -540,17 +553,31 @@ class BOLoop:
         print(f"\n[Iteration {iteration}] Training GP on "
               f"{int(finite_rows.sum())}/{len(self.evaluated_indices)} "
               f"fully-evaluated molecules...")
+        iter_start = time.perf_counter()
+        t0 = time.perf_counter()
         model, likelihood, y_mean, y_std = self.train_fn(
             train_x, train_y,
             n_iterations=self.mogp_train_iters, lr=self.mogp_lr,
         )
+        gp_train_seconds = time.perf_counter() - t0
 
         # --- Candidate pool: library molecules not yet evaluated ---
+        # Acquisition timing STARTS here: pool construction + optional cap +
+        # EHVI selection are all acquisition cost.
+        t_acq_start = time.perf_counter()
         evaluated_set = set(self.evaluated_indices)
         candidate_library_indices = np.array(
             [i for i in range(self.library_size) if i not in evaluated_set],
             dtype=int,
         )
+        # Deliberate approximation (default OFF): cap the candidate pool before
+        # EHVI scoring, reseeded per iteration from the run seed. Identical
+        # treatment to the GP-MOBO arm.
+        candidate_library_indices = subsample_candidates(
+            candidate_library_indices, self.acquisition_pool_size,
+            self.seed, iteration,
+        )
+        n_candidates_scored = int(len(candidate_library_indices))
         X_candidates = self.fingerprints[candidate_library_indices]
 
         # --- qNEHVI batch selection ---
@@ -570,6 +597,7 @@ class BOLoop:
             diversity_threshold=self.diversity_threshold,
         )
         selected_library_indices = candidate_library_indices[selected_local]
+        acquisition_seconds = time.perf_counter() - t_acq_start
 
         # --- Validate the candidate -> library index mapping ---
         # Most BO bugs hide here: a wrong remap silently re-docks or mislabels
@@ -583,7 +611,9 @@ class BOLoop:
             "select_batch returned an already-evaluated molecule"
 
         # --- Dock the selected batch (against every target) ---
+        t_dock_start = time.perf_counter()
         Y_new, Y_le_new, docking_new = self._evaluate(list(selected_library_indices))
+        docking_seconds = time.perf_counter() - t_dock_start
         batch_docked = docked_summary(docking_new, len(selected_library_indices))
         self._warn_if_docking_saturates(Y_new)
 
@@ -602,6 +632,7 @@ class BOLoop:
         pareto_smiles = [self.smiles[self.evaluated_indices[r]] for r in pareto_rows]
         pareto_median_heavy, pareto_min_heavy = heavy_atom_stats(pareto_smiles)
 
+        iteration_seconds = time.perf_counter() - iter_start
         self.history.append({
             "iteration": iteration,
             "n_evaluated": len(self.evaluated_indices),
@@ -611,6 +642,10 @@ class BOLoop:
             "pareto_min_heavy": pareto_min_heavy,
             "batch_indices": [int(i) for i in selected_library_indices],
             "batch_ehvi_scores": [float(s) for s in selected_ehvi],
+            "gp_train_seconds": gp_train_seconds,
+            "acquisition_seconds": acquisition_seconds,
+            "docking_seconds": docking_seconds,
+            "iteration_seconds": iteration_seconds,
         })
 
         print(f"[Iteration {iteration}] "
@@ -619,6 +654,30 @@ class BOLoop:
               f"docked_this_batch=[{batch_docked}], "
               f"pareto_size={pareto_size}, hypervolume={hypervolume:.4f}, "
               f"pareto_median_heavy={pareto_median_heavy:.0f}")
+        # Per-iteration timing split (GP / acquisition / docking), printed for
+        # the live console log and appended (flushed) so it is readable mid-run.
+        print(f"[Iteration {iteration}] timing: "
+              f"gp_train={gp_train_seconds:.1f}s, "
+              f"acquisition={acquisition_seconds:.1f}s "
+              f"({n_candidates_scored} candidates), "
+              f"docking={docking_seconds:.1f}s, "
+              f"total={iteration_seconds:.1f}s")
+        timing.append_timing_row(self.timing_log_path, {
+            "timestamp": timing.now_iso(),
+            "method": self.timing_method,
+            "seed": self.seed,
+            "iteration": iteration,
+            "gp_train_seconds": round(gp_train_seconds, 3),
+            "acquisition_seconds": round(acquisition_seconds, 3),
+            "docking_seconds": round(docking_seconds, 3),
+            "iteration_seconds": round(iteration_seconds, 3),
+            "acquisition_pool_size": (self.acquisition_pool_size
+                                      if self.acquisition_pool_size is not None
+                                      else ""),
+            "n_candidates_scored": n_candidates_scored,
+            "pareto_size": pareto_size,
+            "n_evaluated": len(self.evaluated_indices),
+        })
 
     def run(self):
         """Run the complete loop: initialize, then ``n_iterations`` steps.
@@ -630,6 +689,7 @@ class BOLoop:
         # Checked here rather than in __init__ so constructing a loop stays
         # cheap for tests, but no long run ever starts on the slow path.
         assert_fast_acquisition_path()
+        timing.init_timing_log(self.timing_log_path)
         self.initialize()
         for iteration in range(1, self.n_iterations + 1):
             self.step()

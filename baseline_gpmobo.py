@@ -93,9 +93,11 @@ from mogp import TASK_NAMES, resolve_objective_layout
 from acquisition import (
     compute_pareto_front,
     get_active_objectives,
+    subsample_candidates,
     DEFAULT_OBJECTIVE_SIGNS,
 )
 import evaluation
+import timing
 from docking import batch_dock_targets, docked_summary, raw_to_ligand_efficiency
 
 
@@ -379,12 +381,22 @@ class GPMOBOBaseline:
                  n_init=10, batch_size=10, n_iterations=10,
                  n_mc_samples=DEFAULT_MC_SAMPLES, ehvi_impl=DEFAULT_EHVI_IMPL,
                  objective_frame="raw", hparam_mode="budget",
-                 hparam_holdout=200):
+                 hparam_holdout=200, acquisition_pool_size=None):
         self.seed = seed
         np.random.seed(seed)
         # Selection draws come from a dedicated stream so the acquisition's MC
         # noise cannot shift depending on how many library draws preceded it.
         self.rng = np.random.RandomState(seed)
+
+        # Acquisition pool cap (deliberate approximation; default OFF = whole
+        # library). Applied IDENTICALLY to the MOGP arm via the same
+        # acquisition.subsample_candidates helper, so neither method gains an
+        # edge from scoring more candidates than the other.
+        self.acquisition_pool_size = acquisition_pool_size
+
+        # Per-iteration timing (set by the benchmark harness before run()).
+        self.timing_log_path = None
+        self.timing_method = "GP-MOBO"
 
         self.gpmobo = gpmobo_ref.load()
 
@@ -578,28 +590,45 @@ class GPMOBOBaseline:
         chosen = rng.choice(np.asarray(available, dtype=int), size=k, replace=False)
         return [int(i) for i in chosen]
 
-    def _select_one(self):
-        """One GP-MOBO pick: fit, score every candidate by EHVI, take the argmax.
+    def _select_one(self, round_pool):
+        """One GP-MOBO pick over the round's SHARED candidate pool.
 
         Rows with a non-finite objective (a failed dock) are excluded from the
         GP's training set — their posterior is undefined, not zero.
+
+        ``round_pool`` is the single per-round acquisition-pool subsample drawn
+        once in :meth:`step`. Molecules already picked earlier this round are
+        filtered out here (they are now in ``evaluated_indices``), so all five
+        sequential q=1 picks draw from the SAME capped pool. This keeps distinct
+        candidate exposure per round equal to the batch MOGP arm's; reseeding a
+        fresh pool per pick would expose GP-MOBO to ~5x more candidates, a
+        harness artifact rather than a method effect (see CLAUDE.md).
+
+        Returns:
+            ``(index, score, gp_seconds, acquisition_seconds)``.
         """
-        candidates = self._candidate_indices()
+        taken = set(self.evaluated_indices) | self.excluded_indices
+        candidates = [i for i in round_pool if i not in taken]
         if not candidates:
-            return None, float("nan")
+            return None, float("nan"), 0.0, 0.0
 
         Y_sel_all = self._to_selection_frame(self.Y_evaluated)
         finite = np.isfinite(Y_sel_all).all(axis=1)
         if not finite.any():
             # Nothing usable to condition on yet; fall back to a random draw
             # rather than fitting a GP on an empty set.
-            return int(self.rng.choice(candidates)), float("nan")
+            return int(self.rng.choice(candidates)), float("nan"), 0.0, 0.0
 
         known_idx = [self.evaluated_indices[r] for r in np.where(finite)[0]]
         Y_sel = Y_sel_all[finite]
 
+        # GP fit + posterior over the (capped) candidate pool.
+        t_gp = time.perf_counter()
         means, variances = self._predict(known_idx, candidates, Y_sel)
+        gp_seconds = time.perf_counter() - t_gp
 
+        # Acquisition: reference point + EHVI scoring of every candidate.
+        t_acq = time.perf_counter()
         # Their reference point, inferred from the evaluated front each
         # iteration (drives selection only; never reported).
         pareto_mask = self.gpmobo["pareto_front"](Y_sel)
@@ -610,9 +639,10 @@ class GPMOBOBaseline:
         if self.ehvi_impl == "reference":
             kwargs["gpmobo"] = self.gpmobo
         scores = self._ehvi(means, variances, ref_point, pareto_Y, **kwargs)
+        acquisition_seconds = time.perf_counter() - t_acq
 
         best = int(np.argmax(scores))
-        return candidates[best], float(scores[best])
+        return candidates[best], float(scores[best]), gp_seconds, acquisition_seconds
 
     # ------------------------------------------------------------------ #
     # Loop stages
@@ -666,14 +696,35 @@ class GPMOBOBaseline:
         """
         iteration = len(self.history) + 1
         selected, acq_values = [], []
+        # Split wall-clock across the batch_size sequential q=1 picks, so the
+        # row is comparable to the MOGP arm's single-selection iteration.
+        iter_start = time.perf_counter()
+        gp_train_seconds = 0.0
+        acquisition_seconds = 0.0
+        docking_seconds = 0.0
+
+        # ONE acquisition-pool subsample for the whole round, shared across the
+        # batch_size sequential q=1 picks (each pick filters out molecules
+        # already taken this round). This makes distinct candidate exposure per
+        # round equal to the batch MOGP arm's; reseeding per pick would give
+        # GP-MOBO ~5x the exposure — a harness artifact. n_candidates_scored is
+        # therefore the size of this single shared pool, comparable across arms.
+        round_pool = [int(i) for i in subsample_candidates(
+            self._candidate_indices(), self.acquisition_pool_size,
+            self.seed, iteration)]
+        n_candidates_scored = len(round_pool)
 
         for _ in range(self.batch_size):
-            index, score = self._select_one()
+            index, score, gp_s, acq_s = self._select_one(round_pool)
+            gp_train_seconds += gp_s
+            acquisition_seconds += acq_s
             if index is None:
                 break
             # Evaluate immediately: the next pick must condition on this result,
             # which is exactly what makes q = 1 informationally favourable.
+            t_dock = time.perf_counter()
             Y_new, Y_raw_new, _ = self._evaluate([index])
+            docking_seconds += time.perf_counter() - t_dock
             self.evaluated_indices.append(index)
             self.Y_evaluated = np.vstack([self.Y_evaluated, Y_new])
             self.raw_docking = np.vstack([self.raw_docking, Y_raw_new])
@@ -694,6 +745,7 @@ class GPMOBOBaseline:
         finite_acq = [a for a in acq_values if np.isfinite(a)]
         mean_acq = float(np.mean(finite_acq)) if finite_acq else float("nan")
 
+        iteration_seconds = time.perf_counter() - iter_start
         self.history.append({
             "iteration": iteration,
             "n_evaluated": len(self.evaluated_indices),
@@ -703,6 +755,10 @@ class GPMOBOBaseline:
             "pareto_min_heavy": pareto_min_heavy,
             "mean_ehvi": mean_acq,
             "batch_indices": [int(i) for i in selected],
+            "gp_train_seconds": gp_train_seconds,
+            "acquisition_seconds": acquisition_seconds,
+            "docking_seconds": docking_seconds,
+            "iteration_seconds": iteration_seconds,
         })
 
         print(f"[Iteration {iteration}] "
@@ -711,6 +767,32 @@ class GPMOBOBaseline:
               f"mean_ehvi={mean_acq:.4g}, "
               f"pareto_size={pareto_size}, hypervolume={hypervolume:.4f}, "
               f"pareto_median_heavy={pareto_median_heavy:.0f}")
+        # Per-iteration timing split (summed over the batch_size q=1 picks).
+        # GP fit and acquisition are each summed across picks; docking is the
+        # per-pick oracle time.
+        print(f"[Iteration {iteration}] timing: "
+              f"gp_train={gp_train_seconds:.1f}s, "
+              f"acquisition={acquisition_seconds:.1f}s "
+              f"({n_candidates_scored} candidates/round, shared across "
+              f"{len(selected)} q=1 picks), "
+              f"docking={docking_seconds:.1f}s, "
+              f"total={iteration_seconds:.1f}s")
+        timing.append_timing_row(self.timing_log_path, {
+            "timestamp": timing.now_iso(),
+            "method": self.timing_method,
+            "seed": self.seed,
+            "iteration": iteration,
+            "gp_train_seconds": round(gp_train_seconds, 3),
+            "acquisition_seconds": round(acquisition_seconds, 3),
+            "docking_seconds": round(docking_seconds, 3),
+            "iteration_seconds": round(iteration_seconds, 3),
+            "acquisition_pool_size": (self.acquisition_pool_size
+                                      if self.acquisition_pool_size is not None
+                                      else ""),
+            "n_candidates_scored": n_candidates_scored,
+            "pareto_size": pareto_size,
+            "n_evaluated": len(self.evaluated_indices),
+        })
         return True
 
     def run(self):
@@ -718,6 +800,7 @@ class GPMOBOBaseline:
         print(f"GP-MOBO baseline (upstream commit {self.gpmobo['commit']}): "
               f"ehvi={self.ehvi_impl}, mc_samples={self.n_mc_samples}, "
               f"frame={self.objective_frame}, hparams={self.hparam_mode}")
+        timing.init_timing_log(self.timing_log_path)
         self.initialize()
         for _ in range(self.n_iterations):
             if not self.step():

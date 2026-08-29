@@ -442,11 +442,14 @@ class GPMOBOBaseline:
     # Evaluation (identical to loop.BOLoop._evaluate / the other baselines)
     # ------------------------------------------------------------------ #
     def _evaluate(self, library_indices):
-        """Objective matrix for ``library_indices``; docking columns are LE.
+        """Objective matrix for ``library_indices``; docking columns are RAW kcal.
 
         Byte-for-byte the same contract as ``baseline_random`` and ``loop``:
-        library ADMET straight from the cache, docking evaluated per target and
-        converted from raw kcal/mol to size-corrected ligand efficiency.
+        library ADMET straight from the cache, docking objectives are RAW
+        kcal/mol (the optimized objective — see loop.py). Ligand efficiency is a
+        REPORTING-only column carried in ``Y_raw``'s sibling reporting path, not
+        the optimized objective; storing LE here was the HV=0.0000 defect that
+        ``test_arm_objective_units.py`` now guards against.
         """
         library_indices = list(library_indices)
         smiles = [self.smiles[i] for i in library_indices]
@@ -461,7 +464,7 @@ class GPMOBOBaseline:
         for j, target in DOCKING_TASKS:
             raw = docking_by_target[target]
             Y_raw[:, j] = raw
-            Y[:, j] = [raw_to_ligand_efficiency(r, s) for r, s in zip(raw, smiles)]
+            Y[:, j] = raw                 # RAW kcal — the optimized objective (was LE)
         return Y, Y_raw, docking_by_target
 
     # ------------------------------------------------------------------ #

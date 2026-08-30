@@ -55,28 +55,57 @@ PROTECTED = ("aggregate_10seed", "seed_0", "seed_1", "seed_2", "seed_3", "seed_4
 # Method label -> the subdirectory names it may appear under, most specific
 # first. The GP-MOBO arm was re-run after the ligand-efficiency units defect, so
 # a clean re-run directory wins over the original if both are present.
+# Method label -> candidate paths, as format strings over {root} and {s}, most
+# specific first. The GP-MOBO arm was re-run after the ligand-efficiency units
+# defect and its re-run lives under a SEPARATE root, not a sibling directory of
+# the original, so a plain subdirectory search finds the superseded LE arm and
+# silently reports it as "GP-MOBO". The corrected root is therefore tried first.
 METHOD_DIRS = {
-    "MOGP":   ("mogp",),
-    "GPMOBO": ("gpmobo_clean", "gpmobo_cleaned", "gpmobo_rawkcal", "gpmobo"),
-    "Greedy": ("greedy", "baseline_greedy"),
+    "MOGP": (
+        "{root}/seed_{s}/mogp/seed_{s}",
+        "{root}/seed_{s}/mogp",
+    ),
+    "GPMOBO": (
+        "{root}/aggregate_10seed_cleanGPMOBO/seed_{s}/gpmobo/seed_{s}",
+        "{root}/seed_{s}/gpmobo_clean/seed_{s}",
+        "{root}/seed_{s}/gpmobo/seed_{s}",
+        "{root}/seed_{s}/gpmobo",
+    ),
+    "GPMOBO_BROKEN": (
+        "{root}/seed_{s}/gpmobo/seed_{s}",
+    ),
+    "Greedy": (
+        "{root}/seed_{s}/greedy/seed_{s}",
+        "{root}/seed_{s}/greedy",
+    ),
 }
+
+# NaN policy. About 2.9% of evaluated rows carry NaN in BOTH docking columns and
+# never in the three ADMET columns -- i.e. a failed dock, not a partial one. Two
+# sets are therefore kept distinct throughout, and conflating them is the error
+# this constant exists to prevent:
+#
+#   EVALUATED -- every row. Budget was spent and the loop visited that chemistry,
+#                so this is the right set for "did MOGP sample near here?".
+#   COMPLETE  -- rows finite on all five objectives. A molecule with no docking
+#                score cannot sit on a Pareto front or carry hypervolume, so this
+#                is the right set for anything in objective space.
+#
+# COMPLETE is also what evaluation.compute_hypervolume already does internally
+# (it drops non-finite rows before normalizing), so using it keeps every number
+# here commensurable with the campaign's reported hypervolumes.
+NAN_POLICY = "complete-case in objective space; all evaluated rows for coverage"
 
 
 # --------------------------------------------------------------------------- #
 # Loading. Read-only, and loud about anything it cannot find.
 # --------------------------------------------------------------------------- #
 def find_run_dir(root, method, seed):
-    """Locate one (method, seed) run directory, tolerating two nesting styles.
-
-    The campaign wrote ``seed_{s}/{method}/seed_{s}/`` (the inner directory is
-    the runner's own ``--output-dir``); a flatter ``seed_{s}/{method}/`` is also
-    accepted so re-runs that dropped the nesting still load.
-    """
-    for name in METHOD_DIRS[method]:
-        for candidate in (os.path.join(root, f"seed_{seed}", name, f"seed_{seed}"),
-                          os.path.join(root, f"seed_{seed}", name)):
-            if os.path.isfile(os.path.join(candidate, "evaluated.csv")):
-                return candidate
+    """Locate one (method, seed) run directory, trying candidates in order."""
+    for pattern in METHOD_DIRS[method]:
+        candidate = pattern.format(root=root, s=seed)
+        if os.path.isfile(os.path.join(candidate, "evaluated.csv")):
+            return candidate
     return None
 
 
@@ -101,13 +130,23 @@ def load_run(root, method, seed):
     hist_path = os.path.join(run_dir, "history.csv")
     hist = pd.read_csv(hist_path) if os.path.isfile(hist_path) else None
 
+    # The arms diverge on their REPORTED-only columns: MOGP and Greedy carry
+    # *_LE and Selectivity_Index_LE, both GP-MOBO arms carry *_kcal and no
+    # Selectivity_Index_LE. Nothing here reads those, so the divergence is
+    # harmless -- but only the five optimized objectives may be assumed present,
+    # so require exactly those and nothing more.
     missing = [c for c in OBJ if c not in ev.columns]
     if missing:
         raise ValueError(f"{run_dir}/evaluated.csv is missing objectives: {missing}")
 
     ev["acq_iteration"] = acquisition_iteration(len(ev), hist)
+    ev["complete"] = np.isfinite(ev[OBJ].to_numpy(float)).all(axis=1)
     ev["method"], ev["seed"], ev["run_dir"] = method, seed, run_dir
-    return {"dir": run_dir, "evaluated": ev, "pareto": pf, "history": hist}
+    return {"dir": run_dir, "evaluated": ev, "pareto": pf, "history": hist,
+            "schema_extra": sorted(c for c in ev.columns
+                                   if c not in OBJ + ["SMILES", "acq_iteration",
+                                                      "complete", "method", "seed",
+                                                      "run_dir"])}
 
 
 def acquisition_iteration(n_rows, history):
@@ -172,8 +211,9 @@ def build_oracle(runs):
     reported.
     """
     frames = [r["evaluated"][["SMILES"] + OBJ] for r in runs.values()]
-    pooled = pd.concat(frames, ignore_index=True)
-    pooled = pooled[np.isfinite(pooled[OBJ].to_numpy(float)).all(axis=1)]
+    pooled_all = pd.concat(frames, ignore_index=True)
+    complete = np.isfinite(pooled_all[OBJ].to_numpy(float)).all(axis=1)
+    pooled = pooled_all[complete]
 
     first = pooled.drop_duplicates(subset="SMILES", keep="first").reset_index(drop=True)
     merged = pooled.merge(first, on="SMILES", suffixes=("", "_ref"))
@@ -190,6 +230,19 @@ def build_oracle(runs):
     mask, front_norm = evaluation.compute_pareto_front(Y_norm, ones)
     idx = np.flatnonzero(np.asarray(mask, bool))
 
+    # The SAME pool has two different Pareto fronts depending on whether
+    # dominance is tested in raw units or in the normalized frame, because
+    # normalize() CLIPS to [0,1]: values outside the fixed bounds saturate, and
+    # saturation creates ties that make some raw-front members weakly dominated.
+    # The campaign's published 411-molecule front is the RAW one; 
+    # everything else in the project (hypervolume, and therefore IGD+) lives in
+    # the normalized frame. Both are computed so capture can be reported against
+    # either, and so the difference is visible rather than a silent discrepancy.
+    raw_mask, _ = evaluation.compute_pareto_front(
+        Y, np.asarray(evaluation.OBJECTIVE_SIGNS, dtype=float))
+    raw_idx = np.flatnonzero(np.asarray(raw_mask, bool))
+    saturating = int(((Y_norm <= 0.0) | (Y_norm >= 1.0)).any(axis=1).sum())
+
     return {
         "docked": first,                       # every unique docked molecule
         "docked_norm": Y_norm,
@@ -198,6 +251,14 @@ def build_oracle(runs):
         "front_norm": np.asarray(front_norm, float),
         "n_docked": int(len(first)),
         "n_front": int(len(idx)),
+        "n_rows_all": int(len(pooled_all)),
+        "n_rows_incomplete": int((~complete).sum()),
+        "n_unique_smiles_all_rows": int(pooled_all["SMILES"].nunique()),
+        "n_unique_smiles_complete": int(len(first)),
+        "raw_front_idx": raw_idx,
+        "raw_front_smiles": first["SMILES"].to_numpy()[raw_idx],
+        "n_front_raw_units": int(len(raw_idx)),
+        "n_rows_saturating_a_bound": saturating,
         "inconsistent_duplicate_rows": inconsistent,
         "hv": float(evaluation.compute_hypervolume(Y[idx])),
     }
@@ -391,8 +452,11 @@ def run_igdplus(runs, oracle, out_dir):
         "second, standard, Pareto-compliant confirmation that MOGP converges\n"
         "closer to the oracle front. It is NOT independent evidence about the\n"
         "coverage gap, and must not be presented as such. The coverage question\n"
-        "is answered by the cardinality/spread columns: #Circles and the\n"
-        "count-vs-volume mismatch already in Table 7.\n"
+        "is answered by the cardinality/spread columns: #Circles, and the\n"
+        "scope table -- NOT by the count-vs-volume mismatch as stated in Table\n"
+        "7 of the campaign write-up, which compared a union-over-seeds count to\n"
+        "a single-run hypervolume. At equal scope that mismatch disappears (see\n"
+        "scope_table.csv).\n"
     ).format(n=oracle["n_front"], d=oracle["n_docked"])
     with open(os.path.join(out_dir, "igdplus_NOTE.txt"), "w") as fh:
         fh.write(note)
@@ -405,6 +469,83 @@ def run_igdplus(runs, oracle, out_dir):
               f"all-evaluated {g['igd_plus_all_evaluated'].mean():.4f} "
               f"+/- {g['igd_plus_all_evaluated'].std(ddof=1):.4f}   (n={len(g)})")
     print("\n" + note)
+    return df
+
+
+# --------------------------------------------------------------------------- #
+# 0. Oracle-capture scope table.
+# --------------------------------------------------------------------------- #
+def run_scope_table(runs, oracle, out_dir):
+    """Oracle capture at BOTH scopes and on BOTH axes, for every method.
+
+    Table 7 of the campaign write-up put a single-run quantity ("Oracle HV
+    captured, single run", with a s.d.) beside a union-over-seeds quantity
+    ("Oracle-front molecules found", without one) and read the difference between
+    the columns as a finding. Two of those cells are not measured at the same
+    scope, so the comparison does not license the conclusion. This table computes
+    all four cells at both scopes so the count-vs-volume claim can be made -- or
+    withdrawn -- within a single scope.
+
+    Everything is complete-case: a molecule with no docking score cannot sit on
+    a front or carry hypervolume.
+    """
+    oracle_hv = oracle["hv"]
+    fronts = {"normalized_frame": (set(oracle["front_smiles"]), oracle["n_front"]),
+              "raw_units_published": (set(oracle["raw_front_smiles"]),
+                                      oracle["n_front_raw_units"])}
+    rows = []
+    for front_label, (Zsm, n_front) in fronts.items():
+      for method in sorted({m for m, _ in runs}):
+          marm = {s: r for (m, s), r in runs.items() if m == method}
+
+          per_seed_count, per_seed_hv = [], []
+          for seed, r in sorted(marm.items()):
+              ev = r["evaluated"]
+              ev_c = ev[ev["complete"]]
+              per_seed_count.append(len(Zsm & set(ev_c["SMILES"])))
+              per_seed_hv.append(evaluation.compute_hypervolume(ev_c[OBJ].to_numpy(float)))
+
+          union = pd.concat([r["evaluated"] for r in marm.values()], ignore_index=True)
+          union_c = union[union["complete"]].drop_duplicates("SMILES")
+          union_count = len(Zsm & set(union_c["SMILES"]))
+          union_hv = evaluation.compute_hypervolume(union_c[OBJ].to_numpy(float))
+
+          rows.append({
+              "oracle_front": front_label,
+              "method": method,
+              "n_seeds": len(marm),
+              "union_front_molecules_found": union_count,
+              "union_share_of_front_by_count": union_count / n_front,
+              "union_hypervolume": union_hv,
+              "union_share_of_oracle_hv": union_hv / oracle_hv,
+              "single_run_front_molecules_found_mean": float(np.mean(per_seed_count)),
+              "single_run_front_molecules_found_sd": float(np.std(per_seed_count, ddof=1)),
+              "single_run_share_of_front_by_count":
+                  float(np.mean(per_seed_count)) / n_front,
+              "single_run_hypervolume_mean": float(np.mean(per_seed_hv)),
+              "single_run_hypervolume_sd": float(np.std(per_seed_hv, ddof=1)),
+              "single_run_share_of_oracle_hv": float(np.mean(per_seed_hv)) / oracle_hv,
+              "per_seed_counts": ";".join(str(c) for c in per_seed_count),
+          })
+    df = pd.DataFrame(rows)
+    df.to_csv(os.path.join(out_dir, "scope_table.csv"), index=False)
+
+    print(f"\nOracle capture by scope and axis (oracle HV {oracle_hv:.4f}, "
+          f"complete-case). Fronts: normalized frame "
+          f"{oracle['n_front']}, raw units {oracle['n_front_raw_units']}:")
+    print(f"  {'front':<20} {'method':<8} {'UNION count':>18} {'UNION hv':>18} "
+          f"{'SINGLE-RUN count':>20} {'SINGLE-RUN hv':>20}")
+    for _, r in df.iterrows():
+        print(f"  {r['oracle_front']:<20} {r['method']:<8} "
+              f"{r['union_front_molecules_found']:>6.0f} "
+              f"({r['union_share_of_front_by_count']:>5.1%}) "
+              f"{r['union_hypervolume']:>8.4f} ({r['union_share_of_oracle_hv']:>5.1%}) "
+              f"{r['single_run_front_molecules_found_mean']:>8.1f}"
+              f"+/-{r['single_run_front_molecules_found_sd']:<4.1f}"
+              f"({r['single_run_share_of_front_by_count']:>5.1%}) "
+              f"{r['single_run_hypervolume_mean']:>7.4f}"
+              f"+/-{r['single_run_hypervolume_sd']:<6.4f}"
+              f"({r['single_run_share_of_oracle_hv']:>5.1%})")
     return df
 
 
@@ -506,17 +647,28 @@ def run_umap(runs, oracle, lib_smiles, lib_fps, out_dir, seed_for_panel=None,
 
     # A missed molecule is "inside a densely sampled region" when MOGP evaluated
     # a close analogue of it -- it saw that chemistry and passed.
-    INSIDE_D = 0.4
-    frac_inside = float((d_missed <= INSIDE_D).mean()) if d_missed.size else float("nan")
-    frac_found_inside = (float((d_found <= INSIDE_D).mean())
-                         if d_found.size else float("nan"))
-
-    if not d_missed.size:
-        verdict = "no_gap"                 # MOGP missed nothing; nothing to fix
-    elif frac_inside >= 0.5:
-        verdict = "acquisition_rule"
-    else:
-        verdict = "pool_sampling"
+    # The 0.4 cut is a judgement call, so the verdict is swept across a range of
+    # defensible thresholds and reported at every one. A conclusion that survives
+    # 0.3 through 0.5 is a conclusion about the data; one that flips inside that
+    # range is a conclusion about the threshold, and must be reported as such.
+    SWEEP = (0.3, 0.4, 0.5)
+    INSIDE_D = 0.4                         # the headline cut
+    sweep = {}
+    for t in SWEEP:
+        fi = float((d_missed <= t).mean()) if d_missed.size else float("nan")
+        ff = float((d_found <= t).mean()) if d_found.size else float("nan")
+        sweep[f"{t:.1f}"] = {
+            "fraction_missed_inside": fi,
+            "fraction_found_inside": ff,
+            "n_missed_inside": int((d_missed <= t).sum()),
+            "verdict": ("no_gap" if not d_missed.size
+                        else "acquisition_rule" if fi >= 0.5 else "pool_sampling"),
+        }
+    frac_inside = sweep[f"{INSIDE_D:.1f}"]["fraction_missed_inside"]
+    frac_found_inside = sweep[f"{INSIDE_D:.1f}"]["fraction_found_inside"]
+    verdict = sweep[f"{INSIDE_D:.1f}"]["verdict"]
+    verdicts = {t: s["verdict"] for t, s in sweep.items()}
+    verdict_is_stable = len(set(verdicts.values())) == 1
 
     stats = {
         "oracle_front_size": oracle["n_front"],
@@ -539,6 +691,8 @@ def run_umap(runs, oracle, lib_smiles, lib_fps, out_dir, seed_for_panel=None,
             "mannwhitney_p": compare(sparse_missed, sparse_found)},
         "fraction_missed_within_0.4_of_something_mogp_evaluated": frac_inside,
         "fraction_found_within_0.4_of_another_evaluated": frac_found_inside,
+        "threshold_sweep": sweep,
+        "verdict_stable_across_0.3_to_0.5": verdict_is_stable,
         "VERDICT": verdict,
         "verdict_rule": (
             "A missed oracle-front molecule counts as INSIDE a sampled region "
@@ -626,10 +780,15 @@ def run_umap(runs, oracle, lib_smiles, lib_fps, out_dir, seed_for_panel=None,
     print(f"    missed  median {med(d_missed)}   found  median {med(d_found)}")
     print(f"  library sparsity (distance to 10th library neighbour):")
     print(f"    missed  median {med(sparse_missed)}   found  median {med(sparse_found)}")
-    print(f"  {frac_inside:.1%} of missed molecules have an MOGP-evaluated "
-          f"analogue within 0.4 Tanimoto distance"
-          if d_missed.size else "  (nothing missed)")
-    print(f"  VERDICT: {verdict}")
+    print("  threshold sweep (fraction of missed molecules with an "
+          "MOGP-evaluated analogue within t):")
+    for t, s in sweep.items():
+        print(f"    t={t}   missed inside {s['fraction_missed_inside']:6.1%} "
+              f"({s['n_missed_inside']}/{len(d_missed)})   "
+              f"found inside {s['fraction_found_inside']:6.1%}   "
+              f"-> {s['verdict']}")
+    print(f"  VERDICT: {verdict}  "
+          f"({'stable' if verdict_is_stable else 'NOT STABLE'} across 0.3-0.5)")
     return stats
 
 
@@ -652,7 +811,8 @@ def resolve_out_dir(path):
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("analysis", choices=["umap", "circles", "igdplus", "all"])
+    p.add_argument("analysis",
+                   choices=["umap", "circles", "igdplus", "scope", "all"])
     p.add_argument("--campaign-root", default="campaign_results")
     p.add_argument("--out",
                    default="campaign_results/aggregate_10seed_cleanGPMOBO/tier1")
@@ -683,6 +843,45 @@ def main(argv=None):
         f"{m}x{sum(1 for mm, _ in runs if mm == m)}" for m in methods))
 
     oracle = build_oracle(runs)
+
+    # State the NaN handling with the numbers it produced, in the output and on
+    # disk. ~2.9% of rows in every arm are failed docks (NaN in BOTH docking
+    # columns, never in ADMET). Whether the oracle was built over all rows or
+    # complete rows changes its size, and every capture percentage divides by it.
+    provenance = {
+        "nan_policy": NAN_POLICY,
+        "objective_space_sets": "complete-case (all 5 objectives finite)",
+        "coverage_sets": "all evaluated rows (budget spent, chemistry visited)",
+        "pooled_rows_all": oracle["n_rows_all"],
+        "pooled_rows_dropped_incomplete": oracle["n_rows_incomplete"],
+        "unique_smiles_over_all_rows": oracle["n_unique_smiles_all_rows"],
+        "unique_smiles_over_complete_rows": oracle["n_unique_smiles_complete"],
+        "oracle_front_size_normalized_frame": oracle["n_front"],
+        "oracle_front_size_raw_units_published": oracle["n_front_raw_units"],
+        "rows_saturating_a_normalization_bound": oracle["n_rows_saturating_a_bound"],
+        "oracle_hypervolume": oracle["hv"],
+        "front_frame_note": (
+            "normalize() clips to [0,1], so values outside the fixed bounds "
+            "saturate and the ties that creates make some raw-front members "
+            "weakly dominated. The campaign's published 411 is the RAW front; "
+            "hypervolume and IGD+ both live in the normalized frame, so IGD+ "
+            "uses the normalized front as its reference set Z. Capture is "
+            "reported against both in scope_table.csv."),
+        "per_arm": {f"{m}_seed{s}": {
+            "rows": int(len(r["evaluated"])),
+            "incomplete": int((~r["evaluated"]["complete"]).sum()),
+            "reported_only_columns": r["schema_extra"],
+        } for (m, s), r in sorted(runs.items())},
+    }
+    with open(os.path.join(out_dir, "nan_policy_and_oracle_provenance.json"), "w") as fh:
+        json.dump(provenance, fh, indent=2)
+
+    print(f"NaN policy: {NAN_POLICY}")
+    print(f"  pooled rows {oracle['n_rows_all']}, dropped as incomplete "
+          f"{oracle['n_rows_incomplete']} "
+          f"({oracle['n_rows_incomplete'] / max(oracle['n_rows_all'], 1):.2%})")
+    print(f"  unique SMILES: {oracle['n_unique_smiles_all_rows']} over all rows, "
+          f"{oracle['n_unique_smiles_complete']} over complete rows")
     print(f"oracle: {oracle['n_docked']} unique docked molecules -> "
           f"{oracle['n_front']}-molecule front, HV {oracle['hv']:.4f}")
     if oracle["inconsistent_duplicate_rows"]:
@@ -695,6 +894,8 @@ def main(argv=None):
     lib_smiles, lib_fps = load_library_fingerprints(args.library_dir)
     print(f"library: {len(lib_smiles)} rows on disk")
 
+    if args.analysis in ("scope", "all"):
+        run_scope_table(runs, oracle, out_dir)
     if args.analysis in ("umap", "all"):
         run_umap(runs, oracle, lib_smiles, lib_fps, out_dir,
                  seed_for_panel=args.panel_seed, umap_seed=args.umap_seed)

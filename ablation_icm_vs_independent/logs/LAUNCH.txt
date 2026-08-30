@@ -19,3 +19,27 @@ PARALLELISM DECISION (20-min checkpoint): BOTH ARMS KEPT CONCURRENT.
   Note: the printed ETA (~7h) is LINEAR and will prove optimistic. qNEHVI's cost
   grows superlinearly with Pareto front size (the campaign measured 96s -> 1934s
   per iteration over 50 iterations), so expect 12-18h per arm as predicted.
+
+REVISED AT ~40 MIN: SWITCHED TO SEQUENTIAL. Arm B killed; arm A continues alone,
+arm B relaunches automatically when A exits (chain_armB.sh).
+  Trigger: memory. Peak RSS is transient per-arm (the qNEHVI acquisition scan),
+  but the two arms drift in and out of phase and at 09:58:56 both peaked at once:
+  6.24 + 7.82 = 14.1 GB. Per-minute peaks over six minutes (logs/memwatch.csv):
+      armA 0.38 7.58 7.72 6.38 1.24 6.24 GB
+      armB 6.22 6.19 2.12 0.63 7.08 7.82 GB
+  That is with the Pareto front at only 53-56. The campaign's front reached 168
+  by iteration 50, and qNEHVI's peak scales with the box count of the
+  nondominated partitioning, which grows superlinearly in front size -- so
+  essentially all of the memory growth is still ahead. Meanwhile swap has grown
+  monotonically since launch (22.5 -> 29.2 GB) and free memory has fallen
+  51% -> 38% on a 48 GB machine.
+  Two concurrent arms would very likely exhaust memory in the second half. An
+  OOM kill is SIGKILL, so run_arm.py's exception handler cannot save on the way
+  out; we would lose both arms mid-flight after ~10 hours. One clean arm plus a
+  chained second is strictly better, and the user said it need not finish by
+  morning.
+  Arm B's 11 completed iterations are discarded (kept as
+  armB_independent_seed0_ABANDONED_parallel/ for provenance, NOT for reporting --
+  a partially-parallel run is not comparable to a clean sequential one). Its
+  docking work is NOT lost: every dock is in the shared cache, so B's relaunch
+  re-pays only acquisition.

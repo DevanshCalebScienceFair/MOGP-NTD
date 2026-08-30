@@ -1,0 +1,19 @@
+receptor fingerprints on this machine:
+  PfDHFR   35ec75e9000381147734d9dd9de0e66a082d2faa7800728a2d0e6b64ec725a43
+  hDHFR    577ef708b5ecea338bb6cfe4941b7e4baa100d5a6f04609263eefda2c5106483
+
+re-docking 10 molecules, cache DISABLED, tolerance 0.05 kcal/mol
+
+   1/10  Pf  -6.955 ->  -6.935 (d=0.020)   h  -6.944 ->  -6.834 (d=0.110)
+   2/10  Pf  -9.249 ->  -9.210 (d=0.039)   h  -9.091 ->  -9.089 (d=0.002)
+   3/10  Pf  -7.903 ->  -7.903 (d=0.000)   h  -8.342 ->  -8.352 (d=0.010)
+   4/10  Pf  -9.497 ->  -9.421 (d=0.076)   h -10.130 -> -10.110 (d=0.020)
+   5/10  Pf  -7.736 ->  -7.553 (d=0.183)   h  -7.878 ->  -8.029 (d=0.151)
+   6/10  Pf  -7.038 ->  -7.650 (d=0.612)   h  -8.021 ->  -8.462 (d=0.441)
+   7/10  Pf  -6.568 ->  -6.526 (d=0.042)   h  -7.232 ->  -7.194 (d=0.038)
+   8/10  Pf  -8.956 ->  -8.990 (d=0.034)   h  -7.889 ->  -7.902 (d=0.013)
+   9/10  Pf  -8.382 ->  -8.759 (d=0.377)   h  -7.172 ->  -7.163 (d=0.009)
+  10/10  Pf  -9.510 ->  -9.482 (d=0.028)   h  -9.014 ->  -8.961 (d=0.053)
+
+worst |diff| = 0.6120 kcal/mol over 20 docks
+GATE 0: FAIL -- ABORT -- scores differ beyond tolerance; a machine effect would be confounded with the surrogate effect

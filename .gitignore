@@ -64,3 +64,7 @@ matrix_results_run*/
 
 # Pre-NADPH-fix receptor + docking cache backup (generated)
 apo_backup_*/
+
+# Ablation run output (generated; regenerate with ablation_icm_vs_independent/run_arm.py)
+ablation_icm_vs_independent/armA_coregionalized_seed0/
+ablation_icm_vs_independent/armB_independent_seed0/

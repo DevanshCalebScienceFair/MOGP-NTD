@@ -1,0 +1,21 @@
+{
+  "local_vs_local": {
+    "max": 0.0,
+    "mean": 0.0,
+    "median": 0.0,
+    "n_over_0.05": 0,
+    "n": 20
+  },
+  "local_vs_studio": {
+    "max": 0.6120000000000001,
+    "mean": 0.11289999999999996,
+    "median": 0.03849999999999995,
+    "n_over_0.05": 8,
+    "n": 20
+  },
+  "signed_local_minus_studio": {
+    "mean": -0.05089999999999999,
+    "sd": 0.1979015970255499
+  },
+  "interpretation": "MACHINE EFFECT. Local docking is self-consistent but disagrees with the Studio, which points at the receptors or their preparation."
+}

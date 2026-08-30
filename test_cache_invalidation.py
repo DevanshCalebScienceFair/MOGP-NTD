@@ -207,3 +207,67 @@ def test_partial_run_preserves_an_existing_manifest(tmp_path, monkeypatch):
     assert len(on_disk["recovery_invocations"]) == 1
     assert on_disk["recovery_invocations"][0]["cases"] == ["validate-docking"]
     assert returned["n_cases"] == 60
+
+
+# --------------------------------------------------------------------------- #
+# Receptor CONTENT is the one score-determining input the sweep above never
+# exercised. It is also the axis that actually bit us.
+# --------------------------------------------------------------------------- #
+def test_receptor_contents_participate_in_the_oracle_fingerprint(monkeypatch):
+    """A changed prepared receptor must change the fingerprint.
+
+    ``test_fingerprint_covers_every_score_determining_input`` sweeps the box,
+    the seed, the exhaustiveness and the target, but never the receptor's
+    CONTENTS -- the one input the NADPH bug changed, and the one that differed
+    between the Studio and this machine (docking the same molecules against the
+    "same" receptors disagreed by up to 0.612 kcal/mol).
+
+    ``receptor_fingerprint`` is stubbed rather than mutating the real PDBQT: the
+    real file is shared with any run in progress, and rebuilding it costs Open
+    Babel time this test does not need to spend. What is under test is that
+    ``oracle_fingerprint`` FOLDS the receptor hash in at all -- drop that term
+    from the payload and every other assertion in this file still passes.
+    """
+    import docking
+
+    monkeypatch.setattr(docking, "receptor_fingerprint", lambda target: "a" * 64)
+    with_a = docking.oracle_fingerprint("PfDHFR")
+    monkeypatch.setattr(docking, "receptor_fingerprint", lambda target: "b" * 64)
+    with_b = docking.oracle_fingerprint("PfDHFR")
+
+    assert with_a != with_b, (
+        "the prepared receptor's contents do not reach the oracle fingerprint; "
+        "a rebuilt or re-prepared receptor would serve cached scores computed "
+        "against the OLD structure, which is exactly the NADPH failure")
+
+
+def test_prep_stamp_is_blind_to_receptor_contents(tmp_path, monkeypatch):
+    """Pin the known limitation, so nobody mistakes the stamp for a content check.
+
+    ``_prep_stamp`` hashes ``prep_version | cofactors | pdb_id`` and deliberately
+    stops short of the file. It is the REBUILD TRIGGER: it fires when our prep
+    logic changes. It cannot fire when the toolchain changes underneath us -- a
+    different Open Babel emitting different Gasteiger charges leaves the stamp
+    identical, so the existing PDBQT is reused and its (unchanged) hash keeps the
+    cache valid. That is self-consistent within one machine and is why the
+    Studio and this machine can hold different receptors while every tracked
+    file agrees.
+
+    The consequence to remember: matching stamps across two machines prove the
+    prep LOGIC matches, never that the receptors do. Only comparing
+    ``oracle_fingerprint`` does that.
+    """
+    import docking
+
+    stamp_before = docking._prep_stamp("PfDHFR")
+    # Same logic, same target, but a receptor whose contents changed underneath.
+    fake = tmp_path / "receptor.pdbqt"
+    fake.write_text("ATOM      1  N   ALA A   1       0.000   0.000   0.000  1.00  0.00    +0.000 N\n")
+    h1 = docking._sha256_file(str(fake))
+    fake.write_text("ATOM      1  N   ALA A   1       0.000   0.000   0.000  1.00  0.00    +0.123 N\n")
+    h2 = docking._sha256_file(str(fake))
+
+    assert h1 != h2, "the file hash must see a charge change"
+    assert docking._prep_stamp("PfDHFR") == stamp_before, (
+        "if _prep_stamp ever becomes content-sensitive, this test and the "
+        "limitation it documents should be revisited")

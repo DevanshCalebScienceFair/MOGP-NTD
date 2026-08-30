@@ -1,0 +1,9 @@
+=== ABLATION LAUNCH 2026-08-30T09:20:31Z ===
+branch: ablation/icm-vs-independent at 7db6b8f (== campaign / origin/fix/gpmobo-raw-kcal-units)
+  -> has the 2,000-candidate pool sampler: 5 refs in loop.py
+python: /opt/anaconda3/envs/mogp-drug/bin/python
+cores: 12   parallelism: BOTH ARMS CONCURRENT (will drop to sequential if thrashing appears in 20 min)
+shared docking cache: data/docking_cache/docking_cache.sqlite (WAL, both arms -> ONE oracle)
+oracle fingerprints: PfDHFR 35ec75e9... hDHFR 577ef708...
+PATH fix recorded
+relaunch 2026-08-30T09:21:17Z: first launch aborted on assert_fast_acquisition_path (ninja not on PATH via absolute-python invocation). Fixed by prepending the env bin to PATH. MOGP_ALLOW_SLOW_EHVI was NOT set - the guard was satisfied, not bypassed.

@@ -1,0 +1,14 @@
+{
+  "gate": "0_oracle_comparability",
+  "passed": false,
+  "tolerance_kcal": 0.05,
+  "n_molecules": 10,
+  "worst_abs_diff": 0.6120000000000001,
+  "mean_abs_diff": 0.1129,
+  "n_failed_docks": 0,
+  "receptor_fingerprints": {
+    "PfDHFR": "35ec75e9000381147734d9dd9de0e66a082d2faa7800728a2d0e6b64ec725a43",
+    "hDHFR": "577ef708b5ecea338bb6cfe4941b7e4baa100d5a6f04609263eefda2c5106483"
+  },
+  "decision": "ABORT -- scores differ beyond tolerance; a machine effect would be confounded with the surrogate effect"
+}

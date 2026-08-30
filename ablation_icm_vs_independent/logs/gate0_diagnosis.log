@@ -1,0 +1,16 @@
+   1/10  Pf local1  -6.935 vs local2  -6.935 (d=0.000)   h local1  -6.834 vs local2  -6.834 (d=0.000)
+   2/10  Pf local1  -9.210 vs local2  -9.210 (d=0.000)   h local1  -9.089 vs local2  -9.089 (d=0.000)
+   3/10  Pf local1  -7.903 vs local2  -7.903 (d=0.000)   h local1  -8.352 vs local2  -8.352 (d=0.000)
+   4/10  Pf local1  -9.421 vs local2  -9.421 (d=0.000)   h local1 -10.110 vs local2 -10.110 (d=0.000)
+   5/10  Pf local1  -7.553 vs local2  -7.553 (d=0.000)   h local1  -8.029 vs local2  -8.029 (d=0.000)
+   6/10  Pf local1  -7.650 vs local2  -7.650 (d=0.000)   h local1  -8.462 vs local2  -8.462 (d=0.000)
+   7/10  Pf local1  -6.526 vs local2  -6.526 (d=0.000)   h local1  -7.194 vs local2  -7.194 (d=0.000)
+   8/10  Pf local1  -8.990 vs local2  -8.990 (d=0.000)   h local1  -7.902 vs local2  -7.902 (d=0.000)
+   9/10  Pf local1  -8.759 vs local2  -8.759 (d=0.000)   h local1  -7.163 vs local2  -7.163 (d=0.000)
+  10/10  Pf local1  -9.482 vs local2  -9.482 (d=0.000)   h local1  -8.961 vs local2  -8.961 (d=0.000)
+
+local vs local  : max 0.000  mean 0.000  0/20 exceed 0.05
+local vs studio : max 0.612  mean 0.113  8/20 exceed 0.05
+signed local-studio: mean -0.0509 sd 0.1979
+
+MACHINE EFFECT. Local docking is self-consistent but disagrees with the Studio, which points at the receptors or their preparation.

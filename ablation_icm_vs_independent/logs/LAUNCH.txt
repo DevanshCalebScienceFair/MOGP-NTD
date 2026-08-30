@@ -7,3 +7,15 @@ shared docking cache: data/docking_cache/docking_cache.sqlite (WAL, both arms ->
 oracle fingerprints: PfDHFR 35ec75e9... hDHFR 577ef708...
 PATH fix recorded
 relaunch 2026-08-30T09:21:17Z: first launch aborted on assert_fast_acquisition_path (ninja not on PATH via absolute-python invocation). Fixed by prepending the env bin to PATH. MOGP_ALLOW_SLOW_EHVI was NOT set - the guard was satisfied, not bypassed.
+
+PARALLELISM DECISION (20-min checkpoint): BOTH ARMS KEPT CONCURRENT.
+  Evidence: iteration 1 took 98.0s (arm A) and 97.9s (arm B) running at the same
+  time. The campaign's single-arm cost on the Studio was 96s at iteration 1, so
+  concurrency costs essentially nothing -- docking dominates and vina uses all
+  cores internally, so the two arms interleave rather than contend.
+  Memory 47% free, arms 360-530 MB RSS each, no swap thrashing. Load average
+  reads high (~44) because macOS counts vina's worker threads, not because the
+  machine is oversubscribed.
+  Note: the printed ETA (~7h) is LINEAR and will prove optimistic. qNEHVI's cost
+  grows superlinearly with Pareto front size (the campaign measured 96s -> 1934s
+  per iteration over 50 iterations), so expect 12-18h per arm as predicted.

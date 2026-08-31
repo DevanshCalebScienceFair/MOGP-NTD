@@ -336,9 +336,42 @@ behind `--posterior {diag,joint}` (default `diag`), and re-run the ICM-vs-indepe
    peak RSS on every run. Do not run two arms in parallel; that was tried and abandoned.
 5. **One variable at a time.** The GP-MOBO comparison was confounded because it differed on
    three axes at once. Do not repeat that.
-6. Use `/opt/anaconda3/envs/mogp-drug/bin/python`. The default `python3` has no torch. Importing
-   torch and rdkit in one process throws OMP Error #15; never set `KMP_DUPLICATE_LIB_OK=TRUE`,
-   it can silently produce wrong numerics.
+6. Use `/opt/anaconda3/envs/mogp-drug/bin/python`. The default `python3` has no torch.
+   **CORRECTION (2026-08-30):** an earlier version of this guardrail said never to set
+   `KMP_DUPLICATE_LIB_OK=TRUE`. That was wrong and contradicted the shipping code —
+   `loop.py:44`, `run_ablation.py:38`, `run_benchmark_seeds.py`, `run.py`,
+   `compare_apo_holo.py` and `validate_size_confound.py` all set it via `os.environ.setdefault`,
+   and `import botorch` aborts in this environment without it. The whole campaign ran with it
+   set. The env has four *different* libomp builds (844/679/856/902 KB, four distinct hashes),
+   so this is a real accepted risk, not a clean setup: OpenMP's own warning says duplicate
+   runtimes can silently produce incorrect results. Treat it as a known limitation to disclose,
+   not a rule to enforce. Do not add NEW places that set it; the correct fix is one libomp.
+7. **Put the env's `bin/` on PATH** (as `go.sh:43` does). Calling the env's python by absolute
+   path leaves `bin/` off PATH, so `ninja` is invisible, `torch.is_ninja_available()` is False,
+   and BoTorch silently falls back to the pure-Python qLogEHVI — roughly 3x slower by its own
+   warning. `vina` lives in the same `bin/` and must be on PATH for docking.
+
+### Measured 2026-08-30 (probe_acquisition_cost.py, PROBE_RESULTS.md)
+
+- **`alpha=1e-3` is the cost fix.** At B=80: 194.9 s -> 23.1 s (**8.4x**), 10.22 GB -> 4.00 GB
+  (**2.6x**), boxes 2,303 -> 183. The effect GROWS with front size (4x at B=40, 8.4x at B=80).
+  `acquisition.py` never sets `alpha`, so it uses qLogNEHVI's default of 0.0 (exact
+  partitioning); BoTorch's own `get_default_partitioning_alpha(5)` returns 1e-3.
+- **The joint posterior is FASTER than diag**, not slower: -3.1% coregionalized, -6.8%
+  independent, and -7.8% time / -8.7% memory at B=284. The dedup more than pays for the block
+  gather. Cost is not an argument against the ICM fix.
+- **Memory logging undercounts.** The campaign logged arm A at 7.7 GB peak; a single acquisition
+  call at B=284 actually costs **24.31 GB** (coregionalized/diag) and **35.07 GB**
+  (independent/diag). The logged figure is a sampled RSS that missed a transient inside one
+  forward call. This is why arm B was OOM-killed at a logged 23.2 GB.
+- **Full scale is unreachable here without `alpha`.** B=284 needs 24.3 GB against a 12 GB budget.
+- **Redundancy is real but NOT the cost driver.** 49.4x rows re-presented at B=80 (87.1x at
+  B=284), but GP prediction is only 4.1% of acquisition time; the box decomposition and forward
+  are 94.6%. Retired as a cost hypothesis.
+- **The batch-diversity hypothesis is dead.** Joint is marginally *less* diverse than diag, and
+  for the independent model both pick the identical batch. Max pairwise Tanimoto is ~0.17-0.20
+  against a `diversity_threshold` of 0.7, so **the diversity filter never binds** and the
+  proposed cross-molecule-covariance mechanism has no channel to act through.
 
 ### Ruled out — do not revisit
 

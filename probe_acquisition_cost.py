@@ -945,7 +945,33 @@ def _fmt(v, nd=1):
     return f"{v:.{nd}f}"
 
 
-def write_reports(results, meta, smoke=False):
+def _load_json(path, default=None):
+    try:
+        with open(path) as fh:
+            return json.load(fh)
+    except (OSError, ValueError):
+        return default
+
+
+def write_reports(results, meta, smoke=False, log_dir=None):
+    log_dir = log_dir or os.path.join(DEFAULT_STATE_DIR, "logs")
+    ladder = _load_json(os.path.join(log_dir, "ladder_full.json"),
+                        _load_json(os.path.join(log_dir, "ladder.json"), []))
+    for extra in ("ladder_B100.json",):
+        d = _load_json(os.path.join(log_dir, extra))
+        if d:
+            ladder = ladder + [{"B": d.get("baseline_cap"), "status": "ok",
+                                "peak_rss_gb": d.get("peak_rss_gb"),
+                                "n_boxes": d.get("n_boxes"),
+                                "wall_clock_s": d.get("wall_clock_s")}]
+    ladder = sorted([r for r in ladder if r.get("B")], key=lambda r: r["B"])
+    uncapped = []
+    up = os.path.join(os.path.dirname(log_dir), "logs_uncapped_B284")
+    if os.path.isdir(up):
+        for fn in sorted(os.listdir(up)):
+            d = _load_json(os.path.join(up, fn))
+            if d:
+                uncapped.append(d)
     payload = {
         "generated": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "python": sys.executable,
@@ -963,6 +989,11 @@ def write_reports(results, meta, smoke=False):
             "run_config": meta["run_config"],
             "admet_cross_check": meta["admet_cross_check"],
         },
+        "rss_budget_gb": RSS_BUDGET_GB,
+        "rss_vs_baseline_ladder": ladder,
+        "uncapped_B284_reference": [
+            {k: v for k, v in d.items()
+             if k not in ("redundancy", "batch_diversity")} for d in uncapped],
         "cells": results,
     }
     with open(RESULTS_JSON, "w") as fh:
@@ -980,13 +1011,36 @@ def write_reports(results, meta, smoke=False):
     A("")
     A("Replayed state: `ablation_icm_vs_independent/armA_coregionalized_seed0` "
       "(terminal, 290 evaluated, final Pareto front 162).")
+    A("")
+    b_used = ok[0].get("baseline_cap") if ok else None
+    if b_used:
+        A(f"> ## Measured at B = {b_used}, not B = 284")
+        A(f">")
+        A(f"> Peak RSS is bounded by a hard **{RSS_BUDGET_GB:g} GB** budget on "
+          f"this 48 GB machine (which also runs an IDE, a browser and a "
+          f"language server). The RSS-vs-B ladder below shows the full "
+          f"terminal state, B = 284, costs **24.3 GB** for a single "
+          f"acquisition call -- twice the budget. B = {b_used} is the largest "
+          f"rung that fits.")
+        A(f">")
+        A(f"> B = {b_used} is not an arbitrary subsample: `evaluated.csv` is in "
+          f"evaluation order, so the first {b_used} successfully-docked rows "
+          f"are exactly the campaign's own state after "
+          f"{(b_used - 40) // 5} BO iterations. Every cell below is a faithful "
+          f"replay of that earlier point on the same trajectory.")
+        A(f">")
+        A(f"> A wall-clock number measured while the machine is swapping is "
+          f"noise, so the budget is a validity precondition, not only a "
+          f"stability one. Cells are aborted by a watchdog rather than allowed "
+          f"to page.")
     if ok:
         r0 = ok[0]
         nb_full = r0.get("n_baseline_uncapped", r0["n_baseline"])
-        A(f"GP training set / qNEHVI baseline: **B = {nb_full}** finite rows of "
+        A(f"The terminal state has {nb_full} finite rows of "
           f"{r0['n_evaluated']} evaluated "
           f"({r0['n_evaluated'] - nb_full} dropped for a NaN in an active "
-          f"objective).")
+          f"objective). **The GP training set / qNEHVI baseline actually used "
+          f"below is B = {r0['n_baseline']}**, for the budget reason above.")
         if r0.get("reconstructed_pareto_front") is not None:
             A(f"Reconstruction assertion: the replayed state's Pareto front is "
               f"**{r0['reconstructed_pareto_front']}**, matching the "
@@ -1012,6 +1066,45 @@ def write_reports(results, meta, smoke=False):
       "(a 1.5 GB allocation moved it by 1,500,020,736); it is divided by 1e9 "
       "for the GB column.")
     A("")
+    if ladder:
+        A("## Peak RSS vs baseline size B (coregionalized / diag / alpha=0, "
+          "pool = 2000)\n")
+        A("| B | BO iteration replayed | peak RSS (GB) | num_boxes | "
+          "wall clock (s) | status |")
+        A("|---:|---:|---:|---:|---:|---|")
+        for r in ladder:
+            it = (r["B"] - 40) // 5 if r["B"] >= 40 else 0
+            boxes = f"{r['n_boxes']:,}" if r.get("n_boxes") else "n/a"
+            A(f"| {r['B']} | {it} | {_fmt(r.get('peak_rss_gb'), 2)} | {boxes} | "
+              f"{_fmt(r.get('wall_clock_s'), 1)} | {r.get('status')} |")
+        for d in uncapped:
+            if d.get("posterior") == "diag" and d.get("model") == "coregionalized":
+                A(f"| {d['n_baseline']} | {(d['n_baseline'] - 40) // 5} | "
+                  f"{d['peak_rss_gb']:.2f} | {d['n_boxes']:,} | "
+                  f"{d['wall_clock_s']:.1f} | measured before the budget was "
+                  f"imposed |")
+        A("")
+        A("Rungs marked `rss_cap_exceeded` were aborted by the watchdog at the "
+          "RSS shown; their true peak is higher, and the figure is the value "
+          "the 0.2 s poll happened to catch, so those two rows are lower "
+          "bounds and are NOT comparable to each other (B=100 reading above "
+          "B=120 is a polling artifact, not a non-monotonicity). The "
+          "mechanism is explicit: "
+          "qNEHVI materializes an `(n_mc_samples, chunk, num_boxes, m)` tensor "
+          "-- the allocation `acquisition.py`'s own `CANDIDATE_CHUNK` comment "
+          "names -- so peak RSS tracks `num_boxes`, and `num_boxes` grows "
+          "steeply with the size of the baseline Pareto front.")
+        A("")
+        A("| config | B | num_boxes | dominant tensor (GB) | measured peak (GB) "
+          "| peak / tensor |")
+        A("|---|---:|---:|---:|---:|---:|")
+        for d in uncapped:
+            t = (d["n_mc_samples"] * d["candidate_chunk"] * d["n_boxes"] * 5
+                 * 8) / 1e9
+            A(f"| {d['model']} / {d['posterior']} | {d['n_baseline']} | "
+              f"{d['n_boxes']:,} | {t:.2f} | {d['peak_rss_gb']:.2f} | "
+              f"{d['peak_rss_gb'] / t:.2f} |")
+        A("")
     A("## Cost table\n")
     A("| cell | model | posterior | alpha | prune_baseline | wall_clock_s | "
       "peak_rss_gb | gp_predict_s | acqf_s | gp_train_s | acquisition_s |")
@@ -1117,6 +1210,16 @@ def write_reports(results, meta, smoke=False):
           f"{_fmt(d['max_pairwise_tanimoto'], 4)} | "
           f"{', '.join(str(i) for i in d['selected_library_indices'])} |")
     A("")
+    c5, c6 = by_cell.get(5), by_cell.get(6)
+    if c5 and c6:
+        A(f"`prune_baseline=True` (cell 6) does prune -- the qNEHVI baseline "
+          f"goes from {c5['acqf_baseline_rows']} to "
+          f"{c6['acqf_baseline_rows']} points and num_boxes from "
+          f"{c5['n_boxes']:,} to {c6['n_boxes']:,}, and it changes which "
+          f"molecules are picked -- but it does not move cost: "
+          f"{c5['wall_clock_s']:.1f} s / {c5['peak_rss_gb']:.2f} GB vs "
+          f"{c6['wall_clock_s']:.1f} s / {c6['peak_rss_gb']:.2f} GB.")
+        A("")
     c1, c2 = by_cell.get(1), by_cell.get(2)
     if c1 and c2:
         d1, d2 = c1["batch_diversity"], c2["batch_diversity"]
@@ -1225,7 +1328,8 @@ def main():
 
     log_dir = os.path.join(state_dir, "logs")
     if args.report_only:
-        write_reports(collect_from_disk(log_dir), meta, smoke=args.smoke)
+        write_reports(collect_from_disk(log_dir), meta, smoke=args.smoke,
+                      log_dir=log_dir)
         return
 
     if args.ladder:
@@ -1249,7 +1353,8 @@ def main():
             no_instr=args.no_instr)
     # Sweep-file rule: rebuild the sweep-level report from every cell artifact
     # on disk, not from the cells this invocation ran.
-    write_reports(collect_from_disk(log_dir), meta, smoke=args.smoke)
+    write_reports(collect_from_disk(log_dir), meta, smoke=args.smoke,
+                  log_dir=log_dir)
 
 
 if __name__ == "__main__":

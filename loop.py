@@ -71,6 +71,8 @@ from mogp_coregionalized import train_mogp_coregionalized
 from acquisition import (
     select_batch,
     subsample_candidates,
+    POSTERIOR_MODES,
+    DEFAULT_POSTERIOR_MODE,
     compute_pareto_front,
     get_active_objectives,
     DEFAULT_OBJECTIVE_SIGNS,
@@ -194,7 +196,8 @@ class BOLoop:
                  diversity_threshold=0.7,
                  model=DEFAULT_MODEL, coregionalization_rank=1, train_fn=None,
                  densify=False, densify_every=1, densify_per_parent=20,
-                 densify_max_pool=None, acquisition_pool_size=None):
+                 densify_max_pool=None, acquisition_pool_size=None,
+                 posterior_mode=DEFAULT_POSTERIOR_MODE):
         # --- Reproducibility ---
         self.seed = seed
         np.random.seed(seed)
@@ -206,6 +209,20 @@ class BOLoop:
         # reseeded per iteration from `seed` (see acquisition.subsample_candidates).
         # Applied IDENTICALLY here and in the GP-MOBO arm.
         self.acquisition_pool_size = acquisition_pool_size
+
+        # --- Posterior assembly for the acquisition (default = historical) ---
+        # "diag" hands qNEHVI an explicitly diagonal covariance, discarding the
+        # cross-task (PfDHFR/hDHFR) and candidate/baseline covariance GPyTorch
+        # already computed; "joint" passes the full posterior block through. This
+        # is the ONLY thing that decides whether a coregionalized GP's learned
+        # correlation can influence selection at all. Default "diag" so the
+        # benchmarked path is untouched. See acquisition.DockingPosteriorModel.
+        if posterior_mode not in POSTERIOR_MODES:
+            raise ValueError(
+                f"BOLoop: unknown posterior_mode {posterior_mode!r}; "
+                f"expected one of {POSTERIOR_MODES}."
+            )
+        self.posterior_mode = posterior_mode
 
         # --- Per-iteration timing (set by the benchmark harness before run) ---
         self.timing_log_path = None
@@ -595,6 +612,7 @@ class BOLoop:
             train_x, baseline_admet,
             batch_size=self.batch_size,
             diversity_threshold=self.diversity_threshold,
+            posterior_mode=self.posterior_mode,
         )
         selected_library_indices = candidate_library_indices[selected_local]
         acquisition_seconds = time.perf_counter() - t_acq_start
@@ -806,6 +824,12 @@ if __name__ == "__main__":
                              "coregionalized (ICM, primary) or independent.")
     parser.add_argument("--rank", type=int, default=1,
                         help="IndexKernel rank for the coregionalized model.")
+    parser.add_argument("--posterior", choices=POSTERIOR_MODES,
+                        default=DEFAULT_POSTERIOR_MODE,
+                        help="Covariance handed to qNEHVI: 'diag' (default, the "
+                             "benchmarked path) discards every off-diagonal term; "
+                             "'joint' passes the full posterior block through so "
+                             "the ICM's cross-task correlation reaches the sampler.")
     parser.add_argument("--output-dir", default="results")
     parser.add_argument(
         "--densify", action="store_true",
@@ -835,7 +859,8 @@ if __name__ == "__main__":
 
     profile_name = "SMOKE" if args.smoke else "GRAND CAMPAIGN"
     print(f"Running BO loop [{profile_name}] with the {args.model!r} GP model"
-          + (f" (rank {args.rank})" if args.model == "coregionalized" else "") + ".")
+          + (f" (rank {args.rank})" if args.model == "coregionalized" else "")
+          + f", {args.posterior!r} posterior.")
     print(f"  n_init={n_init}, batch_size={batch_size}, n_iterations={n_iterations}")
     loop = BOLoop(
         library_dir=args.library_dir,
@@ -845,6 +870,7 @@ if __name__ == "__main__":
         mogp_train_iters=args.mogp_iters,
         model=args.model,
         coregionalization_rank=args.rank,
+        posterior_mode=args.posterior,
         densify=args.densify,
         densify_every=args.densify_every,
         densify_per_parent=args.densify_per_parent,

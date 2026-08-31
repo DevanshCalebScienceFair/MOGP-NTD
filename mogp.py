@@ -359,6 +359,113 @@ def predict(model, likelihood, y_mean, y_std, X_new):
     return mean, variance
 
 
+def predict_joint(model, likelihood, y_mean, y_std, X_new, task_indices=None):
+    """Predict the JOINT posterior (mean + FULL covariance) for new molecules.
+
+    ``predict`` returns only the marginal variance — which is literally the
+    diagonal of a covariance matrix GPyTorch has already computed. This returns
+    the whole block, so the coregionalized model's learned cross-task
+    (PfDHFR/hDHFR) covariance and the cross-MOLECULE covariance both survive
+    into the acquisition function instead of being thrown away.
+
+    Same model/likelihood/normalization contract as ``predict``; the model may be
+    either ``MOGPModel`` (independent — cross-task blocks are exactly zero) or
+    ``mogp_coregionalized.MOGPCoregionalized`` (ICM — cross-task blocks are
+    learned). Observation noise is included exactly as in ``predict`` (both call
+    ``likelihood(model(x))``), so ``predict_joint``'s diagonal reproduces
+    ``predict``'s variance to floating-point tolerance.
+
+    Args:
+        model: A trained ``MOGPModel`` or ``MOGPCoregionalized``.
+        likelihood: The matching ``MultitaskGaussianLikelihood``.
+        y_mean: Normalization means, shape ``(num_tasks,)``.
+        y_std: Normalization stds, shape ``(num_tasks,)``.
+        X_new: Fingerprint matrix of shape ``(M, 2048)``.
+        task_indices: Objective indices (into ``TASK_NAMES``) the covariance
+            should cover, in the order the caller wants its blocks laid out.
+            Defaults to every modelled (non-NaN-stat) task in ``TASK_NAMES``
+            order. Every requested index must actually be modelled.
+
+    Returns:
+        A tuple ``(mean, cov)``. ``mean`` is ``(M, num_tasks)``, identical in
+        contract to ``predict``'s (full ``TASK_NAMES`` layout, original units,
+        NaN for un-modelled objectives). ``cov`` is the dense
+        ``(M*t, M*t)`` posterior covariance over the ``t = len(task_indices)``
+        requested tasks in ORIGINAL units, laid out **INTERLEAVED** — the flat
+        index of (molecule ``i``, task slot ``a``) is ``i * t + a``, i.e. the
+        task index varies fastest. That is the convention
+        ``gpytorch.distributions.MultitaskMultivariateNormal`` uses with
+        ``interleaved=True``, so the result drops straight into one.
+
+    Note:
+        Cost is ``(M*t)^2`` memory and ``O((M*t)^3)`` for any downstream
+        factorization, versus ``M*t`` for ``predict``. Callers scoring a large
+        pool should deduplicate molecules and/or chunk before calling.
+    """
+    X_new_t = torch.from_numpy(np.asarray(X_new)).to(torch.float32)
+
+    model.eval()
+    likelihood.eval()
+
+    with torch.no_grad(), gpytorch.settings.fast_pred_var():
+        posterior = likelihood(model(X_new_t))
+        mean_obs = posterior.mean.cpu().numpy()                 # (M, k_obs)
+        cov_obs = posterior.covariance_matrix.cpu().numpy()     # (M*k_obs, M*k_obs)
+
+    n_rows, k_obs = mean_obs.shape
+
+    # GPyTorch can lay a multitask covariance out either interleaved
+    # (i*k + a, task fastest) or task-major (a*M + i). Both models here come
+    # back interleaved, but the two orderings are indistinguishable by shape and
+    # silently transpose the meaning of every off-diagonal block, so normalize
+    # explicitly rather than assuming.
+    if not getattr(posterior, "_interleaved", True):
+        perm = np.arange(n_rows * k_obs).reshape(k_obs, n_rows).T.reshape(-1)
+        cov_obs = cov_obs[np.ix_(perm, perm)]
+
+    # Scatter the trained-task means back into the full TASK_NAMES layout,
+    # reversing the per-column standardization (exactly as predict does).
+    observed = np.isfinite(y_mean) & np.isfinite(y_std)
+    n_tasks = y_mean.shape[0]
+    mean = np.full((n_rows, n_tasks), np.nan, dtype=float)
+    mean[:, observed] = mean_obs * y_std[observed] + y_mean[observed]
+
+    # De-standardize the covariance: Cov[(i,a),(j,b)] scales by y_std[a]*y_std[b]
+    # (predict's variance, the diagonal, scales by y_std[a]**2 — the same rule).
+    observed_tasks = np.flatnonzero(observed)
+    if k_obs != observed_tasks.size:
+        raise ValueError(
+            f"predict_joint: model returned {k_obs} task columns but "
+            f"{observed_tasks.size} tasks have finite normalization stats."
+        )
+    scale = np.tile(y_std[observed], n_rows)                    # interleaved
+    cov = cov_obs * np.outer(scale, scale)
+
+    # The GP runs in float32, so the returned block is symmetric only to ~1e-10.
+    # A covariance is symmetric by definition and downstream factorizations are
+    # happier if it is exactly so; the correction is at float32 round-off scale
+    # and leaves the diagonal (predict's variance) untouched.
+    cov = 0.5 * (cov + cov.T)
+
+    # Restrict to the requested tasks, preserving the interleaved layout.
+    if task_indices is None:
+        return mean, cov
+    task_indices = list(task_indices)
+    slots = []
+    for j in task_indices:
+        hit = np.flatnonzero(observed_tasks == j)
+        if hit.size == 0:
+            raise ValueError(
+                f"predict_joint: objective {j} "
+                f"({TASK_NAMES[j] if j < len(TASK_NAMES) else '?'}) is not "
+                "modelled by this GP, so it has no posterior covariance."
+            )
+        slots.append(int(hit[0]))
+    sel = (np.arange(n_rows)[:, None] * k_obs
+           + np.asarray(slots)[None, :]).reshape(-1)
+    return mean, cov[np.ix_(sel, sel)]
+
+
 if __name__ == "__main__":
     train_smiles = {
         "Aspirin": "CC(=O)Oc1ccccc1C(=O)O",

@@ -64,3 +64,7 @@ matrix_results_run*/
 
 # Pre-NADPH-fix receptor + docking cache backup (generated)
 apo_backup_*/
+
+# large experiment outputs, never commit
+campaign_results/
+ablation_icm_vs_independent/

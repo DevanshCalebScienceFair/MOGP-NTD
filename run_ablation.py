@@ -38,11 +38,14 @@ import os
 os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 
 import argparse
+import json
+import os
 import time
 
 import numpy as np
 
 from loop import BOLoop, MODEL_CHOICES
+from acquisition import POSTERIOR_MODES, DEFAULT_POSTERIOR_MODE
 import evaluation
 
 
@@ -62,7 +65,8 @@ def run_arm(model, seed, cfg, save_dir=None):
         model: ``"coregionalized"`` or ``"independent"``.
         seed: Random seed shared by both arms for this repeat.
         cfg: Dict of loop parameters (n_init, batch_size, n_iterations,
-            mogp_iters, rank, library_dir, and optional max_library).
+            mogp_iters, rank, library_dir, posterior_mode, and optional
+            max_library / timing_log).
         save_dir: If given, also write the run's three result CSVs there.
 
     Returns:
@@ -77,7 +81,18 @@ def run_arm(model, seed, cfg, save_dir=None):
         mogp_train_iters=cfg["mogp_iters"],
         model=model,
         coregionalization_rank=cfg["rank"],
+        posterior_mode=cfg.get("posterior_mode", DEFAULT_POSTERIOR_MODE),
+        diversity_threshold=cfg.get("diversity_threshold", 0.7),
+        acquisition_pool_size=cfg.get("acquisition_pool_size"),
     )
+
+    # Per-iteration wall clock (GP train / acquisition / docking split), written
+    # incrementally so it is readable mid-run. One file per arm+seed, since the
+    # whole point of the joint-posterior ablation is comparing per-iteration cost.
+    timing_log = cfg.get("timing_log")
+    if timing_log:
+        loop.timing_log_path = timing_log.format(model=model, seed=seed)
+        loop.timing_method = f"MOGP-{model}"
 
     # Optional library truncation for quick runs (keeps the candidate scan small).
     max_library = cfg.get("max_library")
@@ -86,6 +101,27 @@ def run_arm(model, seed, cfg, save_dir=None):
         loop.fingerprints = loop.fingerprints[:max_library]
         loop.admet_scores = loop.admet_scores[:max_library]
         loop.library_size = max_library
+
+    if save_dir is not None:
+        # Write the arm's config BEFORE the run, so a killed arm still says what
+        # it was. This is a per-arm record of what THIS invocation did, not a
+        # sweep-level file, so it is safe to write unconditionally.
+        os.makedirs(save_dir, exist_ok=True)
+        with open(os.path.join(save_dir, "run_config.json"), "w") as fh:
+            json.dump({
+                "model": model,
+                "seed": seed,
+                "output_dir": save_dir,
+                "posterior_mode": cfg.get("posterior_mode", DEFAULT_POSTERIOR_MODE),
+                "n_init": cfg["n_init"],
+                "batch_size": cfg["batch_size"],
+                "n_iterations": cfg["n_iterations"],
+                "mogp_iters": cfg["mogp_iters"],
+                "rank": cfg["rank"],
+                "diversity_threshold": cfg.get("diversity_threshold", 0.7),
+                "acquisition_pool_size": cfg.get("acquisition_pool_size"),
+                "library_dir": cfg["library_dir"],
+            }, fh, indent=2, sort_keys=True)
 
     history = loop.run()
     if save_dir is not None:
@@ -124,10 +160,14 @@ def run_ablation(seeds, cfg, models=MODEL_CHOICES, save=False):
     results = {m: {"hypervolume": [], "pareto_size": [], "seeds": []}
                for m in models}
 
+    output_root = cfg.get("output_root")
     for seed in seeds:
         for model in models:
-            save_dir = (RESULTS_DIRS.get(model)
-                        if (save and seed == seeds[-1]) else None)
+            if output_root:
+                save_dir = os.path.join(output_root, f"{model}_seed{seed}")
+            else:
+                save_dir = (RESULTS_DIRS.get(model)
+                            if (save and seed == seeds[-1]) else None)
             print(f"\n--- model={model!r}  seed={seed} ---")
             metrics = run_arm(model, seed, cfg, save_dir=save_dir)
             results[model]["hypervolume"].append(metrics["hypervolume"])
@@ -202,12 +242,35 @@ def main():
     parser.add_argument("--mogp-iters", type=int, default=200)
     parser.add_argument("--rank", type=int, default=1,
                         help="IndexKernel rank for the coregionalized arm.")
+    parser.add_argument("--diversity-threshold", type=float, default=0.7,
+                        help="Max Tanimoto similarity within a selected batch.")
+    parser.add_argument("--acquisition-pool-size", type=int, default=None,
+                        help="Cap the candidate pool EHVI-scores each iteration "
+                             "(default: unset = whole library). A deliberate "
+                             "approximation; it MUST be identical across arms or "
+                             "the comparison is a harness artifact.")
+    parser.add_argument("--output-root", default=None,
+                        help="Write each arm to <root>/<model>_seed<seed>/ "
+                             "instead of the fixed RESULTS_DIRS names. Implies "
+                             "saving EVERY arm+seed, not just the last seed.")
     parser.add_argument("--max-library", type=int, default=None,
                         help="Optional cap on library size (for quick runs).")
     parser.add_argument("--models", default=",".join(MODEL_CHOICES),
                         help="Comma list of models to compare.")
     parser.add_argument("--save", action="store_true",
                         help="Save each arm's last-seed run for validate_known_actives.py.")
+    parser.add_argument("--posterior", choices=POSTERIOR_MODES,
+                        default=DEFAULT_POSTERIOR_MODE,
+                        help="Covariance handed to qNEHVI. 'diag' (default) is "
+                             "the historical path and discards every off-diagonal "
+                             "term, so the ICM can only affect means and marginal "
+                             "variances. 'joint' passes the full posterior block "
+                             "through, which is the only setting under which "
+                             "coregionalization can influence selection.")
+    parser.add_argument("--timing-log", default=None,
+                        help="Path template for per-iteration timing CSVs; "
+                             "'{model}' and '{seed}' are substituted "
+                             "(e.g. 'ablation_joint/timings_{model}_seed{seed}.csv').")
     args = parser.parse_args()
 
     seeds = _parse_seeds(args.seeds)
@@ -224,14 +287,23 @@ def main():
         "mogp_iters": args.mogp_iters,
         "rank": args.rank,
         "max_library": args.max_library,
+        "posterior_mode": args.posterior,
+        "timing_log": args.timing_log,
+        "diversity_threshold": args.diversity_threshold,
+        "acquisition_pool_size": args.acquisition_pool_size,
+        "output_root": args.output_root,
     }
 
     print("=" * 68)
     print("RUN ABLATION — independent vs coregionalized (ICM)")
     print("=" * 68)
-    print(f"seeds={seeds}  models={models}  rank={args.rank}")
+    print(f"seeds={seeds}  models={models}  rank={args.rank}  "
+          f"posterior={args.posterior!r}")
     print(f"n_init={args.n_init}  batch_size={args.batch_size}  "
           f"n_iterations={args.n_iterations}  mogp_iters={args.mogp_iters}")
+    print(f"diversity_threshold={args.diversity_threshold}  "
+          f"acquisition_pool_size={args.acquisition_pool_size}"
+          + (f"  output_root={args.output_root}" if args.output_root else ""))
 
     start = time.time()
     results = run_ablation(seeds, cfg, models=models, save=args.save)

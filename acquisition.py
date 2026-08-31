@@ -62,6 +62,7 @@ from botorch.acquisition.multi_objective.logei import (
 from mogp import (
     train_mogp,
     predict,
+    predict_joint,
     TASK_NAMES,
     DOCKING_TASK_INDICES,
     OBJECTIVE_SOURCES,
@@ -92,8 +93,55 @@ N_MC_SAMPLES = 128
 # memory. Docking dominates wall-clock, so the extra Python-level calls are free.
 CANDIDATE_CHUNK = 128
 
+# How DockingPosteriorModel assembles the posterior qNEHVI samples from.
+#   "diag"  -> marginal variances only; the covariance handed to qNEHVI is an
+#              explicit diagonal (the historical, benchmarked behaviour).
+#   "joint" -> the full q*k x q*k posterior block from mogp.predict_joint, so a
+#              coregionalized model's learned cross-task covariance and the
+#              candidate<->baseline cross-molecule covariance reach the sampler.
+# DEFAULT IS "diag": every published number was produced on that path and it
+# must stay bit-identical.
+POSTERIOR_MODES = ("diag", "joint")
+DEFAULT_POSTERIOR_MODE = "diag"
+
 # BoTorch multi-objective utilities work in double precision.
 _DTYPE = torch.double
+
+
+def _validate_posterior_mode(mode):
+    """Return ``mode`` if it is a known posterior mode, else raise."""
+    if mode not in POSTERIOR_MODES:
+        raise ValueError(
+            f"Unknown posterior mode {mode!r}; expected one of {POSTERIOR_MODES}."
+        )
+    return mode
+
+
+def _unique_rows(rows):
+    """Deduplicate a fingerprint matrix exactly; return ``(unique, inverse)``.
+
+    qNEHVI evaluates each candidate as its own t-batch against the SAME baseline
+    block, so the flattened ``(batch * q, n_fp)`` matrix reaching ``posterior()``
+    repeats the baseline ``batch`` times. The joint posterior only needs the
+    DISTINCT molecules: the covariance is ``(n_unique * k)^2`` instead of
+    ``(batch * q * k)^2``, which is the difference between a few MB and tens of
+    GB. ``unique[inverse] == rows`` exactly.
+
+    Morgan fingerprints are 0/1, so bit-packing gives a cheap exact key; anything
+    else falls back to a byte-exact void view (correct, just slower).
+    """
+    rows = np.asarray(rows)
+    is_binary = bool(((rows == 0) | (rows == 1)).all())
+    if is_binary:
+        key = np.packbits(rows.astype(np.uint8), axis=1)
+    else:
+        contiguous = np.ascontiguousarray(rows)
+        key = contiguous.view(
+            np.dtype((np.void, contiguous.dtype.itemsize * contiguous.shape[1]))
+        ).reshape(-1)
+    _, first, inverse = np.unique(key, axis=0, return_index=True,
+                                  return_inverse=True)
+    return rows[first], np.asarray(inverse).reshape(-1)
 
 
 def _default_signs(num_objectives):
@@ -324,12 +372,25 @@ class DockingPosteriorModel(Model):
     ADMET tail is ignored here — it is consumed exactly by the composite
     objective, never predicted.
 
-    The posterior is assembled from ``mogp.predict``'s per-molecule marginal
-    mean/variance (original docking units) as an independent
-    ``MultitaskMultivariateNormal`` (diagonal covariance), which qNEHVI samples.
+    ``posterior_mode`` selects how the ``q x k`` covariance is assembled:
+
+      * ``"diag"`` (default, the benchmarked path) — ``mogp.predict``'s
+        per-molecule marginal mean/variance are wrapped as an independent
+        ``MultitaskMultivariateNormal`` with an explicitly DIAGONAL covariance.
+        Every off-diagonal term GPyTorch computed is discarded, so a
+        coregionalized model's learned PfDHFR/hDHFR correlation never reaches
+        qNEHVI's sampler and the ICM affects only means and marginal variances.
+      * ``"joint"`` — ``mogp.predict_joint``'s full ``q*k x q*k`` block is passed
+        through unchanged, so the cross-task covariance AND the covariance
+        between a candidate and the baseline points (qNEHVI stacks both into one
+        t-batch) both survive into the Monte Carlo samples.
+
+    Both modes call ``likelihood(model(x))``, i.e. include observation noise, so
+    they differ ONLY in the off-diagonal entries.
     """
 
-    def __init__(self, model, likelihood, y_mean, y_std, n_fp, dock_task_indices):
+    def __init__(self, model, likelihood, y_mean, y_std, n_fp, dock_task_indices,
+                 posterior_mode=DEFAULT_POSTERIOR_MODE):
         super().__init__()
         self._model = model
         self._likelihood = likelihood
@@ -337,6 +398,7 @@ class DockingPosteriorModel(Model):
         self._y_std = y_std
         self._n_fp = int(n_fp)
         self._dock = list(dock_task_indices)
+        self._posterior_mode = _validate_posterior_mode(posterior_mode)
 
     @property
     def num_outputs(self):
@@ -347,6 +409,18 @@ class DockingPosteriorModel(Model):
         *batch, q, _ = X.shape
         k = len(self._dock)
         fp = X[..., :self._n_fp].reshape(-1, self._n_fp).detach().cpu().numpy()
+        if self._posterior_mode == "joint":
+            mean_d, covar = self._joint_moments(fp, batch, q, k)
+        else:
+            mean_d, covar = self._diag_moments(fp, batch, q, k)
+        mvn = MultitaskMultivariateNormal(mean_d, covar)
+        post = GPyTorchPosterior(mvn)
+        if posterior_transform is not None:
+            return posterior_transform(post)
+        return post
+
+    def _diag_moments(self, fp, batch, q, k):
+        """Mean and an explicitly DIAGONAL covariance (the historical path)."""
         with warnings.catch_warnings():
             # The evaluated baseline IS the GP's training set, so predicting on it
             # trips GPyTorch's "input matches training data" notice every step.
@@ -363,11 +437,45 @@ class DockingPosteriorModel(Model):
         ).reshape(*batch, q, k)
         # Independent (diagonal) joint posterior over the q x k docking outputs.
         covar = torch.diag_embed(var_d.reshape(*batch, q * k))
-        mvn = MultitaskMultivariateNormal(mean_d, covar)
-        post = GPyTorchPosterior(mvn)
-        if posterior_transform is not None:
-            return posterior_transform(post)
-        return post
+        return mean_d, covar
+
+    def _joint_moments(self, fp, batch, q, k):
+        """Mean and the FULL per-t-batch ``q*k x q*k`` posterior covariance.
+
+        The molecules are deduplicated first: qNEHVI hands every t-batch element
+        the same baseline block, so the flattened rows repeat ``batch`` times and
+        the joint covariance over them would be ``(batch*q*k)^2`` — tens of GB —
+        while the covariance over the DISTINCT molecules is ``(n_unique*k)^2``, a
+        few MB. Cross-t-batch covariance is not needed (and not representable):
+        BoTorch t-batch elements are independent scenarios by definition.
+        """
+        uniq, inverse = _unique_rows(fp)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", GPInputWarning)
+            mean_np, cov_np = predict_joint(
+                self._model, self._likelihood, self._y_mean, self._y_std, uniq,
+                task_indices=self._dock,
+            )
+        mean_d = torch.as_tensor(
+            mean_np[inverse][:, self._dock], dtype=_DTYPE
+        ).reshape(*batch, q, k)
+
+        # predict_joint lays the covariance out INTERLEAVED (task fastest), which
+        # is also what MultitaskMultivariateNormal(interleaved=True) expects, so
+        # the flat slot of (unique molecule u, task a) is u*k + a. Gather each
+        # t-batch element's own q*k slots out of the unique-molecule covariance.
+        n_batch = fp.shape[0] // q
+        slots = (inverse.reshape(n_batch, q)[:, :, None] * k
+                 + np.arange(k)[None, None, :]).reshape(n_batch, q * k)
+        blocks = cov_np[slots[:, :, None], slots[:, None, :]]
+
+        # Mirror the diagonal path's variance floor. Raising diagonal entries
+        # only ever helps positive-definiteness, so the Cholesky qNEHVI's sampler
+        # needs cannot be made less stable by it.
+        diag = np.einsum("bii->bi", blocks)
+        np.maximum(diag, 1e-9, out=diag)
+        covar = torch.as_tensor(blocks, dtype=_DTYPE).reshape(*batch, q * k, q * k)
+        return mean_d, covar
 
 
 class CompositeKnownADMETObjective(MCMultiOutputObjective):
@@ -445,7 +553,8 @@ def compute_qnehvi(model, likelihood, y_mean, y_std,
                    X_baseline, baseline_admet,
                    objective_signs=None, bounds=None,
                    ref_point=None, n_mc_samples=N_MC_SAMPLES, layout=None,
-                   candidate_chunk=CANDIDATE_CHUNK):
+                   candidate_chunk=CANDIDATE_CHUNK,
+                   posterior_mode=DEFAULT_POSTERIOR_MODE):
     """Noisy Expected Hypervolume Improvement (qNEHVI) per candidate.
 
     Builds a 2-output docking posterior and a composite objective that folds each
@@ -470,6 +579,10 @@ def compute_qnehvi(model, likelihood, y_mean, y_std,
         n_mc_samples: qNEHVI quasi-MC sample count.
         layout: Optional ``(dock_task_indices, lib_task_indices, lib_admet_cols)``;
             defaults to ``_resolve_admet_layout()``.
+        posterior_mode: ``"diag"`` (default) feeds qNEHVI an explicitly diagonal
+            covariance — the historical, benchmarked behaviour. ``"joint"`` feeds
+            it the full posterior block so cross-task and candidate/baseline
+            covariance reach the sampler. See ``DockingPosteriorModel``.
 
     Returns:
         Array of shape ``(M,)`` of qNEHVI scores; higher is more valuable to
@@ -510,7 +623,8 @@ def compute_qnehvi(model, likelihood, y_mean, y_std,
     )
 
     model_wrap = DockingPosteriorModel(
-        model, likelihood, y_mean, y_std, n_fp, dock_task_indices
+        model, likelihood, y_mean, y_std, n_fp, dock_task_indices,
+        posterior_mode=_validate_posterior_mode(posterior_mode),
     )
     objective = CompositeKnownADMETObjective(
         dock_task_indices, lib_task_indices, num_objectives, bounds, signs
@@ -554,7 +668,8 @@ def select_batch(model, likelihood, y_mean, y_std,
                  X_candidates, candidate_admet,
                  X_baseline, baseline_admet,
                  batch_size=20, diversity_threshold=0.7,
-                 objective_signs=None, n_mc_samples=N_MC_SAMPLES, layout=None):
+                 objective_signs=None, n_mc_samples=N_MC_SAMPLES, layout=None,
+                 posterior_mode=DEFAULT_POSTERIOR_MODE):
     """Greedily select a diverse, high-qNEHVI batch of candidates.
 
     Candidates are ranked by their qNEHVI score (``compute_qnehvi``), then walked
@@ -574,7 +689,8 @@ def select_batch(model, likelihood, y_mean, y_std,
         batch_size: Number of molecules to select.
         diversity_threshold: Max allowed Tanimoto similarity to any already-
             selected molecule.
-        objective_signs, n_mc_samples, layout: Passed through to ``compute_qnehvi``.
+        objective_signs, n_mc_samples, layout, posterior_mode: Passed through to
+            ``compute_qnehvi``.
 
     Returns:
         A tuple ``(selected_indices, selected_scores)`` of int and float arrays
@@ -586,6 +702,7 @@ def select_batch(model, likelihood, y_mean, y_std,
         model, likelihood, y_mean, y_std,
         X_candidates, candidate_admet, X_baseline, baseline_admet,
         objective_signs=objective_signs, n_mc_samples=n_mc_samples, layout=layout,
+        posterior_mode=posterior_mode,
     )
 
     # Rank candidates by qNEHVI score, highest first.

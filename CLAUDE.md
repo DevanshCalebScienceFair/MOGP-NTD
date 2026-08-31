@@ -278,3 +278,132 @@ completeness before presenting it as the sweep's result.
   (`train_admet_oracle.py --refit-on-full` → `data.py` → `loop.py` →
   `dashboard.py`); docking validated (pyrimethamine ≈ −7 kcal/mol).
 - Added `baseline_single_obj.py` (docking-only single-objective BO control).
+
+---
+
+## CURRENT WORK — ExtraNovelPipeline (2026-08-30)
+
+Branch `ExtraNovelPipeline`. Full plan in `EXTRA_NOVEL_PIPELINE_PLAN.md`. Read it before
+touching anything. This branch carries the campaign-lineage code including
+`subsample_candidates`; the `analysis/tier1-coverage-diagnostics` branch does NOT have the pool
+cap at all and scores the whole unevaluated library.
+
+### The finding this work exists to act on
+
+`acquisition.py`, `DockingPosteriorModel.posterior()` (def line 345) ends at **line 365** with
+
+```python
+covar = torch.diag_embed(var_d.reshape(*batch, q * k))
+```
+
+an explicitly **diagonal** covariance. The ICM's learned PfDHFR↔hDHFR correlation, and all
+cross-molecule covariance, are discarded before qNEHVI's Monte Carlo sampling. The ICM currently
+affects only predictive means and marginal variances.
+
+**Tier 0** is to add a joint-covariance path to `mogp.predict`, use it instead of `diag_embed`
+behind `--posterior {diag,joint}` (default `diag`), and re-run the ICM-vs-independent ablation.
+
+### Results a fresh session must not re-derive
+
+- 10-seed campaign, final hypervolume: **MOGP 0.4079 ± 0.0045 · GP-MOBO (clean) 0.3123 ± 0.0357
+  · Greedy 0.1950 ± 0.0233.** All three pairs 10/10 wins, complete separation, Wilcoxon
+  p = 0.00195.
+- Library: **29,678 curated, 26,660 searched** (heavy-atom floor −68, quality screen −2,950).
+  29,678 is NOT the searched library size.
+- ~2.9% of docking rows are NaN in every arm (failed docks, balanced across arms). Effective
+  budget ≈ 282/seed, not 290.
+- **The docking oracle is machine-dependent.** Identical inputs differ by up to 0.612 kcal/mol
+  between the Studio and this machine, while being bit-identical on repeats within a machine.
+  Evaluated-set Jaccard across machines is 0.686 — about the same as across random seeds (0.688).
+  `_prep_stamp` cannot detect this: it hashes `prep_version|cofactors|pdb_id` and is blind to
+  file contents. Any cross-machine comparison is invalid.
+- ICM-vs-independent ablation (n=1, **diagonal posterior**): arm A ICM completed 290 evals,
+  hv 0.3968, 8.14 h, peak 7.7 GB. Arm B independent was OOM-killed at iteration 40/50, 240
+  evals, hv 0.3966, peak **23.2 GB with 42.9 GB swap**. Independent led at 35 of 40 matched
+  checkpoints. This is why Tier 0 exists.
+- The hDHFR axis is censored: it is MAXIMIZED but inherited PfDHFR's [−11, −5] bounds. 36 of the
+  50 most selective molecules clip at the top. A sensitivity sweep showed no conclusion moves.
+
+### Guardrails — these are not optional
+
+1. **`campaign_results/` and `evaluation_bounds.json` are READ-ONLY.** They are the published
+   result. Now gitignored; do not commit them.
+2. **Every change behind a flag defaulting to current behaviour.** Before any long run, prove
+   the OFF path is byte-identical: 3 iterations must match the unmodified code exactly.
+3. **Gate long runs on short ones.** Never launch a multi-hour run without a timing and peak-RSS
+   measurement on one late-stage iteration first.
+4. **48 GB machine.** The independent arm already drove 42.9 GB of swap and killed VS Code. Log
+   peak RSS on every run. Do not run two arms in parallel; that was tried and abandoned.
+5. **One variable at a time.** The GP-MOBO comparison was confounded because it differed on
+   three axes at once. Do not repeat that.
+6. Use `/opt/anaconda3/envs/mogp-drug/bin/python`. The default `python3` has no torch. Importing
+   torch and rdkit in one process throws OMP Error #15; never set `KMP_DUPLICATE_LIB_OK=TRUE`,
+   it can silently produce wrong numerics.
+
+### Ruled out — do not revisit
+
+- **Cluster-stratified acquisition pool.** A deterministic replay showed the missed oracle-front
+  molecules were drawn a median of 4 times each (98.8% appeared at least once) and declined every
+  time. Pool exposure is not the constraint.
+- **Sequential-greedy batch selection** at ~50 h/seed.
+- **Reimplementing Vina, RDKit, GPyTorch or BoTorch primitives.** The novel layer is the
+  model↔acquisition interface, not the primitives.
+- `optimize_acqf_discrete` as a drop-in: it does not chunk, and scoring the full pool OOM-kills
+  the process.
+
+### Tier 0 implemented — the joint-posterior path (`--posterior {diag,joint}`)
+
+**Diagnosis, confirmed before any change was made.** GPyTorch *was* computing the
+full joint covariance all along; `mogp.predict` asked only for its diagonal.
+`likelihood(model(X))` returns a `MultitaskMultivariateNormal` whose
+`lazy_covariance_matrix` is the whole `(M·k) x (M·k)` block; `.variance` extracts
+`diag()` of it and everything else is dropped on the floor. So the fix is the
+small one the plan assumed, not a re-derivation of the posterior. Measured on a
+2-task fit: the ICM's posterior cross-task covariance is 0.695 against a variance
+of 1.245 (learned IndexKernel correlation 0.788), and the independent model's
+cross-task block is exactly 0.0 while its cross-MOLECULE block is not — so
+`diag_embed` was deleting real structure in **both** arms.
+
+Two facts that matter for interpreting any diag-vs-joint comparison:
+
+- **Layout is INTERLEAVED** (task index varies fastest, flat slot `i*k + a`) for
+  both models after the likelihood, which is also what
+  `MultitaskMultivariateNormal(interleaved=True)` expects. The two orderings are
+  indistinguishable by shape and silently transpose every off-diagonal block, so
+  `predict_joint` normalizes explicitly rather than assuming.
+- **`torch.diag_embed` was already allocating the full dense `(q·k)²` tensor per
+  t-batch element.** The joint path allocates the same thing with the
+  off-diagonals filled in, so it is NOT a `(q·k)²` memory regression over the
+  benchmarked path — the plan's cost worry was aimed at an allocation the diag
+  path was already paying.
+
+**What qNEHVI actually asks for.** `posterior()` is called with
+`X.shape == (chunk, B+1, d)`: `q = B+1` is the whole evaluated baseline stacked
+with ONE candidate, so the discarded off-diagonals were the candidate↔baseline
+covariance as well as PfDHFR↔hDHFR. The flattened `chunk·q` rows repeat the
+baseline `chunk` times, so `_joint_moments` deduplicates first (bit-packed exact
+key, byte-exact fallback) and gathers each t-batch element's contiguous block out
+of the unique-molecule covariance. Without that dedup the joint block would be
+`(chunk·q·k)²` — tens of GB; with it, a few MB.
+
+New surface:
+
+| | |
+|---|---|
+| `mogp.predict_joint` | `(mean, cov)`; `cov` is `(M·t, M·t)` over the requested tasks, original units, interleaved, symmetrized (the GP runs in float32 so the raw block is symmetric only to ~1e-10) |
+| `acquisition.DockingPosteriorModel(..., posterior_mode=)` | `"diag"` (default) / `"joint"`; `_diag_moments` is the historical code verbatim |
+| `compute_qnehvi` / `select_batch` / `BOLoop` | `posterior_mode=` passthrough, default `"diag"` |
+| `loop.py`, `run_ablation.py` | `--posterior {diag,joint}` |
+| `run_ablation.py` | also gained `--acquisition-pool-size`, `--diversity-threshold`, `--output-root`, `--timing-log` so it can reproduce the prior ablation's config (the arms in `ablation_icm_vs_independent/` were produced by an ad-hoc script that is not in the repo) |
+| `test_joint_posterior.py` | 27 tests pinning both the equivalences and the differences |
+
+**qNEHVI scores are not reproducible across calls within one process.**
+`SobolQMCNormalSampler` with no `seed=` draws one from torch's GLOBAL RNG
+(`botorch/sampling/base.py:65`), so two `compute_qnehvi` calls in a row use
+different Sobol draws. A whole run is still reproducible because
+`BOLoop.__init__` seeds torch once and the call sequence is fixed. Any in-process
+A/B must `torch.manual_seed(...)` before each call — pinned by
+`test_qnehvi_sampler_seed_comes_from_the_global_torch_rng`.
+
+`test_run_benchmark_seeds.py`'s 6 failures are a missing `external/GP-MOBO`
+clone, not a regression; they fail identically on a pristine HEAD worktree.

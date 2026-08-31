@@ -82,6 +82,7 @@ def run_arm(model, seed, cfg, save_dir=None):
         model=model,
         coregionalization_rank=cfg["rank"],
         posterior_mode=cfg.get("posterior_mode", DEFAULT_POSTERIOR_MODE),
+        partitioning_alpha=cfg.get("partitioning_alpha"),
         diversity_threshold=cfg.get("diversity_threshold", 0.7),
         acquisition_pool_size=cfg.get("acquisition_pool_size"),
     )
@@ -113,6 +114,7 @@ def run_arm(model, seed, cfg, save_dir=None):
                 "seed": seed,
                 "output_dir": save_dir,
                 "posterior_mode": cfg.get("posterior_mode", DEFAULT_POSTERIOR_MODE),
+                "partitioning_alpha": cfg.get("partitioning_alpha"),
                 "n_init": cfg["n_init"],
                 "batch_size": cfg["batch_size"],
                 "n_iterations": cfg["n_iterations"],
@@ -259,6 +261,10 @@ def main():
                         help="Comma list of models to compare.")
     parser.add_argument("--save", action="store_true",
                         help="Save each arm's last-seed run for validate_known_actives.py.")
+    parser.add_argument("--acquisition-alpha", type=float, default=None,
+                        help="qNEHVI box-decomposition alpha. Default None -> 0.0 "
+                             "(exact), matching the campaign. 1e-3 is BoTorch's "
+                             "recommendation at 5 objectives and measured 8.4x faster.")
     parser.add_argument("--posterior", choices=POSTERIOR_MODES,
                         default=DEFAULT_POSTERIOR_MODE,
                         help="Covariance handed to qNEHVI. 'diag' (default) is "
@@ -288,6 +294,7 @@ def main():
         "rank": args.rank,
         "max_library": args.max_library,
         "posterior_mode": args.posterior,
+        "partitioning_alpha": args.acquisition_alpha,
         "timing_log": args.timing_log,
         "diversity_threshold": args.diversity_threshold,
         "acquisition_pool_size": args.acquisition_pool_size,

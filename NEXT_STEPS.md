@@ -3,56 +3,82 @@
 **Branch:** `ExtraNovelPipeline` in `/Users/devansh/mogp-main-vscode/MOGP-NTD`.
 **Commits so far:** `3e4c496` joint posterior · `deebab8` artifact correction ·
 `87dc6f7` threshold sweep · `1e0a371` guardrail fix + probe results ·
-`27d96e6` `--acquisition-alpha` · `383b2bd` alpha in run_ablation.
+`27d96e6` `--acquisition-alpha` · `383b2bd` alpha in run_ablation ·
+`72d8aa8` this file · `06bb814` **2x2 closed + 10-seed sweep driver**.
 
 ---
 
 ## 0. RUNNING RIGHT NOW
 
-**ICM + diag + `alpha=1e-3`**, output `ablation_diag_alpha/`, log `/tmp/arm_diag_alpha.log`.
-Started ~02:10, expect ~30 min. Purpose: remove the confound below.
+**10-seed ICM vs independent sweep.** `./run_multiseed.sh`, output `ablation_multiseed/`,
+driver log `/tmp/multiseed.log`, per-run logs `ablation_multiseed/logs/`.
+Seeds 1-9 (seed 0 already exists in `ablation_joint_alpha/` and is merged at analysis time).
+Config: `posterior=joint`, `alpha=1e-3`, `pool=2000`, `rank=1`, 290 molecules.
+~1.2 h per run cold-cache, 18 runs, so **roughly 20 h**. Sequential, RSS watchdog at 20 GB,
+skips completed runs — safe to stop and resume. Analysis is valid at any checkpoint.
+
+Started 09:42.
 
 ---
 
-## 1. Close the 2x2 (immediately after step 0)
+## 1. Close the 2x2 — DONE (`ABLATION_2X2_RESULTS.md`, `F10_alpha_vs_posterior.png`)
 
-The joint-vs-diag comparison is confounded — the joint arms also changed `alpha`.
-
-| cell | HV | status |
+| cell | HV | wall clock |
 |---|---|---|
-| ICM · diag · α=0 | 0.3968 | have (8.14 h) |
-| ICM · diag · α=1e-3 | ? | **running** |
-| ICM · joint · α=1e-3 | 0.4020 | have (0.48 h) |
-| ICM · joint · α=0 | — | skip, ~8 h, low value |
+| ICM · diag · α=0 | 0.3968 | 8.14 h |
+| ICM · diag · α=1e-3 | 0.4028 | 0.86 h |
+| ICM · joint · α=1e-3 | 0.4020 | 0.48 h |
+| ICM · joint · α=0 | skipped | — |
 
-Then compute:
-- **pure posterior effect** = (joint·α=1e-3) − (diag·α=1e-3)
-- **pure alpha effect** = (diag·α=1e-3) − (diag·α=0)
+- **pure alpha effect = +0.0060** (+1.34 sd)
+- **pure posterior effect = −0.0008** (−0.18 sd)
 
-Also check `alpha=1e-3` does not degrade *selection quality*, not just speed: compare the
-evaluated-set Jaccard and final HV of the two diag arms. If α changes which molecules get
-picked in a way that costs HV, that must be reported.
+**The joint posterior contributes nothing to final HV.** The gain was the alpha kwarg. My
+earlier attribution was wrong. The posterior is still required for the ICM to affect
+selection at all, and its 1.8× speed belongs mostly to the molecule dedup bundled into the
+same code path (`acquisition.py:460`), not to the covariance.
 
-## 2. Kill the n=1 caveat (highest value, now affordable)
+**alpha does not degrade selection quality**: Jaccard 0.479 (it picks a genuinely different
+set) but top-5 mean SI 4.77 vs 4.67, artifact rate 11.4% vs 10.3%, best PfDHFR −11.10 vs
+−11.17. Different molecules, same quality, 9.5× faster.
 
-At ~0.5 h/arm, **5 seeds × 2 arms ≈ 5 hours**. Before, this was a week.
+**Consequence for how everything gets measured.** All arms saturate by n=290 — last-quarter
+HV gain is 2-11% of first-quarter. Final HV is therefore a low-power endpoint, which is why
+the "leads at 38/50 checkpoints, finishes level" pattern kept recurring. Use **AUC** and
+**molecules-to-target** instead. They invert the ranking: the joint arm has the best AUC
+(0.3503) and only the second-best final HV, and ICM reaches 95% of best HV in **160
+molecules against the independent model's 205**.
 
-Run `--models coregionalized,independent --seeds 5 --posterior joint --acquisition-alpha 1e-3
---n-init 40 --batch-size 5 --n-iterations 50 --acquisition-pool-size 2000 --output-root
-ablation_joint_alpha_5seed`. Report paired at matched budget.
+## 2. Kill the n=1 caveat — RUNNING (see §0)
+
+**10 seeds, not 5.** A paired Wilcoxon over n=5 has a minimum two-sided p of **0.0625** — it
+cannot reach p<0.05 even if ICM wins every seed. n=6 reaches 0.0312, n=10 reaches 0.0020.
+Running 5 would have guaranteed an inconclusive result.
 
 **The claim to test:** ICM led at 38/50 checkpoints (mean +0.0194) but finished level
-(+0.0002). If that holds across seeds, the finding is *coregionalization buys sample
-efficiency, not final quality* — a precise, defensible claim. If it does not, it was noise.
+(+0.0002). Given the saturation finding, test it on **AUC and molecules-to-target**, with the
+target fixed in advance rather than as a fraction of the best observed HV (that was mildly
+circular in the seed-0 analysis).
 
-## 3. Rewrite the cost section of the paper
+If it holds: *coregionalization buys sample efficiency, not final quality.* If not, it was noise.
 
-`alpha=1e-3` gives **8.4x** on acquisition and **17x** end-to-end (8.14 h → 0.48 h). So:
-- **F4 is wrong.** "MOGP is worst per CPU-hour by 11.8x" is largely a default nobody set.
-- The 2,000-candidate pool cap was introduced to work around that cost; revisit whether it is
-  still needed.
-- Also real and separate: `ninja` off PATH makes BoTorch fall back to pure-Python qLogEHVI,
-  ~3x. Fix by putting the env's `bin/` on PATH (`go.sh:43` already does).
+**Scope limit to state in the paper:** this establishes ICM vs independent **under
+joint posterior + alpha=1e-3**, not under the original campaign settings.
+
+## 3. Rewrite the cost section — DONE (`F4_compute_cost_REVISED.png`, Table 3b)
+
+Measured 17.0× end-to-end. Projected onto the campaign, MOGP costs 0.69 h/seed rather than
+11.71, making it **best per CPU-hour at 0.592 rather than worst at 0.035** — the ranking
+inverts. Updated: `TABLES.md` Table 3b, `MASTER_SUMMARY.md` §5, figure index.
+
+Retired by this: the accuracy-versus-compute trade-off in the discussion, and the
+2,000-candidate pool cap (which existed to work around the cost).
+
+Two caveats now recorded in Table 3b: the 0.69 h is a projection, not a re-run campaign; and
+the 1.8× from the joint posterior is mostly dedup, not covariance.
+
+Still real and separate: `ninja` off PATH makes BoTorch fall back to pure-Python qLogEHVI,
+~3×. Fix by putting the env's `bin/` on PATH (`go.sh:43` already does).
 
 ## 4. Still open, deliberately not done
 

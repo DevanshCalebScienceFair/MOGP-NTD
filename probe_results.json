@@ -1,0 +1,821 @@
+{
+  "generated": "2026-08-30T20:24:47",
+  "python": "/opt/anaconda3/envs/mogp-drug/bin/python",
+  "platform": "macOS-26.5.2-arm64-arm-64bit",
+  "rss_unit": "bytes",
+  "rss_unit_note": "resource.getrusage(RUSAGE_SELF).ru_maxrss is BYTES on macOS (verified: a 1.5 GB allocation moved it by 1,500,020,736).",
+  "smoke": true,
+  "replayed_state": {
+    "arm_dir": "/Users/devansh/mogp-main-vscode/MOGP-NTD/ablation_icm_vs_independent/armA_coregionalized_seed0",
+    "library_size": 26660,
+    "n_evaluated": 290,
+    "replay_iteration": 50,
+    "run_config": {
+      "model": "coregionalized",
+      "output_dir": "ablation_icm_vs_independent/armA_coregionalized_seed0",
+      "seed": 0,
+      "n_init": 40,
+      "batch_size": 5,
+      "n_iterations": 50,
+      "mogp_iters": 200,
+      "diversity_threshold": 0.7,
+      "acquisition_pool_size": 2000,
+      "library_dir": "data/library"
+    },
+    "admet_cross_check": "passed"
+  },
+  "cells": [
+    {
+      "cell": 1,
+      "model": "coregionalized",
+      "posterior": "diag",
+      "alpha": 0.0,
+      "prune_baseline": false,
+      "status": "ok",
+      "smoke": true,
+      "fused_qlogehvi_kernel": true,
+      "wall_clock_s": 22.624706998933107,
+      "wall_clock_s_raw": 22.658510208129883,
+      "peak_rss_bytes_raw": 2947039232,
+      "rss_unit": "bytes",
+      "peak_rss_gb": 2.947039232,
+      "peak_rss_gb_after_gp_train": 0.421838848,
+      "gp_train_s": 0.48849779088050127,
+      "acquisition_s": 22.13619995675981,
+      "pool_prep_s": 0.0012796246446669102,
+      "qnehvi_s": 22.13405320746824,
+      "diversity_s": 0.0003659171052277088,
+      "gp_predict_s": 0.038158582989126444,
+      "acqf_s": 22.098041373770684,
+      "posterior_total_s": 0.07322354149073362,
+      "posterior_assembly_s": 0.03506495850160718,
+      "acqf_init_s": 21.039902583695948,
+      "acqf_forward_s": 1.0209270822815597,
+      "instrumentation_s": 0.03380320919677615,
+      "n_posterior_calls": 2,
+      "n_predict_calls": 2,
+      "n_boxes": 926,
+      "acqf_kwargs": {
+        "alpha": 0.0,
+        "prune_baseline": false,
+        "cache_root": false
+      },
+      "n_baseline": 40,
+      "n_evaluated": 290,
+      "n_unevaluated": 26370,
+      "n_candidates_scored": 64,
+      "candidate_chunk": 128,
+      "n_mc_samples": 128,
+      "mogp_iters": 5,
+      "batch_size": 5,
+      "diversity_threshold": 0.7,
+      "redundancy": {
+        "measured": true,
+        "n_scoring_chunks": 1,
+        "rows_presented_to_posterior_total": 2624,
+        "rows_passed_to_gp_predict_total": 2624,
+        "unique_rows_total": 104,
+        "ratio_presented_over_unique": 25.23076923076923,
+        "per_chunk": [
+          {
+            "chunk": 1,
+            "q": 41,
+            "batch": [
+              64
+            ],
+            "rows_presented": 2624,
+            "rows_to_gp": 2624,
+            "unique_rows": 104
+          }
+        ]
+      },
+      "batch_diversity": {
+        "n_selected": 5,
+        "selected_local_indices": [
+          19,
+          29,
+          32,
+          28,
+          27
+        ],
+        "selected_library_indices": [
+          8999,
+          11922,
+          12461,
+          11681,
+          10284
+        ],
+        "selected_qnehvi_scores": [
+          -4.356348627142892,
+          -5.954285586518983,
+          -6.191382654653439,
+          -6.200303374507872,
+          -6.367905200722352
+        ],
+        "mean_pairwise_tanimoto": 0.12290246337652207,
+        "max_pairwise_tanimoto": 0.1827957034111023,
+        "min_pairwise_tanimoto": 0.04938271641731262,
+        "pairwise_matrix": [
+          [
+            1.0,
+            0.15217390656471252,
+            0.1827957034111023,
+            0.04938271641731262,
+            0.12345679104328156
+          ],
+          [
+            0.15217390656471252,
+            1.0,
+            0.1428571492433548,
+            0.06756756454706192,
+            0.1805555522441864
+          ],
+          [
+            0.1827957034111023,
+            0.1428571492433548,
+            1.0,
+            0.13698630034923553,
+            0.1265822798013687
+          ],
+          [
+            0.04938271641731262,
+            0.06756756454706192,
+            0.13698630034923553,
+            1.0,
+            0.06666667014360428
+          ],
+          [
+            0.12345679104328156,
+            0.1805555522441864,
+            0.1265822798013687,
+            0.06666667014360428,
+            1.0
+          ]
+        ]
+      },
+      "exceeded_30gb": false,
+      "parent_elapsed_s": 24.411446809768677,
+      "log": "/private/tmp/claude-502/-Users-devansh/415d2b3e-c25f-4388-9ab1-5611fc6ca7ec/scratchpad/probe_state/logs/cell1.log"
+    },
+    {
+      "cell": 2,
+      "model": "coregionalized",
+      "posterior": "joint",
+      "alpha": 0.0,
+      "prune_baseline": false,
+      "status": "ok",
+      "smoke": true,
+      "fused_qlogehvi_kernel": true,
+      "wall_clock_s": 24.04183004098013,
+      "wall_clock_s_raw": 24.04183004098013,
+      "peak_rss_bytes_raw": 2869231616,
+      "rss_unit": "bytes",
+      "peak_rss_gb": 2.869231616,
+      "peak_rss_gb_after_gp_train": 0.421920768,
+      "gp_train_s": 0.4862797078676522,
+      "acquisition_s": 23.555540167260915,
+      "pool_prep_s": 0.0013635829091072083,
+      "qnehvi_s": 23.55321762477979,
+      "diversity_s": 0.00044570909813046455,
+      "gp_predict_s": 0.005106166936457157,
+      "acqf_s": 23.550434000324458,
+      "posterior_total_s": 0.04158841725438833,
+      "posterior_assembly_s": 0.036482250317931175,
+      "acqf_init_s": 22.427881499752402,
+      "acqf_forward_s": 1.083747707773,
+      "instrumentation_s": 0.0,
+      "n_posterior_calls": 2,
+      "n_predict_calls": 2,
+      "n_boxes": 948,
+      "acqf_kwargs": {
+        "alpha": 0.0,
+        "prune_baseline": false,
+        "cache_root": false
+      },
+      "n_baseline": 40,
+      "n_evaluated": 290,
+      "n_unevaluated": 26370,
+      "n_candidates_scored": 64,
+      "candidate_chunk": 128,
+      "n_mc_samples": 128,
+      "mogp_iters": 5,
+      "batch_size": 5,
+      "diversity_threshold": 0.7,
+      "redundancy": {
+        "measured": true,
+        "n_scoring_chunks": 1,
+        "rows_presented_to_posterior_total": 2624,
+        "rows_passed_to_gp_predict_total": 104,
+        "unique_rows_total": 104,
+        "ratio_presented_over_unique": 25.23076923076923,
+        "per_chunk": [
+          {
+            "chunk": 1,
+            "q": 41,
+            "batch": [
+              64
+            ],
+            "rows_presented": 2624,
+            "rows_to_gp": 104,
+            "unique_rows": 104
+          }
+        ]
+      },
+      "batch_diversity": {
+        "n_selected": 5,
+        "selected_local_indices": [
+          19,
+          29,
+          28,
+          32,
+          27
+        ],
+        "selected_library_indices": [
+          8999,
+          11922,
+          11681,
+          12461,
+          10284
+        ],
+        "selected_qnehvi_scores": [
+          -4.39002649218174,
+          -6.002176945846658,
+          -6.256796349072765,
+          -6.270011472519736,
+          -6.407130046860486
+        ],
+        "mean_pairwise_tanimoto": 0.12290246337652207,
+        "max_pairwise_tanimoto": 0.1827957034111023,
+        "min_pairwise_tanimoto": 0.04938271641731262,
+        "pairwise_matrix": [
+          [
+            1.0,
+            0.15217390656471252,
+            0.04938271641731262,
+            0.1827957034111023,
+            0.12345679104328156
+          ],
+          [
+            0.15217390656471252,
+            1.0,
+            0.06756756454706192,
+            0.1428571492433548,
+            0.1805555522441864
+          ],
+          [
+            0.04938271641731262,
+            0.06756756454706192,
+            1.0,
+            0.13698630034923553,
+            0.06666667014360428
+          ],
+          [
+            0.1827957034111023,
+            0.1428571492433548,
+            0.13698630034923553,
+            1.0,
+            0.1265822798013687
+          ],
+          [
+            0.12345679104328156,
+            0.1805555522441864,
+            0.06666667014360428,
+            0.1265822798013687,
+            1.0
+          ]
+        ]
+      },
+      "exceeded_30gb": false,
+      "parent_elapsed_s": 25.629234790802002,
+      "log": "/private/tmp/claude-502/-Users-devansh/415d2b3e-c25f-4388-9ab1-5611fc6ca7ec/scratchpad/probe_state/logs/cell2.log"
+    },
+    {
+      "cell": 3,
+      "model": "independent",
+      "posterior": "diag",
+      "alpha": 0.0,
+      "prune_baseline": false,
+      "status": "ok",
+      "smoke": true,
+      "fused_qlogehvi_kernel": true,
+      "wall_clock_s": 23.69420954072848,
+      "wall_clock_s_raw": 23.694209875073284,
+      "peak_rss_bytes_raw": 3128295424,
+      "rss_unit": "bytes",
+      "peak_rss_gb": 3.128295424,
+      "peak_rss_gb_after_gp_train": 0.420937728,
+      "gp_train_s": 0.48164299968630075,
+      "acquisition_s": 23.21255924878642,
+      "pool_prep_s": 0.0012149163521826267,
+      "qnehvi_s": 23.21041620755568,
+      "diversity_s": 0.0004480830393731594,
+      "gp_predict_s": 0.07419979199767113,
+      "acqf_s": 23.13835945678875,
+      "posterior_total_s": 0.0753889586776495,
+      "posterior_assembly_s": 0.0011891666799783707,
+      "acqf_init_s": 22.020183708053082,
+      "acqf_forward_s": 1.1148435408249497,
+      "instrumentation_s": 3.343448042869568e-07,
+      "n_posterior_calls": 2,
+      "n_predict_calls": 2,
+      "n_boxes": 969,
+      "acqf_kwargs": {
+        "alpha": 0.0,
+        "prune_baseline": false,
+        "cache_root": false
+      },
+      "n_baseline": 40,
+      "n_evaluated": 290,
+      "n_unevaluated": 26370,
+      "n_candidates_scored": 64,
+      "candidate_chunk": 128,
+      "n_mc_samples": 128,
+      "mogp_iters": 5,
+      "batch_size": 5,
+      "diversity_threshold": 0.7,
+      "redundancy": {
+        "measured": false,
+        "n_scoring_chunks": 1,
+        "rows_presented_to_posterior_total": 2624,
+        "rows_passed_to_gp_predict_total": 2624,
+        "unique_rows_total": null,
+        "ratio_presented_over_unique": null,
+        "per_chunk": [
+          {
+            "chunk": 1,
+            "q": 41,
+            "batch": [
+              64
+            ],
+            "rows_presented": 2624,
+            "rows_to_gp": 2624,
+            "unique_rows": null
+          }
+        ]
+      },
+      "batch_diversity": {
+        "n_selected": 5,
+        "selected_local_indices": [
+          19,
+          29,
+          28,
+          32,
+          27
+        ],
+        "selected_library_indices": [
+          8999,
+          11922,
+          11681,
+          12461,
+          10284
+        ],
+        "selected_qnehvi_scores": [
+          -4.458756595780973,
+          -6.131519229510665,
+          -6.327368255405272,
+          -6.363773443870392,
+          -6.501987395460125
+        ],
+        "mean_pairwise_tanimoto": 0.12290246337652207,
+        "max_pairwise_tanimoto": 0.1827957034111023,
+        "min_pairwise_tanimoto": 0.04938271641731262,
+        "pairwise_matrix": [
+          [
+            1.0,
+            0.15217390656471252,
+            0.04938271641731262,
+            0.1827957034111023,
+            0.12345679104328156
+          ],
+          [
+            0.15217390656471252,
+            1.0,
+            0.06756756454706192,
+            0.1428571492433548,
+            0.1805555522441864
+          ],
+          [
+            0.04938271641731262,
+            0.06756756454706192,
+            1.0,
+            0.13698630034923553,
+            0.06666667014360428
+          ],
+          [
+            0.1827957034111023,
+            0.1428571492433548,
+            0.13698630034923553,
+            1.0,
+            0.1265822798013687
+          ],
+          [
+            0.12345679104328156,
+            0.1805555522441864,
+            0.06666667014360428,
+            0.1265822798013687,
+            1.0
+          ]
+        ]
+      },
+      "exceeded_30gb": false,
+      "parent_elapsed_s": 25.29758596420288,
+      "log": "/private/tmp/claude-502/-Users-devansh/415d2b3e-c25f-4388-9ab1-5611fc6ca7ec/scratchpad/probe_state/logs/cell3.log"
+    },
+    {
+      "cell": 4,
+      "model": "independent",
+      "posterior": "joint",
+      "alpha": 0.0,
+      "prune_baseline": false,
+      "status": "ok",
+      "smoke": true,
+      "fused_qlogehvi_kernel": true,
+      "wall_clock_s": 20.791850124951452,
+      "wall_clock_s_raw": 20.791850124951452,
+      "peak_rss_bytes_raw": 2750709760,
+      "rss_unit": "bytes",
+      "peak_rss_gb": 2.75070976,
+      "peak_rss_gb_after_gp_train": 0.421380096,
+      "gp_train_s": 0.4785862499848008,
+      "acquisition_s": 20.313255457673222,
+      "pool_prep_s": 0.0012256246991455555,
+      "qnehvi_s": 20.31105012493208,
+      "diversity_s": 0.0005415831692516804,
+      "gp_predict_s": 0.004352624993771315,
+      "acqf_s": 20.30890283267945,
+      "posterior_total_s": 0.04094783402979374,
+      "posterior_assembly_s": 0.036595209036022425,
+      "acqf_init_s": 19.211236666888,
+      "acqf_forward_s": 1.0588656240142882,
+      "instrumentation_s": 0.0,
+      "n_posterior_calls": 2,
+      "n_predict_calls": 2,
+      "n_boxes": 898,
+      "acqf_kwargs": {
+        "alpha": 0.0,
+        "prune_baseline": false,
+        "cache_root": false
+      },
+      "n_baseline": 40,
+      "n_evaluated": 290,
+      "n_unevaluated": 26370,
+      "n_candidates_scored": 64,
+      "candidate_chunk": 128,
+      "n_mc_samples": 128,
+      "mogp_iters": 5,
+      "batch_size": 5,
+      "diversity_threshold": 0.7,
+      "redundancy": {
+        "measured": true,
+        "n_scoring_chunks": 1,
+        "rows_presented_to_posterior_total": 2624,
+        "rows_passed_to_gp_predict_total": 104,
+        "unique_rows_total": 104,
+        "ratio_presented_over_unique": 25.23076923076923,
+        "per_chunk": [
+          {
+            "chunk": 1,
+            "q": 41,
+            "batch": [
+              64
+            ],
+            "rows_presented": 2624,
+            "rows_to_gp": 104,
+            "unique_rows": 104
+          }
+        ]
+      },
+      "batch_diversity": {
+        "n_selected": 5,
+        "selected_local_indices": [
+          19,
+          29,
+          28,
+          32,
+          27
+        ],
+        "selected_library_indices": [
+          8999,
+          11922,
+          11681,
+          12461,
+          10284
+        ],
+        "selected_qnehvi_scores": [
+          -4.45866796487749,
+          -6.108433397271659,
+          -6.327114983615585,
+          -6.388100543848205,
+          -6.485939992048364
+        ],
+        "mean_pairwise_tanimoto": 0.12290246337652207,
+        "max_pairwise_tanimoto": 0.1827957034111023,
+        "min_pairwise_tanimoto": 0.04938271641731262,
+        "pairwise_matrix": [
+          [
+            1.0,
+            0.15217390656471252,
+            0.04938271641731262,
+            0.1827957034111023,
+            0.12345679104328156
+          ],
+          [
+            0.15217390656471252,
+            1.0,
+            0.06756756454706192,
+            0.1428571492433548,
+            0.1805555522441864
+          ],
+          [
+            0.04938271641731262,
+            0.06756756454706192,
+            1.0,
+            0.13698630034923553,
+            0.06666667014360428
+          ],
+          [
+            0.1827957034111023,
+            0.1428571492433548,
+            0.13698630034923553,
+            1.0,
+            0.1265822798013687
+          ],
+          [
+            0.12345679104328156,
+            0.1805555522441864,
+            0.06666667014360428,
+            0.1265822798013687,
+            1.0
+          ]
+        ]
+      },
+      "exceeded_30gb": false,
+      "parent_elapsed_s": 22.36902093887329,
+      "log": "/private/tmp/claude-502/-Users-devansh/415d2b3e-c25f-4388-9ab1-5611fc6ca7ec/scratchpad/probe_state/logs/cell4.log"
+    },
+    {
+      "cell": 5,
+      "model": "coregionalized",
+      "posterior": "diag",
+      "alpha": 0.001,
+      "prune_baseline": false,
+      "status": "ok",
+      "smoke": true,
+      "fused_qlogehvi_kernel": true,
+      "wall_clock_s": 5.561331250239164,
+      "wall_clock_s_raw": 5.561331750359386,
+      "peak_rss_bytes_raw": 996458496,
+      "rss_unit": "bytes",
+      "peak_rss_gb": 0.996458496,
+      "peak_rss_gb_after_gp_train": 0.421036032,
+      "gp_train_s": 0.5067043332383037,
+      "acquisition_s": 5.0546200829558074,
+      "pool_prep_s": 0.001356624998152256,
+      "qnehvi_s": 5.052474666852504,
+      "diversity_s": 0.0002932501956820488,
+      "gp_predict_s": 0.037856499664485455,
+      "acqf_s": 5.016763583291322,
+      "posterior_total_s": 0.039289791602641344,
+      "posterior_assembly_s": 0.0014332919381558895,
+      "acqf_init_s": 4.751315458212048,
+      "acqf_forward_s": 0.26186941703781486,
+      "instrumentation_s": 5.00120222568512e-07,
+      "n_posterior_calls": 2,
+      "n_predict_calls": 2,
+      "n_boxes": 208,
+      "acqf_kwargs": {
+        "alpha": 0.001,
+        "prune_baseline": false,
+        "cache_root": false
+      },
+      "n_baseline": 40,
+      "n_evaluated": 290,
+      "n_unevaluated": 26370,
+      "n_candidates_scored": 64,
+      "candidate_chunk": 128,
+      "n_mc_samples": 128,
+      "mogp_iters": 5,
+      "batch_size": 5,
+      "diversity_threshold": 0.7,
+      "redundancy": {
+        "measured": false,
+        "n_scoring_chunks": 1,
+        "rows_presented_to_posterior_total": 2624,
+        "rows_passed_to_gp_predict_total": 2624,
+        "unique_rows_total": null,
+        "ratio_presented_over_unique": null,
+        "per_chunk": [
+          {
+            "chunk": 1,
+            "q": 41,
+            "batch": [
+              64
+            ],
+            "rows_presented": 2624,
+            "rows_to_gp": 2624,
+            "unique_rows": null
+          }
+        ]
+      },
+      "batch_diversity": {
+        "n_selected": 5,
+        "selected_local_indices": [
+          19,
+          29,
+          28,
+          32,
+          45
+        ],
+        "selected_library_indices": [
+          8999,
+          11922,
+          11681,
+          12461,
+          18201
+        ],
+        "selected_qnehvi_scores": [
+          -5.6058899554638355,
+          -6.985007444914573,
+          -7.40263359226212,
+          -7.411609828707884,
+          -7.598234729552419
+        ],
+        "mean_pairwise_tanimoto": 0.12526507973670958,
+        "max_pairwise_tanimoto": 0.1827957034111023,
+        "min_pairwise_tanimoto": 0.04938271641731262,
+        "pairwise_matrix": [
+          [
+            1.0,
+            0.15217390656471252,
+            0.04938271641731262,
+            0.1827957034111023,
+            0.095238097012043
+          ],
+          [
+            0.15217390656471252,
+            1.0,
+            0.06756756454706192,
+            0.1428571492433548,
+            0.07500000298023224
+          ],
+          [
+            0.04938271641731262,
+            0.06756756454706192,
+            1.0,
+            0.13698630034923553,
+            0.1818181872367859
+          ],
+          [
+            0.1827957034111023,
+            0.1428571492433548,
+            0.13698630034923553,
+            1.0,
+            0.16883116960525513
+          ],
+          [
+            0.095238097012043,
+            0.07500000298023224,
+            0.1818181872367859,
+            0.16883116960525513,
+            1.0
+          ]
+        ]
+      },
+      "exceeded_30gb": false,
+      "parent_elapsed_s": 7.139718055725098,
+      "log": "/private/tmp/claude-502/-Users-devansh/415d2b3e-c25f-4388-9ab1-5611fc6ca7ec/scratchpad/probe_state/logs/cell5.log"
+    },
+    {
+      "cell": 6,
+      "model": "coregionalized",
+      "posterior": "diag",
+      "alpha": 0.001,
+      "prune_baseline": true,
+      "status": "ok",
+      "smoke": true,
+      "fused_qlogehvi_kernel": true,
+      "wall_clock_s": 5.551148042082787,
+      "wall_clock_s_raw": 5.551148834172636,
+      "peak_rss_bytes_raw": 1000390656,
+      "rss_unit": "bytes",
+      "peak_rss_gb": 1.000390656,
+      "peak_rss_gb_after_gp_train": 0.421740544,
+      "gp_train_s": 0.5143692498095334,
+      "acquisition_s": 5.036771375220269,
+      "pool_prep_s": 0.0012621250934898853,
+      "qnehvi_s": 5.034449750091881,
+      "diversity_s": 0.00042341696098446846,
+      "gp_predict_s": 0.040499500930309296,
+      "acqf_s": 4.99627187428996,
+      "posterior_total_s": 0.042388916946947575,
+      "posterior_assembly_s": 0.001889416016638279,
+      "acqf_init_s": 4.738102832809091,
+      "acqf_forward_s": 0.25395800033584237,
+      "instrumentation_s": 7.920898497104645e-07,
+      "n_posterior_calls": 3,
+      "n_predict_calls": 3,
+      "n_boxes": 208,
+      "acqf_kwargs": {
+        "alpha": 0.001,
+        "prune_baseline": true,
+        "cache_root": false
+      },
+      "n_baseline": 40,
+      "n_evaluated": 290,
+      "n_unevaluated": 26370,
+      "n_candidates_scored": 64,
+      "candidate_chunk": 128,
+      "n_mc_samples": 128,
+      "mogp_iters": 5,
+      "batch_size": 5,
+      "diversity_threshold": 0.7,
+      "redundancy": {
+        "measured": false,
+        "n_scoring_chunks": 1,
+        "rows_presented_to_posterior_total": 2624,
+        "rows_passed_to_gp_predict_total": 2624,
+        "unique_rows_total": null,
+        "ratio_presented_over_unique": null,
+        "per_chunk": [
+          {
+            "chunk": 1,
+            "q": 41,
+            "batch": [
+              64
+            ],
+            "rows_presented": 2624,
+            "rows_to_gp": 2624,
+            "unique_rows": null
+          }
+        ]
+      },
+      "batch_diversity": {
+        "n_selected": 5,
+        "selected_local_indices": [
+          19,
+          29,
+          28,
+          32,
+          45
+        ],
+        "selected_library_indices": [
+          8999,
+          11922,
+          11681,
+          12461,
+          18201
+        ],
+        "selected_qnehvi_scores": [
+          -5.6058899554638355,
+          -6.985007444914573,
+          -7.40263359226212,
+          -7.411609828707884,
+          -7.598234729552419
+        ],
+        "mean_pairwise_tanimoto": 0.12526507973670958,
+        "max_pairwise_tanimoto": 0.1827957034111023,
+        "min_pairwise_tanimoto": 0.04938271641731262,
+        "pairwise_matrix": [
+          [
+            1.0,
+            0.15217390656471252,
+            0.04938271641731262,
+            0.1827957034111023,
+            0.095238097012043
+          ],
+          [
+            0.15217390656471252,
+            1.0,
+            0.06756756454706192,
+            0.1428571492433548,
+            0.07500000298023224
+          ],
+          [
+            0.04938271641731262,
+            0.06756756454706192,
+            1.0,
+            0.13698630034923553,
+            0.1818181872367859
+          ],
+          [
+            0.1827957034111023,
+            0.1428571492433548,
+            0.13698630034923553,
+            1.0,
+            0.16883116960525513
+          ],
+          [
+            0.095238097012043,
+            0.07500000298023224,
+            0.1818181872367859,
+            0.16883116960525513,
+            1.0
+          ]
+        ]
+      },
+      "exceeded_30gb": false,
+      "parent_elapsed_s": 7.164120197296143,
+      "log": "/private/tmp/claude-502/-Users-devansh/415d2b3e-c25f-4388-9ab1-5611fc6ca7ec/scratchpad/probe_state/logs/cell6.log"
+    }
+  ]
+}

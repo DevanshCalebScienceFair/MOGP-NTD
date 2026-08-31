@@ -91,6 +91,27 @@ That last sentence is the one a judge will remember, and it is defensible becaus
 
 ---
 
+---
+
+## 6. The filter threshold does not drive the result
+
+Swept the plausibility cutoffs. Top-5 mean SI, MOGP vs GP-MOBO:
+
+| PfDHFR cutoff | hDHFR cutoff | kept/run | MOGP | GP-MOBO | Greedy | wins | p |
+|---|---|---|---|---|---|---|---|
+| −6.0 | 0.0 | 271 | 4.38 | 3.64 | 3.25 | 10/10 | 0.0020 |
+| −6.5 | 0.0 | 268 | 4.37 | 3.60 | 3.20 | 10/10 | 0.0020 |
+| **−7.0** | **0.0** | **256** | **4.37** | **3.57** | **3.12** | **10/10** | **0.0020** |
+| −7.5 | 0.0 | 236 | 4.37 | 3.54 | 3.09 | 10/10 | 0.0020 |
+| −8.0 | 0.0 | 196 | 4.37 | 3.54 | 2.91 | 10/10 | 0.0020 |
+
+Tightening hDHFR from ≤ 0 to ≤ −1 changes nothing at any row.
+
+**10/10 and p = 0.0020 at every setting**, with MOGP's value stable at 4.37–4.38 while the
+baselines drift down as the filter tightens. The conclusion is not an artifact of where the
+threshold was drawn, which is the obvious objection to any filtered analysis. State this in the
+paper; it is what makes the filtered result defensible rather than convenient.
+
 ## 5. Consequences
 
 1. **Any lead nominated on raw SI must have its pose inspected.** The top compound by raw SI is

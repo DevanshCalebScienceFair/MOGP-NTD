@@ -1,6 +1,6 @@
 # Acquisition cost probe -- terminal-state replay
 
-Generated 2026-08-30T23:27:46 on macOS-26.5.2-arm64-arm-64bit.
+Generated 2026-08-30T23:32:08 on macOS-26.5.2-arm64-arm-64bit.
 
 Replayed state: `ablation_icm_vs_independent/armA_coregionalized_seed0` (terminal, 290 evaluated, final Pareto front 162).
 
@@ -44,10 +44,14 @@ Rungs marked `rss_cap_exceeded` were aborted by the watchdog at the RSS shown; t
 | 2 | coregionalized | joint | 0 | False | 188.9 | 9.61 | 0.0 | 187.8 | 1.04 | 187.9 |
 | 3 | independent | diag | 0 | False | 192.8 | 8.89 | 17.5 | 174.4 | 0.90 | 191.9 |
 | 4 | independent | joint | 0 | False | 179.7 | 8.73 | 0.1 | 178.9 | 0.78 | 178.9 |
-| 5 | coregionalized | diag | 0.001 | False | 23.1 | 4.00 | 7.8 | 14.5 | 0.79 | 22.3 |
+| 5 | coregionalized | diag | 0.001 | False | FAILED | FAILED | FAILED | FAILED | FAILED | FAILED |
 | 6 | coregionalized | diag | 0.001 | True | 22.6 | 3.88 | 7.5 | 14.2 | 0.85 | 21.7 |
 
 `wall_clock_s` = GP train + acquisition (pool construction + `select_batch`), i.e. one full `loop.BOLoop.step` minus docking. `acqf_s` = `acquisition_s - gp_predict_s`. Measurement overhead (unique-row counting, cells 1-2) is timed separately and subtracted; raw values are in `probe_results.json`.
+
+## Flags
+
+- **Cell 5 FAILED** (rc=None). Log: `/private/tmp/claude-502/-Users-devansh/415d2b3e-c25f-4388-9ab1-5611fc6ca7ec/scratchpad/probe_state/logs/cell5.log`
 
 ## Redundancy: rows re-predicted per chunk
 
@@ -107,12 +111,11 @@ Iteration total: **162,000 rows presented**, **3,279 rows actually passed to the
 | 2 | 187.9 | 0.0 | 2.6 | 99.1 | 86.1 | 0.00 | 0.00 | 0.0% |
 | 3 | 191.9 | 17.5 | 0.1 | 96.0 | 78.2 | 0.00 | 0.00 | 9.1% |
 | 4 | 178.9 | 0.1 | 2.6 | 100.2 | 76.1 | 0.00 | 0.00 | 0.0% |
-| 5 | 22.3 | 7.8 | 0.1 | 7.0 | 7.4 | 0.00 | 0.00 | 34.9% |
 | 6 | 21.7 | 7.5 | 0.1 | 6.9 | 7.2 | 0.00 | 0.00 | 34.4% |
 
 `posterior_assembly_s` is the time inside `DockingPosteriorModel.posterior` outside the GP call (`diag_embed` for `diag`; dedup + block gather for `joint`). `acqf_init_s` is the `qLogNEHVI` constructor, which is where the initial box decomposition of the baseline front is built. `acqf_forward_s` is the remaining forward cost (MC sampling, composite objective, incremental hypervolume).
 
-Box counts (`acqf.cell_lower_bounds.shape[-2]`): cell 1: 2,303, cell 2: 2,299, cell 3: 2,059, cell 4: 2,061, cell 5: 183, cell 6: 180
+Box counts (`acqf.cell_lower_bounds.shape[-2]`): cell 1: 2,303, cell 2: 2,299, cell 3: 2,059, cell 4: 2,061, cell 6: 180
 
 ## Batch diversity (batch_size=5, diversity_threshold=0.7)
 
@@ -122,10 +125,7 @@ Box counts (`acqf.cell_lower_bounds.shape[-2]`): cell 1: 2,303, cell 2: 2,299, c
 | 2 | coregionalized | joint | 5 | 0.1289 | 0.2000 | 10498, 8550, 26152, 17480, 25124 |
 | 3 | independent | diag | 5 | 0.1019 | 0.1548 | 10498, 8550, 13610, 25124, 23535 |
 | 4 | independent | joint | 5 | 0.1019 | 0.1548 | 10498, 8550, 13610, 25124, 23535 |
-| 5 | coregionalized | diag | 5 | 0.1209 | 0.2000 | 10498, 8550, 26152, 25124, 13610 |
 | 6 | coregionalized | diag | 5 | 0.1289 | 0.2000 | 10498, 26152, 17480, 8550, 25124 |
-
-`prune_baseline=True` (cell 6) does prune -- the qNEHVI baseline goes from 80 to 78 points and num_boxes from 183 to 180, and it changes which molecules are picked -- but it does not move cost: 23.1 s / 4.00 GB vs 22.6 s / 3.88 GB.
 
 Cell 1 (diag) vs cell 2 (joint): mean pairwise Tanimoto 0.1204 -> 0.1289; max 0.1733 -> 0.2000. 3/5 selected molecules in common.
 

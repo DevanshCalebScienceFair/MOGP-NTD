@@ -73,6 +73,7 @@ from acquisition import (
     subsample_candidates,
     POSTERIOR_MODES,
     DEFAULT_POSTERIOR_MODE,
+    DEFAULT_PARTITIONING_ALPHA,
     compute_pareto_front,
     get_active_objectives,
     DEFAULT_OBJECTIVE_SIGNS,
@@ -194,6 +195,7 @@ class BOLoop:
                  n_init=10, batch_size=20, n_iterations=10,
                  mogp_train_iters=200, mogp_lr=0.1,
                  diversity_threshold=0.7,
+                 partitioning_alpha=None,
                  model=DEFAULT_MODEL, coregionalization_rank=1, train_fn=None,
                  densify=False, densify_every=1, densify_per_parent=20,
                  densify_max_pool=None, acquisition_pool_size=None,
@@ -258,6 +260,8 @@ class BOLoop:
         self.mogp_train_iters = mogp_train_iters
         self.mogp_lr = mogp_lr
         self.diversity_threshold = diversity_threshold
+        self.partitioning_alpha = (DEFAULT_PARTITIONING_ALPHA
+                                   if partitioning_alpha is None else float(partitioning_alpha))
 
         # --- Densification (grow candidates around the Pareto front) ---
         # OFF by default so the base benchmark is unchanged. When on, after each
@@ -612,6 +616,7 @@ class BOLoop:
             train_x, baseline_admet,
             batch_size=self.batch_size,
             diversity_threshold=self.diversity_threshold,
+            partitioning_alpha=self.partitioning_alpha,
             posterior_mode=self.posterior_mode,
         )
         selected_library_indices = candidate_library_indices[selected_local]
@@ -840,6 +845,10 @@ if __name__ == "__main__":
                         help="Densify every N iterations (default 1).")
     parser.add_argument("--densify-per-parent", type=int, default=20,
                         help="Target analogs generated per front molecule.")
+    parser.add_argument("--acquisition-alpha", type=float, default=None,
+                        help="qNEHVI box-decomposition approximation level. Default "
+                             "0.0 (exact) matches the 10-seed campaign; BoTorch "
+                             "recommends 1e-3 at 5 objectives, measured 8.4x faster.")
     parser.add_argument("--densify-max-pool", type=int, default=None,
                         help="Cap the TOTAL library size after densification (not "
                              "the number of analogs added). Must be ABOVE the "
@@ -875,6 +884,7 @@ if __name__ == "__main__":
         densify_every=args.densify_every,
         densify_per_parent=args.densify_per_parent,
         densify_max_pool=args.densify_max_pool,
+        partitioning_alpha=args.acquisition_alpha,
     )
     loop.run()
 

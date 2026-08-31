@@ -93,6 +93,14 @@ N_MC_SAMPLES = 128
 # memory. Docking dominates wall-clock, so the extra Python-level calls are free.
 CANDIDATE_CHUNK = 128
 
+# Box-decomposition approximation level for qNEHVI. 0.0 = exact partitioning,
+# which is qLogNEHVI's own constructor default and what the 10-seed campaign
+# ran with. BoTorch's get_default_partitioning_alpha(5) returns 1e-3 for five
+# objectives; measured here, 1e-3 is 8.4x faster and 2.6x lighter at B=80
+# (194.9 s / 10.22 GB -> 23.1 s / 4.00 GB, boxes 2,303 -> 183), and the gap
+# grows with front size. DEFAULT STAYS 0.0 so the benchmarked path is unchanged.
+DEFAULT_PARTITIONING_ALPHA = 0.0
+
 # How DockingPosteriorModel assembles the posterior qNEHVI samples from.
 #   "diag"  -> marginal variances only; the covariance handed to qNEHVI is an
 #              explicit diagonal (the historical, benchmarked behaviour).
@@ -554,7 +562,8 @@ def compute_qnehvi(model, likelihood, y_mean, y_std,
                    objective_signs=None, bounds=None,
                    ref_point=None, n_mc_samples=N_MC_SAMPLES, layout=None,
                    candidate_chunk=CANDIDATE_CHUNK,
-                   posterior_mode=DEFAULT_POSTERIOR_MODE):
+                   posterior_mode=DEFAULT_POSTERIOR_MODE,
+                   partitioning_alpha=DEFAULT_PARTITIONING_ALPHA):
     """Noisy Expected Hypervolume Improvement (qNEHVI) per candidate.
 
     Builds a 2-output docking posterior and a composite objective that folds each
@@ -643,6 +652,9 @@ def compute_qnehvi(model, likelihood, y_mean, y_std,
         # and pruning the baseline is unnecessary for a discrete candidate scan.
         prune_baseline=False,
         cache_root=False,
+        # 0.0 = exact partitioning (the benchmarked default). See
+        # DEFAULT_PARTITIONING_ALPHA for why 1e-3 is worth measuring.
+        alpha=float(partitioning_alpha),
     )
 
     # Score each candidate independently as its own q=1 t-batch -> shape (M,).
@@ -669,7 +681,8 @@ def select_batch(model, likelihood, y_mean, y_std,
                  X_baseline, baseline_admet,
                  batch_size=20, diversity_threshold=0.7,
                  objective_signs=None, n_mc_samples=N_MC_SAMPLES, layout=None,
-                 posterior_mode=DEFAULT_POSTERIOR_MODE):
+                 posterior_mode=DEFAULT_POSTERIOR_MODE,
+                 partitioning_alpha=DEFAULT_PARTITIONING_ALPHA):
     """Greedily select a diverse, high-qNEHVI batch of candidates.
 
     Candidates are ranked by their qNEHVI score (``compute_qnehvi``), then walked
@@ -702,7 +715,7 @@ def select_batch(model, likelihood, y_mean, y_std,
         model, likelihood, y_mean, y_std,
         X_candidates, candidate_admet, X_baseline, baseline_admet,
         objective_signs=objective_signs, n_mc_samples=n_mc_samples, layout=layout,
-        posterior_mode=posterior_mode,
+        posterior_mode=posterior_mode, partitioning_alpha=partitioning_alpha,
     )
 
     # Rank candidates by qNEHVI score, highest first.

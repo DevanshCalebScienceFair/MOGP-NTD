@@ -524,6 +524,31 @@ measured on our own data. **Perfectly monotone: Spearman(labels kept, advantage)
   cannot hit it. 5 tests in `test_psd_safe_posterior.py`.
 - `run_multiseed.sh` — sequential 10-seed sweep, 20 GB RSS watchdog, resumable.
 
+### The silent-defeat class of bug — check for these specifically
+
+Three bugs on this branch shared one shape: **the code ran, reported plausible
+numbers, and measured nothing.** Two were caught only by luck.
+
+1. **`str.replace` no-ops on a missing anchor.** `--acquisition-alpha` was accepted,
+   recorded in the run config, and never forwarded to `select_batch`. Later
+   `--hdhfr-fraction` was accepted and never reached `BOLoop.__init__`. Any scripted
+   edit must assert its anchor exists AND is unambiguous.
+2. **One row filter serving two jobs.** `loop.py step()` used
+   `isfinite(...).all(axis=1)` for both the GP training set and the qNEHVI baseline.
+   Under `--hdhfr-fraction` that discards every partly-labelled molecule before the GP
+   sees it, so the asymmetric arm would have been a smaller symmetric arm. It surfaced
+   only because a 5-molecule smoke run drove hDHFR to zero observations and tripped a
+   guard; at campaign scale there would have been no crash. **The qNEHVI baseline must
+   stay fully observed** (hypervolume is undefined for a molecule missing an
+   objective); the training set need not.
+3. **A hash that looked random and was not.** Combining library index and seed with a
+   bare XOR left adjacent seeds' subsets **disjoint** (0% overlap where 25% was
+   expected). Verified only because I measured the overlap instead of assuming it. Now
+   a SplitMix64 finalizer, 25.4% measured.
+
+The lesson that generalizes: after wiring any new flag, **verify the value arrives where
+it is consumed** and that it changes what it should — do not trust that it was accepted.
+
 ### Operational gotchas that have each cost a run
 
 - **`--seeds` is overloaded.** A bare integer is a **COUNT**: `--seeds 1` means

@@ -4,20 +4,40 @@
 **Commits so far:** `3e4c496` joint posterior · `deebab8` artifact correction ·
 `87dc6f7` threshold sweep · `1e0a371` guardrail fix + probe results ·
 `27d96e6` `--acquisition-alpha` · `383b2bd` alpha in run_ablation ·
-`72d8aa8` this file · `06bb814` **2x2 closed + 10-seed sweep driver**.
+`72d8aa8` this file · `06bb814` 2x2 closed + 10-seed sweep driver ·
+`b280a95` **PSD-safe joint posterior (crash fix)**.
 
 ---
 
 ## 0. RUNNING RIGHT NOW
 
 **10-seed ICM vs independent sweep.** `./run_multiseed.sh`, output `ablation_multiseed/`,
-driver log `/tmp/multiseed.log`, per-run logs `ablation_multiseed/logs/`.
+driver log `/tmp/multiseed2.log`, per-run logs `ablation_multiseed/logs/`.
 Seeds 1-9 (seed 0 already exists in `ablation_joint_alpha/` and is merged at analysis time).
 Config: `posterior=joint`, `alpha=1e-3`, `pool=2000`, `rank=1`, 290 molecules.
-~1.2 h per run cold-cache, 18 runs, so **roughly 20 h**. Sequential, RSS watchdog at 20 GB,
-skips completed runs — safe to stop and resume. Analysis is valid at any checkpoint.
+Sequential, RSS watchdog at 20 GB, skips completed runs — safe to stop and resume.
 
-Started 09:42.
+**10 of 18 runs complete.** Remaining: coregionalized 5, 6, 8, 9; independent 6, 7, 8, 9.
+
+### A crash bug was found and fixed mid-sweep (`b280a95`)
+
+Three runs died outright:
+
+```
+torch._C._LinAlgError: linalg.cholesky: (Batch element 68): the leading minor
+of order 497 is not positive-definite
+```
+
+`MultitaskMultivariateNormal` factorizes **eagerly**, so a `q*k x q*k` covariance block left
+very slightly indefinite by float error in `predict_joint` raises instead of degrading. Lost
+coregionalized seeds 5 and 6 and independent seed 6 — three whole campaigns to a rounding
+error. `_psd_safe_multitask_mvn` symmetrizes and adds the smallest relative jitter that lets
+Cholesky succeed (1e-10 -> 1e-4, then raises). Jitter applies **only after a failure**, so
+runs that never trip it are bit-identical. Tests in `test_psd_safe_posterior.py` (5 pass).
+
+**This is a cost specific to the joint posterior** — the diagonal path cannot hit it, since an
+explicitly diagonal matrix with a positive floor is PD by construction. It belongs in the
+joint posterior's ledger alongside its 1.8x speed.
 
 ---
 

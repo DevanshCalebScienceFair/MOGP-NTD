@@ -9,35 +9,43 @@
 
 ---
 
-## 0. NOTHING RUNNING
+## 0. STATE AS OF 2026-09-01 EVENING
 
-The 10-seed sweep finished (`ablation_multiseed/`, all 18 runs + seed 0 from
-`ablation_joint_alpha/`). Verdict in `MULTISEED_ICM_VERDICT.md`.
+Everything measured is logged in `CLAUDE.md` ("SETTLED RESULTS") and `FIGURES.md`.
+Analysis scripts and their CSV outputs are in `analysis_scripts/` — they are no longer
+in a session scratchpad, so they survive.
 
-### NEW: the follow-up landed — `ASYMMETRIC_LABELS_RESULT.md`, `F13`
+**Done and settled:** the 2x2 (`ABLATION_2X2_RESULTS.md`), the cost rewrite
+(`F4_compute_cost_REVISED.png`), what alpha is (`ALPHA_EXPLAINED.md`), the 10-seed ICM
+verdict (`MULTISEED_ICM_VERDICT.md`), the asymmetric-label result
+(`ASYMMETRIC_LABELS_RESULT.md`), and the plain-language write-up
+(`THE_NEW_METHOD_SIMPLY.md`).
 
-The mechanism's prediction was tested and confirmed. Predicting held-out hDHFR,
-20 repeats, ICM sees all PfDHFR labels plus a fraction of hDHFR labels:
+**Wired and tested, not yet run at scale:** the closed-loop asymmetric campaign.
+`loop.py --model hadamard --hdhfr-fraction F`. See `CLOSED_LOOP_DESIGN.md`.
 
-| labels kept | 100% | 75% | 50% | 25% | 10% |
-|---|---|---|---|---|---|
-| ICM advantage (RMSE) | +0.001 | +0.013 | **+0.051** | **+0.073** | **+0.105** |
-| Holm p | 0.432 | 0.432 | **0.0043** | **0.0004** | **0.0023** |
+### THE NEXT JOB, and the trap in it
 
-At 100% the models are indistinguishable and rank correlations agree to four
-decimals — autokrigeability measured on our own data, not cited. The advantage is
-**perfectly monotone**, Spearman(labels kept, advantage) = **-1.000**. Ranking
-separates harder: at 10% labels Spearman 0.311 vs 0.120, **2.6x**.
+`CLOSED_LOOP_DESIGN.md` is the spec. The one thing not to get wrong:
 
-Built for it: `mogp_hadamard.py`, the same ICM in stacked-index form so gaps are
-expressible (`MultitaskKernel`'s Kronecker structure cannot represent them at all).
-8 tests in `test_mogp_hadamard.py`.
+> **Hypervolume needs a complete objective vector.** A molecule with no hDHFR score is
+> silently dropped from the front. So comparing FULL (F=1.0) against ASYM (F=0.25) at
+> equal MOLECULE count measures the scoring rule, not the method — ASYM loses by
+> construction, even with a perfect model.
 
-**The obvious next run:** this is an OFFLINE prediction experiment. It shows the
-model predicts better under missing labels; it does not yet show a closed-loop
-campaign run this way finds better molecules per unit cost. Wire `mogp_hadamard`
-into `loop.py` behind a `--hdhfr-fraction` flag and run the paired campaign. That
-is now well motivated and is the single highest-value remaining experiment.
+Fix the **dock-call budget** instead. At F=0.25 the asymmetric arm reaches **60% more
+distinct molecules for the same spend**. Score each arm on the true, artifact-filtered
+selectivity (PfDHFR <= -7.0, hDHFR <= 0) of the **top-k shortlist it nominates**, with
+those k docked fully — the same added cost for both arms.
+
+Budget: ~2.5-3 h per seed for a matched pair; six seeds minimum (a paired Wilcoxon at
+n=5 caps at p=0.0625).
+
+**It may well come out null**, and that is a real possibility to plan for: the offline
+effect sizes are modest (RMSE 1.43 vs 1.50 at 25% labels) and `F11` already showed this
+optimizer tolerates a badly perturbed acquisition ranking without changing outcomes. If
+so the honest conclusion is "coregionalization helps the model under missing labels but
+not the search", which is still worth reporting.
 
 ---
 

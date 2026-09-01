@@ -69,21 +69,32 @@ the "leads at 38/50 checkpoints, finishes level" pattern kept recurring. Use **A
 (0.3503) and only the second-best final HV, and ICM reaches 95% of best HV in **160
 molecules against the independent model's 205**.
 
-## 2. Kill the n=1 caveat — RUNNING (see §0)
+## 2. Kill the n=1 caveat — DONE at 8/10 seeds. **THE CLAIM DIED.**
+(`MULTISEED_ICM_VERDICT.md`, `F12_icm_verdict.png`)
 
-**10 seeds, not 5.** A paired Wilcoxon over n=5 has a minimum two-sided p of **0.0625** — it
-cannot reach p<0.05 even if ICM wins every seed. n=6 reaches 0.0312, n=10 reaches 0.0020.
-Running 5 would have guaranteed an inconclusive result.
+The seed-0 sample-efficiency win **did not replicate**. Across 8 paired seeds ICM
+leads **197/400 checkpoints = 49%**. Per seed: 38, 26, 30, 21, 22, 11, **0**, **49**.
+The spread is the seed, not the model.
 
-**The claim to test:** ICM led at 38/50 checkpoints (mean +0.0194) but finished level
-(+0.0002). Given the saturation finding, test it on **AUC and molecules-to-target**, with the
-target fixed in advance rather than as a fraction of the best observed HV (that was mildly
-circular in the seed-0 analysis).
+Every endpoint is null — final HV (p=1.000), AUC (p=0.641), and molecules-to-target at
+four fixed absolute thresholds (p = 0.17 to 0.66). Every CI crosses zero; three of six
+point estimates favour the *independent* model.
 
-If it holds: *coregionalization buys sample efficiency, not final quality.* If not, it was noise.
+**And there is a mechanism that predicted it.** Counted over six runs: **0 of 1,740
+molecules have exactly one docking task observed** — every molecule gets both or neither.
+That is a complete block design, i.e. the autokrigeability condition (Bonilla, Chai &
+Williams 2008 §2.3): with tasks observed at the same inputs the ICM posterior *mean*
+collapses to independent per-task GPs. rho = 0.788 does not rescue it; correlation is not
+the binding constraint, co-location is. The covariance channel was the only route left,
+which is why `diag_embed` mattered — and across 8 seeds that channel delivers nothing.
 
-**Scope limit to state in the paper:** this establishes ICM vs independent **under
-joint posterior + alpha=1e-3**, not under the original campaign settings.
+**Does NOT overturn** MOGP vs baselines (0.4079 / 0.3123 / 0.1950, 10/10). What it
+overturns is narrower: the ICM is not why the pipeline wins.
+
+**The fix the mechanism names:** break the co-location. Dock all candidates against
+PfDHFR but only a subset against hDHFR, so most molecules carry one label and the ICM
+has a real transfer problem. Cheapest decisive next experiment, and it is also the
+realistic lab setting.
 
 ## 3. Rewrite the cost section — DONE (`F4_compute_cost_REVISED.png`, Table 3b)
 

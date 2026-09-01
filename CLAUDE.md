@@ -440,3 +440,113 @@ A/B must `torch.manual_seed(...)` before each call — pinned by
 
 `test_run_benchmark_seeds.py`'s 6 failures are a missing `external/GP-MOBO`
 clone, not a regression; they fail identically on a pristine HEAD worktree.
+
+---
+
+## SETTLED RESULTS — ExtraNovelPipeline (2026-09-01)
+
+Everything below is measured and committed. Full write-ups in the named files;
+figure index in `FIGURES.md`; regeneration scripts in `analysis_scripts/`.
+
+### The three retractions (do not repeat these claims)
+
+1. **"MOGP is worst per CPU-hour by 11.8x."** FALSE. `acquisition.py` never set
+   qNEHVI's `alpha`, so it ran exact partitioning where BoTorch's own
+   `get_default_partitioning_alpha(5)` returns `1e-3`. Measured end to end:
+   **8.14 h -> 0.48 h = 17.0x**. Projected onto the campaign MOGP costs 0.69 h/seed
+   and is the **best** method per CPU-hour (0.592), not the worst (0.035). This also
+   retires the accuracy-vs-compute trade-off in the discussion AND the
+   2,000-candidate pool cap, which existed only to work around the cost.
+   -> `ABLATION_2X2_RESULTS.md`, `ALPHA_EXPLAINED.md`, `F4_compute_cost_REVISED.png`
+2. **"The joint posterior fix caused the improvement."** FALSE. Pure alpha effect
+   **+0.0060**; pure posterior effect **-0.0008**. The joint posterior is still
+   REQUIRED (without it the ICM cannot affect selection at all) and is 1.8x faster,
+   but that speed is mostly the molecule dedup bundled into the same code path
+   (`acquisition.py:460`), not the covariance. -> `F10_alpha_vs_posterior.png`
+3. **"Coregionalization buys sample efficiency."** FALSE at 10 seeds. ICM leads
+   **197/400 matched checkpoints = 49%**. Per seed: 38, 26, 30, 21, 22, 11, **0**,
+   **49**, ... Seed 0 was noise. Every endpoint null (final HV p=0.375, AUC p=0.846,
+   molecules-to-target p=0.22-0.64). -> `MULTISEED_ICM_VERDICT.md`, `F12`
+
+### The mechanism, and the result that follows from it
+
+**Autokrigeability.** 0 of 1,740 molecules have exactly one docking task observed —
+every molecule gets both or neither. That complete block design is exactly the
+condition under which the ICM posterior mean collapses to independent per-task GPs
+(Bonilla, Chai & Williams 2008 §2.3). rho = 0.788 does not rescue it: **co-location,
+not correlation, is the binding constraint.**
+
+**The prediction, tested and confirmed.** Break the co-location and the ICM wins.
+Predicting held-out hDHFR, 20 repeats, ICM sees all PfDHFR labels plus a fraction of
+hDHFR labels; independent sees only that fraction:
+
+| hDHFR labels kept | 100% | 75% | 50% | 25% | 10% |
+|---|---|---|---|---|---|
+| ICM advantage (RMSE) | +0.001 | +0.013 | **+0.051** | **+0.073** | **+0.105** |
+| p (Holm) | 0.432 | 0.432 | **0.0043** | **0.0004** | **0.0023** |
+
+At 100% they tie and rank correlations agree to four decimals — autokrigeability
+measured on our own data. **Perfectly monotone: Spearman(labels kept, advantage) =
+-1.000.** At 10% labels the ICM keeps **2.6x** the ranking signal (0.311 vs 0.120).
+-> `ASYMMETRIC_LABELS_RESULT.md`, `F13_asymmetric_labels.png`
+
+### Facts about `alpha` that must not be misstated
+
+- It is a **relative-volume threshold**: a hypercell is subdivided only while its
+  share of total volume exceeds `alpha` (`non_dominated.py:173-176`). Couckuyt,
+  Deschrijver & Dhaene (2012), J. Global Optimization 60:575-594, Fig. 2.
+- It **overestimates hypervolume by 18-90%**. Not a rounding error.
+- The bias does **NOT** cancel in the improvement. I hypothesized it would; tested
+  and false. Bias grows to **+293%** on the difference; candidate ranking Spearman
+  **0.505**, top-10 overlap 4/10. The honest statement is that the optimizer
+  tolerates a badly perturbed acquisition ranking on this problem.
+- It **never touches reported results**: `evaluation.compute_hypervolume` uses the
+  exact `Hypervolume` class (`evaluation.py:65,330`) and builds no partitioning.
+- Do **not** write "same answers, faster". Write "different molecules of equal
+  measured quality, faster" (Jaccard 0.479 vs a 0.686 same-config noise floor;
+  top-5 SI 4.77 vs 4.67).
+
+### New code on this branch
+
+- `mogp_hadamard.py` — the ICM in **stacked-index (Hadamard) form**: one entry per
+  `(molecule, task)` observation, so **missing labels are expressible**.
+  `MultitaskKernel`'s Kronecker structure cannot represent them at all. Same
+  `IndexKernel` task covariance. Deliberate difference: one shared
+  `GaussianLikelihood` noise instead of per-task noise (targets are standardized per
+  task first). 8 tests in `test_mogp_hadamard.py`.
+- `acquisition.py::_psd_safe_multitask_mvn` — **crash fix**.
+  `MultitaskMultivariateNormal` factorizes eagerly, so a `q*k x q*k` block left
+  slightly indefinite by float error raises rather than degrading. **Killed three
+  whole campaigns** (coregionalized seeds 5 and 6, independent seed 6). Symmetrizes
+  and adds the smallest relative jitter that works, 1e-10 -> 1e-4, then raises.
+  Jitter applies **only after a failure**, so runs that never trip it are
+  bit-identical. This is a cost specific to the joint posterior; the diagonal path
+  cannot hit it. 5 tests in `test_psd_safe_posterior.py`.
+- `run_multiseed.sh` — sequential 10-seed sweep, 20 GB RSS watchdog, resumable.
+
+### Operational gotchas that have each cost a run
+
+- **`--seeds` is overloaded.** A bare integer is a **COUNT**: `--seeds 1` means
+  seeds `[0]`, `--seeds 0` means NO seeds. A single seed N must be written `"N,"`
+  with a trailing comma. This has silently wasted two runs. `run_multiseed.sh`
+  gates on the resolved seed printed in the log header.
+- **Python buffers stdout when redirected.** Set `PYTHONUNBUFFERED=1` or a
+  log-watching gate will fire on an empty file.
+- **`np.einsum("bii->bi", X)` DOES return a writable view** (verified), so the
+  diagonal floor in `_joint_moments` does apply — it is just far too weak to repair
+  an indefinite matrix.
+- Runs **saturate by n=290** (last-quarter HV gain is 2-11% of first-quarter), so
+  **final HV is a low-power endpoint**. Use AUC and molecules-to-a-FIXED-target.
+  Do not define the target as a fraction of the best observed HV — that is circular.
+- A paired **Wilcoxon at n=5 cannot reach p<0.05** (minimum two-sided p = 0.0625).
+  n=6 -> 0.0312, n=10 -> 0.0020. Plan seed counts accordingly.
+
+### Data locations
+
+- 10-seed ICM vs independent sweep: `ablation_multiseed/{model}_seed{1..9}/`
+  plus `ablation_joint_alpha/{model}_seed0/` for seed 0.
+  Config: `posterior=joint`, `alpha=1e-3`, `pool=2000`, `rank=1`, 290 molecules.
+- 2x2 cells: `ablation_icm_vs_independent/armA_coregionalized_seed0` (diag, alpha=0),
+  `ablation_diag_alpha/` (diag, alpha=1e-3), `ablation_joint_alpha/` (joint, alpha=1e-3).
+- Figures: `/Users/devansh/Downloads/aggregate_10seed/figures/` (see `FIGURES.md`).
+- Analysis scripts and their CSV outputs: `analysis_scripts/`.

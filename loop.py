@@ -229,8 +229,14 @@ class BOLoop:
                  model=DEFAULT_MODEL, coregionalization_rank=1, train_fn=None,
                  densify=False, densify_every=1, densify_per_parent=20,
                  densify_max_pool=None, acquisition_pool_size=None,
-                 posterior_mode=DEFAULT_POSTERIOR_MODE):
+                 posterior_mode=DEFAULT_POSTERIOR_MODE,
+                 hdhfr_fraction=1.0):
         # --- Reproducibility ---
+        self.hdhfr_fraction = float(hdhfr_fraction)
+        if not 0.0 < self.hdhfr_fraction <= 1.0:
+            raise ValueError(
+                f"hdhfr_fraction must be in (0, 1]; got {self.hdhfr_fraction!r}."
+            )
         self.seed = seed
         np.random.seed(seed)
         torch.manual_seed(seed)
@@ -293,11 +299,6 @@ class BOLoop:
         # which is the regime where an ICM has something to borrow
         # (ASYMMETRIC_LABELS_RESULT.md). Requires model="hadamard": the other
         # two cannot train on a partly-labelled matrix.
-        self.hdhfr_fraction = float(hdhfr_fraction)
-        if not 0.0 < self.hdhfr_fraction <= 1.0:
-            raise ValueError(
-                f"hdhfr_fraction must be in (0, 1]; got {self.hdhfr_fraction!r}."
-            )
         self.n_init = n_init
         self.batch_size = batch_size
         self.n_iterations = n_iterations

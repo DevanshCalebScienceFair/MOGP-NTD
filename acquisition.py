@@ -370,6 +370,66 @@ def compose_objective_points(docking, admet_tail,
     return np.stack(columns, axis=-1)
 
 
+# Largest jitter we will add to rescue an indefinite covariance, as a multiple
+# of the mean diagonal entry. 1e-4 is already far above the float64 error that
+# causes these failures; needing more means something is genuinely wrong.
+_MAX_JITTER_REL = 1e-4
+
+
+def _psd_safe_multitask_mvn(mean_d, covar):
+    """``MultitaskMultivariateNormal`` that survives a marginally indefinite block.
+
+    ``predict_joint`` assembles the ``q*k x q*k`` covariance from a GP posterior.
+    Accumulated floating-point error can leave that block very slightly
+    indefinite -- eigenvalues of order -1e-12 -- and
+    ``MultitaskMultivariateNormal`` factorizes EAGERLY via
+    ``torch.linalg.cholesky``, so it raises instead of degrading. Observed at
+    seeds 5 and 6 of the multi-seed sweep, at iterations 19 and 68 of a 290
+    molecule run: a whole campaign lost to a rounding error.
+
+    The diagonal path cannot hit this (an explicitly diagonal matrix with a
+    positive floor is positive-definite by construction), so this is a cost of
+    the joint posterior and belongs in its ledger.
+
+    Jitter is applied ONLY after a failure, so any run that never trips this is
+    bit-identical to one made without it.
+    """
+    try:
+        return MultitaskMultivariateNormal(mean_d, covar)
+    except (torch.linalg.LinAlgError, ValueError, RuntimeError):
+        pass
+
+    # Symmetrize first. Asymmetry alone does NOT defeat torch.linalg.cholesky
+    # (it reads a single triangle), so this is not the failure being fixed --
+    # but the gather in _joint_moments can leave the triangles differing in the
+    # last bits, and jittering an asymmetric block would preserve that asymmetry
+    # in whichever triangle Cholesky ignores.
+    covar = 0.5 * (covar + covar.transpose(-1, -2))
+    scale = (
+        torch.diagonal(covar, dim1=-2, dim2=-1).clamp_min(0.0).mean().clamp_min(1e-12)
+    )
+    eye = torch.eye(covar.shape[-1], dtype=covar.dtype, device=covar.device)
+    rel = 1e-10
+    while rel <= _MAX_JITTER_REL:
+        try:
+            mvn = MultitaskMultivariateNormal(mean_d, covar + (scale * rel) * eye)
+        except (torch.linalg.LinAlgError, ValueError, RuntimeError):
+            rel *= 10.0
+            continue
+        warnings.warn(
+            f"joint posterior covariance was not positive-definite; "
+            f"recovered with relative jitter {rel:.0e}",
+            RuntimeWarning, stacklevel=2,
+        )
+        return mvn
+    raise torch.linalg.LinAlgError(
+        f"joint posterior covariance still not positive-definite after "
+        f"relative jitter {_MAX_JITTER_REL:.0e}; the block is not merely "
+        f"rounding-noise indefinite"
+    )
+
+
+
 class DockingPosteriorModel(Model):
     """BoTorch wrapper exposing the grey-box GP as a docking-only posterior.
 
@@ -421,7 +481,7 @@ class DockingPosteriorModel(Model):
             mean_d, covar = self._joint_moments(fp, batch, q, k)
         else:
             mean_d, covar = self._diag_moments(fp, batch, q, k)
-        mvn = MultitaskMultivariateNormal(mean_d, covar)
+        mvn = _psd_safe_multitask_mvn(mean_d, covar)
         post = GPyTorchPosterior(mvn)
         if posterior_transform is not None:
             return posterior_transform(post)

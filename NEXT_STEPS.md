@@ -9,35 +9,35 @@
 
 ---
 
-## 0. RUNNING RIGHT NOW
+## 0. NOTHING RUNNING
 
-**10-seed ICM vs independent sweep.** `./run_multiseed.sh`, output `ablation_multiseed/`,
-driver log `/tmp/multiseed2.log`, per-run logs `ablation_multiseed/logs/`.
-Seeds 1-9 (seed 0 already exists in `ablation_joint_alpha/` and is merged at analysis time).
-Config: `posterior=joint`, `alpha=1e-3`, `pool=2000`, `rank=1`, 290 molecules.
-Sequential, RSS watchdog at 20 GB, skips completed runs — safe to stop and resume.
+The 10-seed sweep finished (`ablation_multiseed/`, all 18 runs + seed 0 from
+`ablation_joint_alpha/`). Verdict in `MULTISEED_ICM_VERDICT.md`.
 
-**10 of 18 runs complete.** Remaining: coregionalized 5, 6, 8, 9; independent 6, 7, 8, 9.
+### NEW: the follow-up landed — `ASYMMETRIC_LABELS_RESULT.md`, `F13`
 
-### A crash bug was found and fixed mid-sweep (`b280a95`)
+The mechanism's prediction was tested and confirmed. Predicting held-out hDHFR,
+20 repeats, ICM sees all PfDHFR labels plus a fraction of hDHFR labels:
 
-Three runs died outright:
+| labels kept | 100% | 75% | 50% | 25% | 10% |
+|---|---|---|---|---|---|
+| ICM advantage (RMSE) | +0.001 | +0.013 | **+0.051** | **+0.073** | **+0.105** |
+| Holm p | 0.432 | 0.432 | **0.0043** | **0.0004** | **0.0023** |
 
-```
-torch._C._LinAlgError: linalg.cholesky: (Batch element 68): the leading minor
-of order 497 is not positive-definite
-```
+At 100% the models are indistinguishable and rank correlations agree to four
+decimals — autokrigeability measured on our own data, not cited. The advantage is
+**perfectly monotone**, Spearman(labels kept, advantage) = **-1.000**. Ranking
+separates harder: at 10% labels Spearman 0.311 vs 0.120, **2.6x**.
 
-`MultitaskMultivariateNormal` factorizes **eagerly**, so a `q*k x q*k` covariance block left
-very slightly indefinite by float error in `predict_joint` raises instead of degrading. Lost
-coregionalized seeds 5 and 6 and independent seed 6 — three whole campaigns to a rounding
-error. `_psd_safe_multitask_mvn` symmetrizes and adds the smallest relative jitter that lets
-Cholesky succeed (1e-10 -> 1e-4, then raises). Jitter applies **only after a failure**, so
-runs that never trip it are bit-identical. Tests in `test_psd_safe_posterior.py` (5 pass).
+Built for it: `mogp_hadamard.py`, the same ICM in stacked-index form so gaps are
+expressible (`MultitaskKernel`'s Kronecker structure cannot represent them at all).
+8 tests in `test_mogp_hadamard.py`.
 
-**This is a cost specific to the joint posterior** — the diagonal path cannot hit it, since an
-explicitly diagonal matrix with a positive floor is PD by construction. It belongs in the
-joint posterior's ledger alongside its 1.8x speed.
+**The obvious next run:** this is an OFFLINE prediction experiment. It shows the
+model predicts better under missing labels; it does not yet show a closed-loop
+campaign run this way finds better molecules per unit cost. Wire `mogp_hadamard`
+into `loop.py` behind a `--hdhfr-fraction` flag and run the paired campaign. That
+is now well motivated and is the single highest-value remaining experiment.
 
 ---
 

@@ -107,7 +107,7 @@ DOCKING_SATURATION_MARGIN = 0.25
 # coregionalized (ICM) model is the PRIMARY / headline model: it learns the
 # PfDHFR/hDHFR cross-task correlation the independent model forces to zero. The
 # independent model is retained for the ablation (run_ablation.py).
-MODEL_CHOICES = ("coregionalized", "independent")
+MODEL_CHOICES = ("coregionalized", "independent", "hadamard")
 DEFAULT_MODEL = "coregionalized"
 
 
@@ -154,6 +154,26 @@ def assert_fast_acquisition_path():
         ) from exc
 
 
+def _splitmix64_unit(indices, seed):
+    """Deterministic uniform draw in [0, 1) per index, mixed with ``seed``.
+
+    A SplitMix64 finalizer, because the obvious shortcut is wrong: combining
+    index and seed with a bare XOR leaves the two correlated, and subsets drawn
+    for adjacent seeds came out DISJOINT rather than independent (measured).
+    The avalanche steps below fix that -- two seeds' subsets overlap at the
+    expected rate.
+
+    Keyed on the library index rather than on batch position, so a molecule's
+    membership is stable across iterations, batch sizes and restarts.
+    """
+    z = (np.asarray(indices, dtype=np.uint64)
+         + np.uint64(0x9E3779B97F4A7C15) * (np.uint64(seed) + np.uint64(1)))
+    z = (z ^ (z >> np.uint64(30))) * np.uint64(0xBF58476D1CE4E5B9)
+    z = (z ^ (z >> np.uint64(27))) * np.uint64(0x94D049BB133111EB)
+    z = z ^ (z >> np.uint64(31))
+    return (z >> np.uint64(11)).astype(np.float64) / float(1 << 53)
+
+
 def resolve_train_fn(model, rank=1):
     """Map a ``--model`` name to a ``train_fn`` with ``mogp.train_mogp``'s signature.
 
@@ -177,6 +197,16 @@ def resolve_train_fn(model, rank=1):
                 train_x, train_y, n_iterations=n_iterations, lr=lr, rank=rank
             )
         return _train_coregionalized
+    if model == "hadamard":
+        # The same ICM in stacked-index form, which is the ONLY one of the three
+        # that can train on a partly-labelled matrix (see --hdhfr-fraction).
+        from mogp_hadamard import train_mogp_hadamard
+
+        def _train_hadamard(train_x, train_y, n_iterations=200, lr=0.1):
+            return train_mogp_hadamard(
+                train_x, train_y, n_iterations=n_iterations, lr=lr, rank=rank
+            )
+        return _train_hadamard
     raise ValueError(
         f"Unknown model {model!r}; choose one of {MODEL_CHOICES}."
     )
@@ -254,6 +284,20 @@ class BOLoop:
         self.library_size = len(self.smiles)
 
         # --- Hyperparameters ---
+        # Fraction of each docked batch that ALSO gets docked against hDHFR.
+        # 1.0 is the historical behaviour (dock everything against everything),
+        # which is a complete block design and therefore the autokrigeability
+        # condition -- under it coregionalization provably cannot beat
+        # independent GPs in the posterior mean, and empirically does not
+        # (MULTISEED_ICM_VERDICT.md). Below 1.0 the design becomes unbalanced,
+        # which is the regime where an ICM has something to borrow
+        # (ASYMMETRIC_LABELS_RESULT.md). Requires model="hadamard": the other
+        # two cannot train on a partly-labelled matrix.
+        self.hdhfr_fraction = float(hdhfr_fraction)
+        if not 0.0 < self.hdhfr_fraction <= 1.0:
+            raise ValueError(
+                f"hdhfr_fraction must be in (0, 1]; got {self.hdhfr_fraction!r}."
+            )
         self.n_init = n_init
         self.batch_size = batch_size
         self.n_iterations = n_iterations
@@ -339,8 +383,14 @@ class BOLoop:
         smiles = [self.smiles[i] for i in library_indices]
         admet_rows = self.admet_scores[library_indices]
 
-        # Dock the batch against every required target (PfDHFR + hDHFR).
-        docking_by_target = batch_dock_targets(smiles, DOCKING_TARGETS)
+        # Dock the batch against every required target (PfDHFR + hDHFR), unless
+        # hdhfr_fraction < 1, in which case the SECONDARY target is docked on
+        # only a deterministic subset and the rest stay NaN -- an unbalanced
+        # design the Hadamard ICM can train on, and real saved docking cost.
+        if self.hdhfr_fraction >= 1.0:
+            docking_by_target = batch_dock_targets(smiles, DOCKING_TARGETS)
+        else:
+            docking_by_target = self._dock_partial(smiles, library_indices)
 
         Y = np.full((len(library_indices), N_OBJECTIVES), np.nan, dtype=np.float64)
         Y_le = np.full((len(library_indices), N_OBJECTIVES), np.nan, dtype=np.float64)
@@ -354,6 +404,35 @@ class BOLoop:
             # NaN raw / unparseable SMILES propagate to NaN, like a failed dock.
             Y_le[:, j] = [raw_to_ligand_efficiency(r, s) for r, s in zip(raw, smiles)]
         return Y, Y_le, docking_by_target
+
+    def _dock_partial(self, smiles, library_indices):
+        """Dock every molecule on the PRIMARY target, a subset on the secondary.
+
+        Which molecules get the secondary target is chosen from a hash of the
+        LIBRARY INDEX, not from batch position or call order, so the decision is
+        stable across iterations, batch sizes and restarts: molecule 4,217 is
+        either in the subset for this run or it is not, and re-docking it later
+        never flips that. The run seed is mixed in so different seeds hold out
+        different molecules.
+
+        Returns the same ``{target: (k,) array}`` contract as
+        ``batch_dock_targets``, with NaN for molecules not docked against the
+        secondary target -- indistinguishable, downstream, from a failed dock,
+        which is exactly the semantics we want.
+        """
+        primary, secondary = DOCKING_TARGETS[0], DOCKING_TARGETS[1]
+        out = {primary: batch_dock_targets(smiles, [primary])[primary]}
+
+        idx = np.asarray(list(library_indices), dtype=np.int64)
+        u = _splitmix64_unit(idx, self.seed)
+        take = u < self.hdhfr_fraction
+
+        sec = np.full(len(smiles), np.nan, dtype=float)
+        chosen = [s for s, t in zip(smiles, take) if t]
+        if chosen:
+            sec[take] = batch_dock_targets(chosen, [secondary])[secondary]
+        out[secondary] = sec
+        return out
 
     def _warn_if_docking_saturates(self, Y_new):
         """Warn if any observed docking LE sits at/below the normalization floor.
@@ -854,6 +933,13 @@ if __name__ == "__main__":
                              "the number of analogs added). Must be ABOVE the "
                              "current library size or densification is a no-op; "
                              "omit for no cap.")
+    parser.add_argument("--hdhfr-fraction", type=float, default=1.0,
+                        help="Fraction of each docked batch that ALSO gets docked "
+                             "against hDHFR (default 1.0 = dock everything against "
+                             "everything, the historical behaviour). Below 1.0 the "
+                             "design becomes unbalanced, which is the only regime "
+                             "where coregionalization can help (autokrigeability); "
+                             "requires --model hadamard.")
     args = parser.parse_args()
 
     # Resolve the run profile: --smoke -> SMOKE_PARAMS, else the Grand Campaign;
@@ -874,6 +960,7 @@ if __name__ == "__main__":
     loop = BOLoop(
         library_dir=args.library_dir,
         n_init=n_init,
+        hdhfr_fraction=args.hdhfr_fraction,
         batch_size=batch_size,
         n_iterations=n_iterations,
         mogp_train_iters=args.mogp_iters,

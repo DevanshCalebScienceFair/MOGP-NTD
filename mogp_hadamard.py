@@ -60,6 +60,11 @@ class MOGPHadamardICM(gpytorch.models.ExactGP):
         rank: Rank ``R`` of the ``K x R`` task-covariance factor.
     """
 
+    #: Marks this model as needing the (x, task_index) prediction path. Callers
+    #: dispatch on ``getattr(model, "IS_HADAMARD", False)`` rather than importing
+    #: this class, which would make ``acquisition`` -> ``mogp_hadamard`` a cycle.
+    IS_HADAMARD = True
+
     def __init__(self, train_x, train_i, train_y, likelihood, num_tasks, rank=1):
         super().__init__((train_x, train_i), train_y, likelihood)
         self.mean_module = gpytorch.means.ConstantMean()

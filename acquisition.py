@@ -487,6 +487,34 @@ class DockingPosteriorModel(Model):
             return posterior_transform(post)
         return post
 
+    def _predict(self, fp):
+        """Marginal mean/variance, routed to the model's own prediction path.
+
+        The Hadamard ICM (``mogp_hadamard.MOGPHadamardICM``) takes
+        ``(x, task_index)`` pairs rather than a plain ``x``, so ``mogp.predict``
+        cannot drive it. Dispatch on the model's own flag rather than importing
+        the class, which would make this module cyclic with ``mogp_hadamard``.
+        """
+        if getattr(self._model, "IS_HADAMARD", False):
+            from mogp_hadamard import predict_hadamard
+            return predict_hadamard(
+                self._model, self._likelihood, self._y_mean, self._y_std, fp
+            )
+        return predict(self._model, self._likelihood, self._y_mean, self._y_std, fp)
+
+    def _predict_joint(self, uniq):
+        """Joint mean/covariance, routed to the model's own prediction path."""
+        if getattr(self._model, "IS_HADAMARD", False):
+            from mogp_hadamard import predict_joint_hadamard
+            return predict_joint_hadamard(
+                self._model, self._likelihood, self._y_mean, self._y_std, uniq,
+                task_indices=self._dock,
+            )
+        return predict_joint(
+            self._model, self._likelihood, self._y_mean, self._y_std, uniq,
+            task_indices=self._dock,
+        )
+
     def _diag_moments(self, fp, batch, q, k):
         """Mean and an explicitly DIAGONAL covariance (the historical path)."""
         with warnings.catch_warnings():
@@ -494,9 +522,7 @@ class DockingPosteriorModel(Model):
             # trips GPyTorch's "input matches training data" notice every step.
             # That is expected here (we want the posterior at those points).
             warnings.simplefilter("ignore", GPInputWarning)
-            mean_np, var_np = predict(
-                self._model, self._likelihood, self._y_mean, self._y_std, fp
-            )
+            mean_np, var_np = self._predict(fp)
         mean_d = torch.as_tensor(
             mean_np[:, self._dock], dtype=_DTYPE
         ).reshape(*batch, q, k)
@@ -520,10 +546,7 @@ class DockingPosteriorModel(Model):
         uniq, inverse = _unique_rows(fp)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", GPInputWarning)
-            mean_np, cov_np = predict_joint(
-                self._model, self._likelihood, self._y_mean, self._y_std, uniq,
-                task_indices=self._dock,
-            )
+            mean_np, cov_np = self._predict_joint(uniq)
         mean_d = torch.as_tensor(
             mean_np[inverse][:, self._dock], dtype=_DTYPE
         ).reshape(*batch, q, k)

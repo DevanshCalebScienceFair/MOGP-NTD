@@ -87,3 +87,53 @@ paired Wilcoxon to be able to reach p < 0.05 (n=5 caps at 0.0625).
 
 **Not yet run.** The wiring, the subset draw and the smoke path are in place and
 tested; the campaign itself is the next job.
+
+---
+
+## A bug this design would have hidden (found 2026-09-01, fixed)
+
+`loop.py step()` used one row filter for two different jobs:
+
+```python
+finite_rows = np.isfinite(self.Y_evaluated[:, active]).all(axis=1)
+baseline_library_indices = eval_idx[finite_rows]
+train_x = self.fingerprints[baseline_library_indices]   # <- GP training set
+train_y = self.Y_evaluated[finite_rows]                 # <- ALSO the GP training set
+```
+
+Under `--hdhfr-fraction 0.25` that filter **discards every partly-labelled
+molecule before the GP ever sees it**. The Hadamard model would then have
+trained only on the fully-docked quarter, the asymmetric arm would have been a
+smaller symmetric arm wearing a hat, and the experiment would have measured
+nothing while running to completion and reporting plausible numbers.
+
+It surfaced only because a tiny smoke run (`n_init=5`) filtered hDHFR down to
+**zero** observations and tripped `train_mogp_hadamard`'s "no observed values"
+guard. At campaign scale there would have been no crash and no signal that
+anything was wrong.
+
+The fix separates the two jobs, because they have genuinely different
+requirements:
+
+- **qNEHVI baseline** — must stay fully observed. Hypervolume is undefined for a
+  molecule missing an objective, so a partly-docked molecule cannot sit on the
+  baseline front. Now `baseline_x` / `baseline_library_indices`, which must stay
+  in lockstep because the same indices fetch the known-exact ADMET rows.
+- **GP training set** — for a model that accepts partial labels, any molecule
+  with at least one docking observation is usable, and using them is the whole
+  point. Now `train_rows`, gated on `self.partial_labels`.
+
+`BOLoop` also now **refuses** `hdhfr_fraction < 1.0` with `coregionalized` or
+`independent`, rather than letting them silently drop the partial rows.
+
+**Consequence for the design.** The qNEHVI baseline front is built only from
+fully-docked molecules, so at `F=0.25` the asymmetric arm carries a smaller
+baseline than the full arm at the same molecule count. That is inherent, not a
+bug: the acquisition genuinely cannot place a half-measured molecule on a Pareto
+front. It does mean the asymmetric arm is fighting with one hand tied at the
+acquisition step even as its GP is better informed, and that trade is part of
+what the campaign measures.
+
+The per-iteration log line now reports both numbers, e.g.
+`Training GP on 84/120 molecules (52 partly labelled); qNEHVI baseline 32 fully
+evaluated`, so a future run cannot hide this again.

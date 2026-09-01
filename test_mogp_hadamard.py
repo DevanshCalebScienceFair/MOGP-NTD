@@ -99,3 +99,36 @@ def test_joint_covariance_is_symmetric_psd():
     np.testing.assert_allclose(cov, cov.T, atol=1e-6)
     w = np.linalg.eigvalsh(0.5 * (cov + cov.T))
     assert w.min() > -1e-6, f"most negative eigenvalue {w.min():.2e}"
+
+
+# --- loop wiring: the partial-label path must actually reach the trainer ---
+
+def test_loop_refuses_partial_labels_with_a_model_that_cannot_use_them():
+    """The silent-defeat combination must be refused, not run."""
+    from loop import BOLoop
+    for model in ("coregionalized", "independent"):
+        with pytest.raises(ValueError, match="partial labels"):
+            BOLoop(model=model, hdhfr_fraction=0.25)
+
+
+def test_loop_validates_the_fraction_before_loading_the_library():
+    """A bad fraction should fail in milliseconds, not after a 30s library load."""
+    from loop import BOLoop
+    for bad in (0.0, -0.1, 1.5):
+        with pytest.raises(ValueError, match="hdhfr_fraction must be"):
+            BOLoop(model="hadamard", hdhfr_fraction=bad)
+
+
+def test_partial_label_subset_is_stable_and_seed_independent():
+    """Membership is keyed on the library index, not batch position or order."""
+    from loop import _splitmix64_unit
+    ids = np.arange(20000)
+    for f in (0.1, 0.25, 0.5):
+        got = (_splitmix64_unit(ids, 0) < f).mean()
+        assert abs(got - f) < 0.01, f"realized {got:.3f} for target {f}"
+    # A bare XOR made adjacent seeds' subsets DISJOINT; the finalizer must not.
+    u0, u1 = _splitmix64_unit(ids, 0), _splitmix64_unit(ids, 1)
+    overlap = np.mean((u0 < 0.25) & (u1 < 0.25)) / 0.25
+    assert 0.18 < overlap < 0.32, f"seed subsets not independent (overlap {overlap:.3f})"
+    # Stable per molecule, regardless of position in the array.
+    assert _splitmix64_unit([5, 9, 2], 0)[0] == _splitmix64_unit([2, 9, 5], 0)[2]

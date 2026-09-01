@@ -166,11 +166,14 @@ def _splitmix64_unit(indices, seed):
     Keyed on the library index rather than on batch position, so a molecule's
     membership is stable across iterations, batch sizes and restarts.
     """
-    z = (np.asarray(indices, dtype=np.uint64)
-         + np.uint64(0x9E3779B97F4A7C15) * (np.uint64(seed) + np.uint64(1)))
-    z = (z ^ (z >> np.uint64(30))) * np.uint64(0xBF58476D1CE4E5B9)
-    z = (z ^ (z >> np.uint64(27))) * np.uint64(0x94D049BB133111EB)
-    z = z ^ (z >> np.uint64(31))
+    # Wrap-around on multiply IS the algorithm here, not an accident, so the
+    # overflow warning numpy would otherwise emit every call is silenced.
+    with np.errstate(over="ignore"):
+        z = (np.asarray(indices, dtype=np.uint64)
+             + np.uint64(0x9E3779B97F4A7C15) * (np.uint64(seed) + np.uint64(1)))
+        z = (z ^ (z >> np.uint64(30))) * np.uint64(0xBF58476D1CE4E5B9)
+        z = (z ^ (z >> np.uint64(27))) * np.uint64(0x94D049BB133111EB)
+        z = z ^ (z >> np.uint64(31))
     return (z >> np.uint64(11)).astype(np.float64) / float(1 << 53)
 
 
@@ -236,6 +239,19 @@ class BOLoop:
         if not 0.0 < self.hdhfr_fraction <= 1.0:
             raise ValueError(
                 f"hdhfr_fraction must be in (0, 1]; got {self.hdhfr_fraction!r}."
+            )
+        # Only the Hadamard ICM can train on a partly-labelled matrix. The other
+        # two would silently drop every partly-docked molecule and quietly
+        # measure nothing, so refuse the combination outright rather than let it
+        # run and produce a meaningless result.
+        self.partial_labels = (model == "hadamard")
+        if self.hdhfr_fraction < 1.0 and not self.partial_labels:
+            raise ValueError(
+                f"hdhfr_fraction={self.hdhfr_fraction} needs a model that accepts "
+                f"partial labels, but model={model!r}. Use model='hadamard'; "
+                "'coregionalized' and 'independent' both require a complete "
+                "(N, K) target matrix and would silently discard every "
+                "partly-docked molecule."
             )
         self.seed = seed
         np.random.seed(seed)
@@ -645,15 +661,38 @@ class BOLoop:
         active = get_active_objectives(self.Y_evaluated)
         eval_idx = np.asarray(self.evaluated_indices)
         finite_rows = np.isfinite(self.Y_evaluated[:, active]).all(axis=1)
-        # These fully-evaluated molecules are BOTH the GP's training set and the
-        # baseline front the qNEHVI acquisition scores against; keep their library
-        # indices so the acquisition can look up their known-exact ADMET rows.
+        # The qNEHVI BASELINE must stay fully observed: hypervolume is undefined
+        # for a molecule missing an objective, so a partly-docked molecule cannot
+        # sit on the baseline front. Its library indices also index the
+        # known-exact ADMET rows handed to the acquisition, so this array and
+        # `baseline_x` must stay in lockstep.
         baseline_library_indices = eval_idx[finite_rows]
-        train_x = self.fingerprints[baseline_library_indices]
-        train_y = self.Y_evaluated[finite_rows].astype(np.float32)
-        print(f"\n[Iteration {iteration}] Training GP on "
-              f"{int(finite_rows.sum())}/{len(self.evaluated_indices)} "
-              f"fully-evaluated molecules...")
+        baseline_x = self.fingerprints[baseline_library_indices]
+
+        # The GP TRAINING SET is a different question. A model that accepts
+        # partial labels should see a molecule docked against ONE target -- that
+        # is the entire point of --hdhfr-fraction. Reusing `finite_rows` here
+        # silently discards every partly-labelled molecule, which would leave the
+        # asymmetric experiment measuring nothing while appearing to run. (It
+        # only surfaced as a crash because a tiny smoke run filtered hDHFR down
+        # to zero observations; at scale it would have failed silently.)
+        if self.partial_labels:
+            dock_cols = [j for j, _ in DOCKING_TASKS]
+            train_rows = np.isfinite(self.Y_evaluated[:, dock_cols]).any(axis=1)
+        else:
+            train_rows = finite_rows
+        train_x = self.fingerprints[eval_idx[train_rows]]
+        train_y = self.Y_evaluated[train_rows].astype(np.float32)
+        if self.partial_labels:
+            n_part = int(train_rows.sum() - finite_rows.sum())
+            print(f"\n[Iteration {iteration}] Training GP on "
+                  f"{int(train_rows.sum())}/{len(self.evaluated_indices)} molecules "
+                  f"({n_part} partly labelled); qNEHVI baseline "
+                  f"{int(finite_rows.sum())} fully evaluated...")
+        else:
+            print(f"\n[Iteration {iteration}] Training GP on "
+                  f"{int(finite_rows.sum())}/{len(self.evaluated_indices)} "
+                  f"fully-evaluated molecules...")
         iter_start = time.perf_counter()
         t0 = time.perf_counter()
         model, likelihood, y_mean, y_std = self.train_fn(
@@ -693,7 +732,7 @@ class BOLoop:
         selected_local, selected_ehvi = select_batch(
             model, likelihood, y_mean, y_std,
             X_candidates, candidate_admet,
-            train_x, baseline_admet,
+            baseline_x, baseline_admet,
             batch_size=self.batch_size,
             diversity_threshold=self.diversity_threshold,
             partitioning_alpha=self.partitioning_alpha,

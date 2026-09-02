@@ -47,7 +47,7 @@ JSON
   $PY loop.py --model "$MODEL" --hdhfr-fraction "$FRAC" \
        --posterior joint --acquisition-alpha 1e-3 \
        --n-init 40 --batch-size 5 --n-iterations "$ITERS" \
-       --acquisition-pool-size 2000 \
+       --acquisition-pool-size 2000 --seed "$SEED" \
        --output-dir "$OUT" > "$LOG" 2>&1 &
   local PID=$!
 
@@ -57,6 +57,16 @@ JSON
   if ! grep -q "'$MODEL' GP model" "$LOG" 2>/dev/null; then
     echo "!!! ABORT: log does not confirm model=$MODEL"; tail -3 "$LOG"; kill -9 $PID 2>/dev/null; exit 1
   fi
+  # The seed and fraction MUST be echoed back. loop.py had no --seed flag until
+  # 2026-09-01, so a sweep silently produced N identical runs; only comparing two
+  # seeds' outputs byte-for-byte caught it. Gate on the resolved values.
+  for _ in $(seq 1 30); do grep -q "^  seed=" "$LOG" 2>/dev/null && break
+    kill -0 $PID 2>/dev/null || break; sleep 2; done
+  if ! grep -q "seed=$SEED  hdhfr_fraction=$FRAC" "$LOG" 2>/dev/null; then
+    echo "!!! ABORT: expected seed=$SEED hdhfr_fraction=$FRAC; log says: $(grep -m1 '^  seed=' "$LOG")"
+    kill -9 $PID 2>/dev/null; exit 1
+  fi
+  echo "    verified: $(grep -m1 '^  seed=' "$LOG" | sed 's/^  //')"
   if [ "$FRAC" != "1.0" ] && ! grep -q "partly labelled" <(tail -c 200000 "$LOG") 2>/dev/null; then
     : # the phrase only appears from iteration 1 onward; checked again after the run
   fi

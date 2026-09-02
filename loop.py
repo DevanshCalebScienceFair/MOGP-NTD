@@ -973,6 +973,13 @@ if __name__ == "__main__":
                              "the number of analogs added). Must be ABOVE the "
                              "current library size or densification is a no-op; "
                              "omit for no cap.")
+    parser.add_argument("--seed", type=int, default=42,
+                        help="Random seed: fixes the initial molecules, the "
+                             "per-iteration candidate subsample, and which "
+                             "molecules --hdhfr-fraction holds out. Until "
+                             "2026-09-01 loop.py had NO --seed flag, so every "
+                             "direct run silently used 42 and a multi-seed sweep "
+                             "produced N identical runs.")
     parser.add_argument("--acquisition-pool-size", type=int, default=None,
                         help="Cap the candidate pool EHVI-scores each iteration "
                              "(default: unset = the whole library, ~26,600). A "
@@ -1005,8 +1012,11 @@ if __name__ == "__main__":
           + (f" (rank {args.rank})" if args.model == "coregionalized" else "")
           + f", {args.posterior!r} posterior.")
     print(f"  n_init={n_init}, batch_size={batch_size}, n_iterations={n_iterations}")
+    print(f"  seed={args.seed}  hdhfr_fraction={args.hdhfr_fraction}  "
+          f"acquisition_pool_size={args.acquisition_pool_size}")
     loop = BOLoop(
         library_dir=args.library_dir,
+        seed=args.seed,
         n_init=n_init,
         hdhfr_fraction=args.hdhfr_fraction,
         acquisition_pool_size=args.acquisition_pool_size,

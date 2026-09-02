@@ -68,3 +68,7 @@ apo_backup_*/
 # large experiment outputs, never commit
 campaign_results/
 ablation_icm_vs_independent/
+
+# Regenerable distribution samples for F15 (analysis_scripts/dump_dist.py rebuilds them)
+analysis_scripts/dim_tanimoto_sample.npy
+analysis_scripts/dim_bits_per_mol.npy

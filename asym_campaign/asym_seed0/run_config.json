@@ -1,0 +1,4 @@
+{"arm":"asym","model":"hadamard","hdhfr_fraction":0.25,"seed":0,
+ "n_init":40,"batch_size":5,"n_iterations":85,
+ "posterior_mode":"joint","partitioning_alpha":0.001,
+ "budget_dock_calls":580,"note":"matched docking budget, not matched molecule count"}

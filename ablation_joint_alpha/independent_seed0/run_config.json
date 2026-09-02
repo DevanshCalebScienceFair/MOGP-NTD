@@ -1,0 +1,15 @@
+{
+  "acquisition_pool_size": 2000,
+  "batch_size": 5,
+  "diversity_threshold": 0.7,
+  "library_dir": "data/library",
+  "model": "independent",
+  "mogp_iters": 200,
+  "n_init": 40,
+  "n_iterations": 50,
+  "output_dir": "ablation_joint_alpha/independent_seed0",
+  "partitioning_alpha": 0.001,
+  "posterior_mode": "joint",
+  "rank": 1,
+  "seed": 0
+}

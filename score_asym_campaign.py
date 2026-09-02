@@ -8,11 +8,18 @@ one of them is structurally biased.
    asymmetric arm's front is built from a quarter of its molecules. Reported
    because a tie here would already be informative, not because it is fair.
 
-2. SHORTLIST QUALITY. The real product of a campaign is a ranked list of
-   candidates you then pay to characterize. Each arm nominates its top-k by
-   observed selectivity among molecules it actually measured on both targets,
-   artifact-filtered (PfDHFR <= -7.0, hDHFR <= 0) so non-binders cannot win on a
-   meaningless difference. This is the decision-relevant comparison.
+2. SHORTLIST QUALITY among each arm's OWN measured molecules. **ALSO BIASED
+   TOWARD THE FULL ARM, and not the headline test.** It ranks each arm's
+   fully-measured molecules, and those pools are not the same size: at seed 0 the
+   full arm chose from 246 and the asymmetric arm from 99. I originally described
+   this as "the decision-relevant comparison"; that was wrong, and it is not what
+   CLOSED_LOOP_DESIGN.md section A specified.
+
+   The unbiased test lives in **nominate_and_score.py**: each arm ranks the SAME
+   ~26,300 unmeasured library molecules with its own retrained model, nominates
+   the top-K by PREDICTED selectivity, and those K are docked for real at
+   identical added cost. Use that for any claim about which design finds better
+   molecules. Both endpoints in THIS file favour the full arm by construction.
 
 Usage:  python score_asym_campaign.py [asym_campaign]
 """

@@ -70,7 +70,13 @@ independent model has essentially collapsed (0.120); the ICM has barely degraded
 The existing ICM could not run this experiment at all.
 `mogp_coregionalized.MOGPCoregionalized` builds its covariance with
 `MultitaskKernel`, whose Kronecker structure requires a complete `(N, K)` target
-matrix. One NaN and it fails.
+matrix. **It does not fail on a gap — it does something worse.** A partially
+observed column makes its per-task mean NaN, the task is then dropped from the
+model entirely, and the function returns a silent ONE-task fit whose predictions
+for the missing task are all NaN. Measured: 20/40 NaN in hDHFR gave a 1x1 task
+covariance of [[0.69]] and an all-NaN prediction column, with no error and no
+warning. `train_mogp_coregionalized` now raises on a partially observed column
+(all-NaN, meaning a task not yet measured, is still allowed).
 
 `mogp_hadamard.py` is the same ICM written in **Hadamard (stacked-index) form**:
 each *observation* is a `(molecule, task)` pair rather than a row of a complete

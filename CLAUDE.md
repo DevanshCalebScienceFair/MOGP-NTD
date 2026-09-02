@@ -536,7 +536,10 @@ measured on our own data. **Perfectly monotone: Spearman(labels kept, advantage)
 
 - `mogp_hadamard.py` — the ICM in **stacked-index (Hadamard) form**: one entry per
   `(molecule, task)` observation, so **missing labels are expressible**.
-  `MultitaskKernel`'s Kronecker structure cannot represent them at all. Same
+  `MultitaskKernel`'s Kronecker structure cannot represent them; worse, it used to
+  accept a partial column and silently return a ONE-task model with all-NaN
+  predictions for the dropped task (measured: 20/40 NaN gave a 1x1 task covariance),
+  so `train_mogp_coregionalized` now raises on that case. Same
   `IndexKernel` task covariance. Deliberate difference: one shared
   `GaussianLikelihood` noise instead of per-task noise (targets are standardized per
   task first). 8 tests in `test_mogp_hadamard.py`.

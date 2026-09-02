@@ -137,6 +137,32 @@ def train_mogp_coregionalized(train_x, train_y, n_iterations=200, lr=0.1, rank=1
     train_x_t = torch.from_numpy(np.asarray(train_x)).to(torch.float32)
     train_y = np.asarray(train_y, dtype=np.float32)
 
+    # A PARTIALLY observed docking column is the dangerous case and it used to
+    # pass silently. `train_y.mean(axis=0)` over a column holding any NaN gives
+    # NaN, the `observed` mask below then drops that column entirely, and the
+    # function happily returns a ONE-task model whose IndexKernel is 1x1 and
+    # whose predictions for the missing task are all NaN -- no error, no warning.
+    # Measured: 20/40 NaN in hDHFR yielded task covariance [[0.69]] and an
+    # all-NaN hDHFR prediction column.
+    #
+    # An ALL-NaN column is different and stays allowed: that is a task which is
+    # simply not active yet (docking placeholders before the first dock), and
+    # dropping it is correct.
+    for j in DOCKING_TASK_INDICES:
+        if j >= train_y.shape[1]:
+            continue
+        col = train_y[:, j]
+        n_nan = int(np.isnan(col).sum())
+        if 0 < n_nan < col.size:
+            raise ValueError(
+                f"train_mogp_coregionalized: task {TASK_NAMES[j]!r} is PARTIALLY "
+                f"observed ({n_nan}/{col.size} missing). The Kronecker "
+                f"MultitaskKernel cannot represent a gap, and this function would "
+                f"otherwise drop the task silently and return NaN predictions for "
+                f"it. Use mogp_hadamard.train_mogp_hadamard, which takes one entry "
+                f"per (molecule, task) observation and handles any missing pattern."
+            )
+
     # Per-column standardization stats over the full task set. Guard zero-variance
     # columns (constant -> normalizes to 0, reverses to its mean).
     y_mean = train_y.mean(axis=0)

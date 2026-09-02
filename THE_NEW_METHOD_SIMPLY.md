@@ -96,7 +96,9 @@ instead of on a second measurement for every one.
 
 The old model could not do this. It required a complete grid — every molecule,
 every target, no gaps — because of how its mathematics was assembled. Feed it a
-missing value and it fails.
+missing value and it does not complain — it quietly drops that whole
+measurement from the model and reports nothing for it. Which is worse than
+failing, because the run looks like it worked. It now refuses instead.
 
 So we wrote a new one (`mogp_hadamard.py`). Instead of a table with a row per
 molecule and a column per target, it treats **each individual measurement** as

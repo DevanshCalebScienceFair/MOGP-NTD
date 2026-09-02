@@ -551,6 +551,16 @@ it is consumed** and that it changes what it should — do not trust that it was
 
 ### Operational gotchas that have each cost a run
 
+- **`loop.py` had NO `--acquisition-pool-size` flag** until 2026-09-01, so any direct
+  `loop.py` run scored the whole ~26,600-molecule library every iteration. Profiled:
+  **acquisition was 98.2% of wall clock** (178 of 181 min), docking 0.2%, GP training
+  0.3%. That made direct runs ~6x slower AND incomparable to every `run_ablation.py`
+  result, which all used `--acquisition-pool-size 2000`. Always pass it.
+- **A literal `%` in an argparse help string breaks `--help`** with
+  `TypeError: %o format: an integer is required`. The flag registers fine; the parser
+  just cannot render its own help, so the symptom looks like a missing flag. Escape as `%%`.
+
+
 - **`--seeds` is overloaded.** A bare integer is a **COUNT**: `--seeds 1` means
   seeds `[0]`, `--seeds 0` means NO seeds. A single seed N must be written `"N,"`
   with a trailing comma. This has silently wasted two runs. `run_multiseed.sh`

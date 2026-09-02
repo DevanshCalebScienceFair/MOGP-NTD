@@ -79,6 +79,7 @@ from acquisition import (
     DEFAULT_OBJECTIVE_SIGNS,
 )
 import evaluation
+import acquisition
 import timing
 from docking import batch_dock_targets, docked_summary, raw_to_ligand_efficiency
 
@@ -233,13 +234,25 @@ class BOLoop:
                  densify=False, densify_every=1, densify_per_parent=20,
                  densify_max_pool=None, acquisition_pool_size=None,
                  posterior_mode=DEFAULT_POSTERIOR_MODE,
-                 hdhfr_fraction=1.0, bounds_path=None):
+                 hdhfr_fraction=1.0, bounds_path=None,
+                 acquisition_ref_point=None):
         # --- Reproducibility ---
         # Normalization frame. None = the published frame in
         # evaluation.evaluation_bounds.json. An alternative frame (e.g. the
         # hDHFR ceiling at 0.0) changes EVERY hypervolume, so it lives in its own
         # file and its fingerprint is recorded: runs in different frames are not
         # comparable and `evaluation.bounds_fingerprint` exists to catch a mix.
+        # Reference point for the ACQUISITION only. The reported metric always
+        # uses evaluation.FIXED_REFERENCE_POINT (all zeros), so an arm using a
+        # different acquisition reference stays comparable to every other run --
+        # unlike a bounds change, which moves the metric itself.
+        self.acquisition_ref_point = acquisition_ref_point
+        if (acquisition_ref_point is not None
+                and acquisition_ref_point not in acquisition.REF_POINT_MODES):
+            raise ValueError(
+                f"acquisition_ref_point must be one of "
+                f"{acquisition.REF_POINT_MODES}; got {acquisition_ref_point!r}."
+            )
         self.bounds_path = bounds_path
         self.bounds = (evaluation.compute_objective_bounds(bounds_path=bounds_path)
                        if bounds_path else None)
@@ -745,6 +758,7 @@ class BOLoop:
             baseline_x, baseline_admet,
             batch_size=self.batch_size,
             bounds=self.bounds,
+            ref_point=self.acquisition_ref_point,
             diversity_threshold=self.diversity_threshold,
             partitioning_alpha=self.partitioning_alpha,
             posterior_mode=self.posterior_mode,
@@ -984,6 +998,15 @@ if __name__ == "__main__":
                              "the number of analogs added). Must be ABOVE the "
                              "current library size or densification is a no-op; "
                              "omit for no cap.")
+    parser.add_argument("--acquisition-ref-point", default=None,
+                        choices=["zeros", "nadir"],
+                        help="Reference point the ACQUISITION optimizes against. "
+                             "'zeros' (default, and what every published run used) "
+                             "is the worst corner of the normalized cube; 'nadir' "
+                             "sits just below the worst observed value per "
+                             "objective, concentrating improvement where the front "
+                             "actually is. The reported METRIC always uses the "
+                             "fixed all-zeros reference, so arms remain comparable.")
     parser.add_argument("--bounds-path", default=None,
                         help="Alternative normalization-bounds JSON. Default: the "
                              "published frame (evaluation_bounds.json). An "
@@ -1032,10 +1055,12 @@ if __name__ == "__main__":
     print(f"  seed={args.seed}  hdhfr_fraction={args.hdhfr_fraction}  "
           f"acquisition_pool_size={args.acquisition_pool_size}")
     print(f"  bounds_frame={args.bounds_path or 'published (evaluation_bounds.json)'}")
+    print(f"  acquisition_ref_point={args.acquisition_ref_point or 'zeros (default)'}")
     loop = BOLoop(
         library_dir=args.library_dir,
         seed=args.seed,
         bounds_path=args.bounds_path,
+        acquisition_ref_point=args.acquisition_ref_point,
         n_init=n_init,
         hdhfr_fraction=args.hdhfr_fraction,
         acquisition_pool_size=args.acquisition_pool_size,

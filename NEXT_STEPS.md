@@ -142,10 +142,29 @@ Still real and separate: `ninja` off PATH makes BoTorch fall back to pure-Python
   `hdhfr_bound_analysis.py` refuses to compare hypervolume, judging instead on
   frame-independent quantities from raw kcal/mol.
 
-- **Reference-point sweep** (plan §4.1). Still never run. `compute_qnehvi` already
-  takes `ref_point`; what is missing is a CLI knob and an arm. Lower value than the
-  hDHFR bound because the fixed all-zeros reference is defensible, whereas the -5.0
-  ceiling is a measured defect.
+- **Reference-point sweep — NOW RUNNABLE** (plan §4.1). Machinery built and tested;
+  the arm has not been run.
+
+  ```bash
+  ./run_ref_point_arm.sh                 # 6 seeds, ~25 min each
+  python analysis_scripts/ref_point_analysis.py
+  ```
+
+  `--acquisition-ref-point {zeros,nadir}`. `zeros` (default, and what every published
+  run used) is the worst corner of the normalized cube; `nadir` sits just below the
+  worst observed value per objective, concentrating improvement where the front
+  actually is.
+
+  **Unlike the hDHFR bound, this does NOT move the metric** — the reported
+  hypervolume always uses `evaluation.FIXED_REFERENCE_POINT`, so this arm is directly
+  comparable to `asym_campaign/full_seed*`. A test asserts `compute_hypervolume`
+  never takes a reference point, so that decoupling cannot silently rot.
+
+  Second reason to care: `partitioning_alpha` discards cells below a fraction of
+  TOTAL volume, so a reference far beneath the data inflates the total and makes
+  alpha discard harder. alpha=1e-3 preserves the candidate ranking only weakly
+  (Spearman 0.505, `ALPHA_EXPLAINED.md`); a tighter reference is one lever that could
+  reduce that distortion. Worth measuring the two together.
 - **Citations.** `SOURCES.md` — verify each yourself before submission.
 
 ## 5. Do NOT revisit

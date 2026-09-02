@@ -639,6 +639,62 @@ def _augment_with_admet(X_fp, admet_rows, lib_admet_cols):
     return np.concatenate([X_fp, tail], axis=1)
 
 
+#: Reference-point modes for the ACQUISITION only. The reported metric always
+#: uses ``evaluation.FIXED_REFERENCE_POINT`` (all zeros), so runs stay comparable
+#: no matter which of these an arm used.
+REF_POINT_MODES = ("zeros", "nadir")
+
+#: How far below the observed nadir to place the reference, as a fraction of the
+#: unit cube. BoTorch's own guidance is a point slightly WORSE than the nadir of
+#: the Pareto front; a reference at or above it gives some points zero volume.
+NADIR_MARGIN = 0.01
+
+
+def _resolve_ref_point(ref_point, num_objectives, model_wrap, objective, Xb_aug):
+    """Reference point for qNEHVI. NOT the reference the metric is scored with.
+
+    ``"zeros"`` (the default, and what every published run used) puts the
+    reference at the worst corner of the normalized cube. That is safe and
+    method-independent, but it means the dominated region includes a large
+    constant block far below any real molecule, and improvements in the region
+    that actually matters are a small fraction of the total.
+
+    ``"nadir"`` puts it just below the worst OBSERVED value on each objective, so
+    the acquisition's notion of "improvement" is concentrated where the front
+    really is.
+
+    This also interacts with ``partitioning_alpha``: alpha discards cells whose
+    share of TOTAL volume is below it, so a reference far beneath the data
+    inflates the total and makes alpha discard more aggressively. Measured
+    separately, alpha=1e-3 preserves the candidate ranking only weakly
+    (Spearman 0.505, see ALPHA_EXPLAINED.md); a tighter reference is one lever
+    that could reduce that distortion.
+    """
+    # evaluation is imported lazily inside compute_qnehvi (module-level would be
+    # circular), so this helper has to do the same rather than rely on that scope.
+    from evaluation import fixed_reference_point
+
+    if ref_point is None or (isinstance(ref_point, str) and ref_point == "zeros"):
+        return fixed_reference_point(num_objectives)
+    if isinstance(ref_point, str):
+        if ref_point not in REF_POINT_MODES:
+            raise ValueError(
+                f"compute_qnehvi: ref_point mode {ref_point!r} is not one of "
+                f"{REF_POINT_MODES}; pass an explicit array for anything else."
+            )
+        # "nadir": worst observed value per objective, in the SAME normalized
+        # maximization frame the objective produces, minus a margin.
+        with torch.no_grad():
+            post = model_wrap.posterior(Xb_aug.unsqueeze(0))
+            obs = objective(post.mean.unsqueeze(0), X=Xb_aug.unsqueeze(0))
+        obs = obs.reshape(-1, num_objectives).cpu().numpy()
+        nadir = np.nanmin(obs, axis=0) - NADIR_MARGIN
+        # Never above the data and never outside the cube.
+        return np.clip(nadir, 0.0, 1.0)
+    return np.asarray(ref_point, dtype=float)
+
+
+
 def compute_qnehvi(model, likelihood, y_mean, y_std,
                    X_candidates, candidate_admet,
                    X_baseline, baseline_admet,
@@ -721,8 +777,8 @@ def compute_qnehvi(model, likelihood, y_mean, y_std,
     objective = CompositeKnownADMETObjective(
         dock_task_indices, lib_task_indices, num_objectives, bounds, signs
     )
-    ref = (fixed_reference_point(num_objectives)
-           if ref_point is None else np.asarray(ref_point, dtype=float))
+    ref = _resolve_ref_point(ref_point, num_objectives, model_wrap, objective,
+                             Xb_aug)
 
     sampler = SobolQMCNormalSampler(sample_shape=torch.Size([int(n_mc_samples)]))
     acqf = qLogNoisyExpectedHypervolumeImprovement(
@@ -766,7 +822,7 @@ def select_batch(model, likelihood, y_mean, y_std,
                  objective_signs=None, n_mc_samples=N_MC_SAMPLES, layout=None,
                  posterior_mode=DEFAULT_POSTERIOR_MODE,
                  partitioning_alpha=DEFAULT_PARTITIONING_ALPHA,
-                 bounds=None):
+                 bounds=None, ref_point=None):
     """Greedily select a diverse, high-qNEHVI batch of candidates.
 
     Candidates are ranked by their qNEHVI score (``compute_qnehvi``), then walked
@@ -800,7 +856,7 @@ def select_batch(model, likelihood, y_mean, y_std,
         X_candidates, candidate_admet, X_baseline, baseline_admet,
         objective_signs=objective_signs, n_mc_samples=n_mc_samples, layout=layout,
         posterior_mode=posterior_mode, partitioning_alpha=partitioning_alpha,
-        bounds=bounds,
+        bounds=bounds, ref_point=ref_point,
     )
 
     # Rank candidates by qNEHVI score, highest first.

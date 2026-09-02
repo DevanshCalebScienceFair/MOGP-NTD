@@ -42,6 +42,7 @@ Status legend: **CURRENT** = use it · **SUPERSEDED** = replaced, do not use ·
 |---|---|---|
 | `F10_alpha_vs_posterior.png` | Closing the posterior x alpha 2x2. **Pure alpha effect +0.0060 (+1.34 sd); pure joint-posterior effect -0.0008 (-0.18 sd).** The joint posterior contributes nothing to final HV. Also: all arms **saturate by n=290**, so final HV is a low-power endpoint — use AUC and molecules-to-target. | CURRENT |
 | `F12_icm_verdict.png` | **Does coregionalization help? No.** Across 10 paired seeds ICM leads **197/400 matched checkpoints = 49%**, a coin flip. Every endpoint null. Mechanism: **0 of 1,740 molecules have exactly one docking task observed** — a complete block design, i.e. the autokrigeability condition. | CURRENT |
+| `F14_closed_loop_verdict.png` | **Closed loop, 6 paired seeds, matched docking budget.** Buying breadth (465 molecules, 105 hDHFR labels) LOSES to buying complete measurement (290 molecules, 280 labels): full wins **6/6** on hypervolume, own-set shortlist, AND the unbiased nomination test (p = 0.0312, the minimum at n=6). But only the *average* separates them — validity (17.8 vs 17.5 physical / 20) and best-find (4.32 vs 4.78, p = 0.375) are ties. | CURRENT |
 | `F13_asymmetric_labels.png` | **...and when it DOES help.** Break the co-location and the ICM wins: advantage +0.001 / +0.013 / **+0.051** / **+0.073** / **+0.105** RMSE at 100 / 75 / 50 / 25 / 10% of hDHFR labels kept; Holm p **0.0043 / 0.0004 / 0.0023** below 50%. **Perfectly monotone, Spearman = -1.000.** At 10% labels the ICM keeps **2.6x** the ranking signal (0.311 vs 0.120). | CURRENT |
 
 ---
@@ -60,7 +61,10 @@ Recorded here because a reader will otherwise find them in older drafts.
 
 And one hypothesis I formed and then falsified myself:
 
-4. **"alpha's bias cancels because qNEHVI ranks on a difference."** Tested: the
+4. **"The asymmetric design should win the closed-loop campaign."** Wrong, and my
+   own F13 data predicted it: the ICM at 100% labels (RMSE 1.360) beats the ICM at
+   25% + borrowing (1.430). Borrowing is a mitigation, not a strategy. (`F14`)
+5. **"alpha's bias cancels because qNEHVI ranks on a difference."** Tested: the
    bias *grows* to +293% on the difference and the ranking is only weakly
    preserved (Spearman 0.505). The correct statement is that the optimizer
    tolerates a badly perturbed acquisition ranking on this problem. (`F11`)

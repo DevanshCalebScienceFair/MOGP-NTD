@@ -9,43 +9,41 @@
 
 ---
 
-## 0. STATE AS OF 2026-09-01 EVENING
+## 0. STATE AS OF 2026-09-02 — THE COREGIONALIZATION ARC IS CLOSED
 
-Everything measured is logged in `CLAUDE.md` ("SETTLED RESULTS") and `FIGURES.md`.
-Analysis scripts and their CSV outputs are in `analysis_scripts/` — they are no longer
-in a session scratchpad, so they survive.
+Nothing running. Everything measured is in `CLAUDE.md` ("SETTLED RESULTS" and
+"THE ARC, CLOSED"), `FIGURES.md`, and `analysis_scripts/` with its CSVs.
 
-**Done and settled:** the 2x2 (`ABLATION_2X2_RESULTS.md`), the cost rewrite
-(`F4_compute_cost_REVISED.png`), what alpha is (`ALPHA_EXPLAINED.md`), the 10-seed ICM
-verdict (`MULTISEED_ICM_VERDICT.md`), the asymmetric-label result
-(`ASYMMETRIC_LABELS_RESULT.md`), and the plain-language write-up
-(`THE_NEW_METHOD_SIMPLY.md`).
+**The one-line result:** coregionalization is a **mitigation for missing labels,
+not a reason to create them.** Useless when nothing is missing (F12, 10 seeds),
+genuinely helps when labels are already sparse (F13, 20 repeats, p <= 0.004), and
+not worth engineering gaps to obtain (F14, 6 paired seeds, full wins 6/6).
 
-**Wired and tested, not yet run at scale:** the closed-loop asymmetric campaign.
-`loop.py --model hadamard --hdhfr-fraction F`. See `CLOSED_LOOP_DESIGN.md`.
+Documents: `ABLATION_2X2_RESULTS.md`, `ALPHA_EXPLAINED.md`,
+`MULTISEED_ICM_VERDICT.md`, `ASYMMETRIC_LABELS_RESULT.md`,
+`ASYM_CAMPAIGN_RESULT.md`, `WHAT_COREGIONALIZATION_IS_WORTH.md`,
+`CLOSED_LOOP_DESIGN.md`, `THE_NEW_METHOD_SIMPLY.md`.
 
-### THE NEXT JOB, and the trap in it
+### The single best remaining experiment
 
-`CLOSED_LOOP_DESIGN.md` is the spec. The one thing not to get wrong:
+**The F-sweep.** F14 tested two points (F=1.00 and F=0.25) and found a decline.
+It did NOT locate an optimum. Running F = 1.00 / 0.75 / 0.50 / 0.25 at matched
+docking budget would answer the question a lab actually asks — *what fraction of
+molecules should get the expensive second assay?* — and would let the offline
+(F13) and closed-loop (F14) results be read against each other directly.
 
-> **Hypervolume needs a complete objective vector.** A molecule with no hDHFR score is
-> silently dropped from the front. So comparing FULL (F=1.0) against ASYM (F=0.25) at
-> equal MOLECULE count measures the scoring rule, not the method — ASYM loses by
-> construction, even with a perfect model.
+An interior optimum would be the strongest result this project could produce: it
+would say coregionalization buys freedom to trade depth for breadth, and name the
+exchange rate. A monotone decline says "dock both, always", which is still
+actionable and now has a mechanism behind it. Spec and budget table in
+`CLOSED_LOOP_DESIGN.md`. ~24 runs, 12-14 h; the harness (`run_asym_campaign.sh`,
+`score_asym_campaign.py`, `nominate_and_score.py`) already does all of it.
 
-Fix the **dock-call budget** instead. At F=0.25 the asymmetric arm reaches **60% more
-distinct molecules for the same spend**. Score each arm on the true, artifact-filtered
-selectivity (PfDHFR <= -7.0, hDHFR <= 0) of the **top-k shortlist it nominates**, with
-those k docked fully — the same added cost for both arms.
+### Everything else worth doing is writing, not running
 
-Budget: ~2.5-3 h per seed for a matched pair; six seeds minimum (a paired Wilcoxon at
-n=5 caps at p=0.0625).
-
-**It may well come out null**, and that is a real possibility to plan for: the offline
-effect sizes are modest (RMSE 1.43 vs 1.50 at 25% labels) and `F11` already showed this
-optimizer tolerates a badly perturbed acquisition ranking without changing outcomes. If
-so the honest conclusion is "coregionalization helps the model under missing labels but
-not the search", which is still worth reporting.
+The measurement side of this project is done. What is left is the paper:
+fold F12/F13/F14 into the narrative, replace F4 with the revised version, and
+carry the four retractions honestly.
 
 ---
 

@@ -468,6 +468,32 @@ figure index in `FIGURES.md`; regeneration scripts in `analysis_scripts/`.
    **49**, ... Seed 0 was noise. Every endpoint null (final HV p=0.375, AUC p=0.846,
    molecules-to-target p=0.22-0.64). -> `MULTISEED_ICM_VERDICT.md`, `F12`
 
+### THE ARC, CLOSED (F12 -> F13 -> F14)
+
+**One statement covers all three: coregionalization is a MITIGATION for missing
+labels, not a reason to create them.**
+
+| situation | finding | evidence |
+|---|---|---|
+| nothing missing | **useless** — 197/400 checkpoints, every endpoint null | F12, 10 seeds |
+| labels already missing | **genuinely helps** — monotone, p <= 0.004 below 50% | F13, 20 repeats |
+| free to choose the design | **do not create gaps** — full wins 6/6, p = 0.0312 | F14, 6 paired seeds |
+
+**F14 (`ASYM_CAMPAIGN_RESULT.md`).** Matched docking budget, ~558 calls per arm,
+same Hadamard ICM / seed / init / acquisition; only `--hdhfr-fraction` differs.
+asym reached 465 molecules with 105 hDHFR labels; full reached 290 with 280.
+Full won 6/6 on hypervolume (0.3948 vs 0.3057), own-set shortlist (2.55 vs 1.54)
+AND the unbiased nomination test (1.187 vs 0.764 mean true SI of 20 nominees,
+both arms ranking the same ~26,300 unmeasured molecules and paying the same 40
+verification docks). **Only the average separates them** — validity (17.8 vs 17.5
+physical/20) and best-find (4.32 vs 4.78, p = 0.375) are ties.
+
+**This confirms F13, it does not contradict it.** Read F13 DOWN the ICM row:
+100% of labels gives RMSE 1.360, 25% + borrowing gives 1.430. Borrowing recovers
+part of what missing labels cost; it never made missing labels better than
+having them. F13's claim is comparative (at a fixed small label count the ICM
+beats an independent model), not absolute.
+
 ### The mechanism, and the result that follows from it
 
 **Autokrigeability.** 0 of 1,740 molecules have exactly one docking task observed —

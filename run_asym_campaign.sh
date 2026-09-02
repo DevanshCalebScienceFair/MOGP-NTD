@@ -6,6 +6,11 @@
 # objective and the asymmetric arm would lose by construction. We fix the number of
 # DOCK CALLS instead, which is what a lab actually pays.
 #
+# --acquisition-pool-size 2000 matches every other ablation on this project.
+# Leaving it unset scores the whole ~26,600-molecule library every iteration:
+# measured at 98.2% of wall clock (178 of 181 min), making a run ~6x slower AND
+# incomparable to every existing result. Docking was 0.2%.
+#
 # BOTH arms use --model hadamard, so the ONLY difference is --hdhfr-fraction.
 # Running FULL on the Kronecker ICM instead would confound the design change
 # (complete vs partial labels) with a model change.
@@ -42,6 +47,7 @@ JSON
   $PY loop.py --model "$MODEL" --hdhfr-fraction "$FRAC" \
        --posterior joint --acquisition-alpha 1e-3 \
        --n-init 40 --batch-size 5 --n-iterations "$ITERS" \
+       --acquisition-pool-size 2000 \
        --output-dir "$OUT" > "$LOG" 2>&1 &
   local PID=$!
 

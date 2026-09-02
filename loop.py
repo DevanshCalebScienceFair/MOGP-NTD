@@ -973,6 +973,14 @@ if __name__ == "__main__":
                              "the number of analogs added). Must be ABOVE the "
                              "current library size or densification is a no-op; "
                              "omit for no cap.")
+    parser.add_argument("--acquisition-pool-size", type=int, default=None,
+                        help="Cap the candidate pool EHVI-scores each iteration "
+                             "(default: unset = the whole library, ~26,600). A "
+                             "deliberate approximation; every ablation on this "
+                             "project used 2000, and acquisition is ~98%% of a "
+                             "run's wall clock, so leaving it unset makes a run "
+                             "both ~6x slower AND incomparable to those results. "
+                             "It MUST be identical across arms.")
     parser.add_argument("--hdhfr-fraction", type=float, default=1.0,
                         help="Fraction of each docked batch that ALSO gets docked "
                              "against hDHFR (default 1.0 = dock everything against "
@@ -1001,6 +1009,7 @@ if __name__ == "__main__":
         library_dir=args.library_dir,
         n_init=n_init,
         hdhfr_fraction=args.hdhfr_fraction,
+        acquisition_pool_size=args.acquisition_pool_size,
         batch_size=batch_size,
         n_iterations=n_iterations,
         mogp_train_iters=args.mogp_iters,

@@ -526,7 +526,7 @@ measured on our own data. **Perfectly monotone: Spearman(labels kept, advantage)
 
 ### The silent-defeat class of bug — check for these specifically
 
-Three bugs on this branch shared one shape: **the code ran, reported plausible
+Five bugs on this branch shared one shape: **the code ran, reported plausible
 numbers, and measured nothing.** Two were caught only by luck.
 
 1. **`str.replace` no-ops on a missing anchor.** `--acquisition-alpha` was accepted,
@@ -546,8 +546,23 @@ numbers, and measured nothing.** Two were caught only by luck.
    expected). Verified only because I measured the overlap instead of assuming it. Now
    a SplitMix64 finalizer, 25.4% measured.
 
+4. **A flag that does not exist is not an error.** `loop.py` exposed `--model`,
+   `--posterior`, `--n-init` and eight other knobs but **never `--seed`**, so a 6-seed
+   campaign produced six identical runs at the default seed 42. Caught only because two
+   "different" seeds gave byte-identical hypervolume (0.3930 / 0.2728) and top-20
+   selectivity (2.3948 / 1.1373). The verification gate I had written checked the model
+   name and would never have caught it. `loop.py` also had **no
+   `--acquisition-pool-size`**, which made direct runs 6x slower and incomparable.
+   **Whenever a script grows a sweep, diff two runs' outputs and confirm they differ.**
+5. **A metric can be biased by the very thing it is testing.** `score_asym_campaign.py`
+   ranked each arm's own measured molecules, but the arms measure different numbers of
+   them: the full arm chose its top-20 from 246 candidates, the asymmetric arm from 99.
+   Both of its endpoints favoured the full arm before any science happened. The fix is
+   `nominate_and_score.py`, where both arms rank the SAME unmeasured library.
+
 The lesson that generalizes: after wiring any new flag, **verify the value arrives where
 it is consumed** and that it changes what it should — do not trust that it was accepted.
+And before comparing two arms, ask what each metric is structurally biased toward.
 
 ### Operational gotchas that have each cost a run
 

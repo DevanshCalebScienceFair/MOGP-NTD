@@ -137,3 +137,36 @@ what the campaign measures.
 The per-iteration log line now reports both numbers, e.g.
 `Training GP on 84/120 molecules (52 partly labelled); qNEHVI baseline 32 fully
 evaluated`, so a future run cannot hide this again.
+
+---
+
+## Confounds this design does NOT remove (state them with the result)
+
+**1. Equal docking cost is not equal compute cost.** The asymmetric arm runs 85
+iterations to the full arm's 50, so it gets 85 model refits and 85 acquisition
+optimizations against 50. That is inherent to reaching more molecules on the
+same docking budget, but it is a genuine advantage on an axis we are not
+matching. Matching dock calls is still the right choice — docking is what a lab
+actually pays for, and it looks cheap here only because the oracle cache is warm
+for molecules seen in earlier campaigns — but the claim must be "at equal
+docking budget", never "at equal cost".
+
+**2. The asymmetric arm's Pareto front is built from a quarter of its
+molecules.** Roughly 116 fully-docked molecules against the full arm's 290. This
+biases endpoint 1 (hypervolume) toward the full arm, and it also means the
+qNEHVI baseline the asymmetric arm optimizes against is genuinely thinner. It is
+fighting with one hand tied at the acquisition step even as its GP is better
+informed. That trade is part of what is being measured, not an artifact to
+correct.
+
+**3. Wall clock is not comparable across arms here.** Docking was 0.2% of the
+first arm's runtime because seed 0's molecules were already in the oracle cache
+from previous campaigns. The asymmetric arm explores 465 molecules and will hit
+many uncached ones, so it will look slower for a reason that has nothing to do
+with the method. Compare dock calls, which `score_asym_campaign.py` asserts, not
+seconds.
+
+**4. Six seeds is the floor, not a comfortable sample.** A paired Wilcoxon at
+n=6 has a minimum two-sided p of 0.0312, so a perfect 6/6 sweep is the only way
+to clear 0.05. Any mixed result will be inconclusive, and that outcome should be
+reported as inconclusive rather than as a trend.

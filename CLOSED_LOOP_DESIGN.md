@@ -170,3 +170,36 @@ seconds.
 n=6 has a minimum two-sided p of 0.0312, so a perfect 6/6 sweep is the only way
 to clear 0.05. Any mixed result will be inconclusive, and that outcome should be
 reported as inconclusive rather than as a trend.
+
+
+---
+
+## A correction to this document (2026-09-01, after seed 0)
+
+Section A above said the arms should be scored on "the top-k by predicted
+selectivity over the whole library". I then implemented `score_asym_campaign.py`
+to rank each arm's **own measured molecules by observed selectivity** instead,
+and described that in a progress report as "the decision-relevant comparison".
+It is not, and it is not what this document specified.
+
+The implemented version inherits the exact bias I had already documented for
+hypervolume. Both arms pick a top-20, but not from pools of the same size:
+
+| seed 0 | fully measured | physical (artifact-filtered) | top-20 chosen from |
+|---|---|---|---|
+| full | 282 / 290 | 246 | **246** |
+| asym | 111 / 465 | 99 | **99** |
+
+A 2.5x larger pool for the full arm. Any advantage it shows on that metric is
+partly just a bigger lottery.
+
+**`nominate_and_score.py` is the real test.** Both arms rank the SAME ~26,300
+unmeasured library molecules with their own retrained model, nominate the top-K
+by predicted selectivity above a predicted-binding floor, and pay the SAME K*2
+verification docks. Ranking a shared candidate pool is the equaliser: neither
+arm is helped or hurt by how many molecules it happened to fully measure.
+
+`score_asym_campaign.py` is kept for the budget assertion and for reporting the
+biased endpoints WITH their bias stated, since a tie on a metric tilted against
+the asymmetric arm would itself be informative. No claim about which design
+finds better molecules should rest on it.

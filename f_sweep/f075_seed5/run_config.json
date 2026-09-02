@@ -1,0 +1,4 @@
+{"arm":"f075","model":"hadamard","hdhfr_fraction":0.75,"seed":5,
+ "n_init":40,"batch_size":5,"n_iterations":58,
+ "posterior_mode":"joint","partitioning_alpha":0.001,"acquisition_pool_size":2000,
+ "budget_dock_calls":578,"note":"F-sweep, matched docking budget"}

@@ -203,3 +203,34 @@ arm is helped or hurt by how many molecules it happened to fully measure.
 biased endpoints WITH their bias stated, since a tie on a metric tilted against
 the asymmetric arm would itself be informative. No claim about which design
 finds better molecules should rest on it.
+
+---
+
+## The better experiment, if F=0.25 loses cleanly
+
+This campaign compares two points: F=1.00 and F=0.25. If the full arm wins
+decisively, the interesting question is not "does breadth lose" but **"where is
+the optimum?"** — which is what a lab actually needs to know:
+
+> Given a fixed docking budget, what fraction of molecules should get the second,
+> more expensive assay?
+
+An F-sweep (1.00, 0.75, 0.50, 0.25) at matched dock-call budget answers that
+directly, and mirrors F13's design so the offline and closed-loop results can be
+read against each other:
+
+| F | molecules at 580 calls | hDHFR labels | iterations |
+|---|---|---|---|
+| 1.00 | 290 | 290 | 50 |
+| 0.75 | 331 | 248 | 58 |
+| 0.50 | 387 | 193 | 69 |
+| 0.25 | 464 | 116 | 85 |
+
+An interior optimum would be the strongest possible result: it would say
+coregionalization buys you the freedom to trade some depth for breadth, and name
+the exchange rate. A monotone decline says depth always wins for this problem
+and the answer is simply "dock both, always" — which is still a clear,
+actionable recommendation, and one this project can support with a mechanism.
+
+Cost: 4 arms x 6 seeds is ~24 runs, roughly 12-14 h. Only worth running after
+the current 2-point comparison shows which regime we are in.

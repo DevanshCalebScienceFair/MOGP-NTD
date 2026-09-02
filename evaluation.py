@@ -95,6 +95,32 @@ OBJECTIVE_SIGNS = list(DEFAULT_OBJECTIVE_SIGNS)
 DOCKING_KCAL_MIN = -11.0
 DOCKING_KCAL_MAX = -5.0
 
+# --- Alternative normalization frame: the hDHFR ceiling (NOT the default) ------
+# The shared -5.0 ceiling truncates exactly the direction hDHFR is optimized
+# toward (weak human binding is GOOD, sign +1), so the most selective molecules
+# all normalize to the identical value 1.0 and hypervolume cannot reward
+# improving selectivity past it. Measured over 750 distinct fully-docked
+# molecules from the six full-arm campaigns:
+#
+#   clipping above -5.0 overall .......... 25/750 = 3.3%
+#   clipping among the 50 MOST SELECTIVE . 19/50  = 38%
+#   real hDHFR range collapsed to 1.0 .... 13.14 kcal/mol
+#   raising the ceiling to 0.0 leaves ..... 5/50  = 10% still clipping
+#
+# 0.0 rather than wider: a POSITIVE Vina score means a clashing or failed pose,
+# not measured non-binding. All 5 positive-hDHFR molecules in that set sit in
+# the top 50 by selectivity, i.e. exactly the artifacts a wider ceiling would
+# reward. (An earlier note quoted 72% on a different, larger set; 38% is the
+# figure for the data in this repository.)
+#
+# Using this frame changes every hypervolume, so it is NOT the default and must
+# never be retrofitted onto the published campaign. Build it into its OWN bounds
+# file and compare only within it -- `bounds_fingerprint` exists to catch a mix.
+HDHFR_CEILING_KCAL_MAX = 0.0
+HDHFR_ALT_BOUNDS = {"hDHFR_Docking": (DOCKING_KCAL_MIN, HDHFR_CEILING_KCAL_MAX)}
+ALT_BOUNDS_PATH_HDHFR = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "evaluation_bounds_hdhfr0.json")
+
 # Backwards-compatible aliases: several modules referred to the LE-scaled names.
 DOCKING_LE_MIN = DOCKING_KCAL_MIN
 DOCKING_LE_MAX = DOCKING_KCAL_MAX
@@ -119,6 +145,7 @@ BOUNDS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
 def compute_objective_bounds(library_dir="data/library",
                              bounds_path=BOUNDS_PATH,
                              docking_min=DOCKING_KCAL_MIN, docking_max=DOCKING_KCAL_MAX,
+                             docking_bounds=None,
                              force=False):
     """Return per-objective ``(min, max)`` bounds used for normalization.
 
@@ -158,14 +185,49 @@ def compute_objective_bounds(library_dir="data/library",
     for j, col in library_tasks:
         bounds[j, 0] = float(admet[:, col].min())
         bounds[j, 1] = float(admet[:, col].max())
+    overrides = dict(docking_bounds or {})
+    # Validate BEFORE applying. The obvious check is wrong: every objective name
+    # is in TASK_NAMES, so subtracting TASK_NAMES lets a NON-DOCKING name such as
+    # 'hERG_Toxicity_Prob' through, where it would be silently ignored. Compare
+    # against the docking names only.
+    docking_names = ({TASK_NAMES[j] for j, _ in docking_tasks}
+                     | {t for _, t in docking_tasks})
+    unknown = set(overrides) - docking_names
+    if unknown:
+        raise ValueError(
+            f"compute_objective_bounds: docking_bounds names {sorted(unknown)} are "
+            f"not docking objectives. Valid: {sorted(docking_names)}. "
+            f"ADMET bounds come from the library and are not overridable."
+        )
     for j, _target in docking_tasks:
-        # Every docking objective shares the same fixed ligand-efficiency range
-        # (per atom); direction is a matter of sign, not of bounds.
-        bounds[j, 0] = float(docking_min)
-        bounds[j, 1] = float(docking_max)
+        # Docking objectives share one fixed range by default; direction is a
+        # matter of sign, not of bounds. `docking_bounds` lets ONE target take a
+        # different range, which is what the hDHFR ceiling experiment needs: the
+        # shared -5.0 ceiling truncates exactly the direction hDHFR is optimized
+        # toward, so the most selective molecules all collapse to the identical
+        # normalized value and the acquisition gets no gradient there.
+        name = TASK_NAMES[j]
+        lo, hi = overrides.get(name, overrides.get(_target, (docking_min, docking_max)))
+        bounds[j, 0] = float(lo)
+        bounds[j, 1] = float(hi)
+
 
     _save_bounds(bounds, bounds_path)
     return bounds
+
+
+def bounds_fingerprint(bounds):
+    """Short stable hash of a bounds table.
+
+    Hypervolume is only comparable between runs that share a normalization
+    frame: change one bound and every number moves, for reasons that have
+    nothing to do with the method. Runs record this so a later comparison can
+    refuse to mix frames instead of quietly averaging them.
+    """
+    import hashlib
+    arr = np.asarray(bounds, dtype=float).reshape(-1)
+    payload = ",".join(f"{v:.10g}" for v in arr) + "|" + ",".join(TASK_NAMES)
+    return hashlib.sha256(payload.encode()).hexdigest()[:12]
 
 
 def _bounds_to_dict(bounds):

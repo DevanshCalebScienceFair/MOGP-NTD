@@ -117,13 +117,35 @@ the 1.8× from the joint posterior is mostly dedup, not covariance.
 Still real and separate: `ninja` off PATH makes BoTorch fall back to pure-Python qLogEHVI,
 ~3×. Fix by putting the env's `bin/` on PATH (`go.sh:43` already does).
 
-## 4. Still open, deliberately not done
+## 4. Still open
 
-- **hDHFR bound** (`HDHFR_BOUND_DECISION.md`). The artifact finding **reversed its direction**:
-  the original argument was to widen the ceiling to uncensor selectivity; the artifacts say
-  **cap** it, because widening rewards clashing poses. Needs its own arm; never retrofit.
-- **Reference-point sweep** (plan §4.1). Never run. Decoupled acquisition reference while
-  keeping `FIXED_REFERENCE_POINT` for the metric.
+- **hDHFR bound — NOW RUNNABLE** (`HDHFR_BOUND_DECISION.md`). The machinery is built
+  and tested; the arm has not been run.
+
+  ```bash
+  python make_alt_bounds.py          # writes evaluation_bounds_hdhfr0.json
+  ./run_hdhfr_bound_arm.sh           # 6 seeds, ~25 min each
+  python analysis_scripts/hdhfr_bound_analysis.py
+  ```
+
+  Re-measured on this repository's data (750 distinct fully-docked molecules, six
+  full-arm campaigns): **19/50 of the most selective molecules clip** above the -5.0
+  ceiling — 38%, not the 72% an earlier note quoted from a different set — collapsing
+  **13.14 kcal/mol** onto the single normalized value 1.0. Raising the ceiling to 0.0
+  leaves 5/50. Only 5/750 molecules score positive on hDHFR and **all five sit in the
+  top 50 by selectivity**, which is precisely why the ceiling is 0.0 and not wider: a
+  positive Vina score is a clash, not weak binding.
+
+  **The trap:** the two arms are scored in DIFFERENT normalization frames, so their
+  hypervolumes are not comparable — changing a bound moves every number for reasons
+  unrelated to the method. `evaluation.bounds_fingerprint` exists to catch a mix, and
+  `hdhfr_bound_analysis.py` refuses to compare hypervolume, judging instead on
+  frame-independent quantities from raw kcal/mol.
+
+- **Reference-point sweep** (plan §4.1). Still never run. `compute_qnehvi` already
+  takes `ref_point`; what is missing is a CLI knob and an arm. Lower value than the
+  hDHFR bound because the fixed all-zeros reference is defensible, whereas the -5.0
+  ceiling is a measured defect.
 - **Citations.** `SOURCES.md` — verify each yourself before submission.
 
 ## 5. Do NOT revisit

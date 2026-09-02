@@ -233,8 +233,18 @@ class BOLoop:
                  densify=False, densify_every=1, densify_per_parent=20,
                  densify_max_pool=None, acquisition_pool_size=None,
                  posterior_mode=DEFAULT_POSTERIOR_MODE,
-                 hdhfr_fraction=1.0):
+                 hdhfr_fraction=1.0, bounds_path=None):
         # --- Reproducibility ---
+        # Normalization frame. None = the published frame in
+        # evaluation.evaluation_bounds.json. An alternative frame (e.g. the
+        # hDHFR ceiling at 0.0) changes EVERY hypervolume, so it lives in its own
+        # file and its fingerprint is recorded: runs in different frames are not
+        # comparable and `evaluation.bounds_fingerprint` exists to catch a mix.
+        self.bounds_path = bounds_path
+        self.bounds = (evaluation.compute_objective_bounds(bounds_path=bounds_path)
+                       if bounds_path else None)
+        self.bounds_fingerprint = (evaluation.bounds_fingerprint(self.bounds)
+                                   if self.bounds is not None else None)
         self.hdhfr_fraction = float(hdhfr_fraction)
         if not 0.0 < self.hdhfr_fraction <= 1.0:
             raise ValueError(
@@ -627,7 +637,7 @@ class BOLoop:
         baseline for the same evaluated set, and no longer depends on a
         per-method reference point derived from this run's own data.
         """
-        return evaluation.compute_hypervolume(self.Y_evaluated)
+        return evaluation.compute_hypervolume(self.Y_evaluated, bounds=self.bounds)
 
     # ------------------------------------------------------------------ #
     # Main loop stages
@@ -734,6 +744,7 @@ class BOLoop:
             X_candidates, candidate_admet,
             baseline_x, baseline_admet,
             batch_size=self.batch_size,
+            bounds=self.bounds,
             diversity_threshold=self.diversity_threshold,
             partitioning_alpha=self.partitioning_alpha,
             posterior_mode=self.posterior_mode,
@@ -973,6 +984,12 @@ if __name__ == "__main__":
                              "the number of analogs added). Must be ABOVE the "
                              "current library size or densification is a no-op; "
                              "omit for no cap.")
+    parser.add_argument("--bounds-path", default=None,
+                        help="Alternative normalization-bounds JSON. Default: the "
+                             "published frame (evaluation_bounds.json). An "
+                             "alternative frame changes EVERY hypervolume, so runs "
+                             "using one are comparable only to each other; the "
+                             "frame fingerprint is printed and recorded.")
     parser.add_argument("--seed", type=int, default=42,
                         help="Random seed: fixes the initial molecules, the "
                              "per-iteration candidate subsample, and which "
@@ -1014,9 +1031,11 @@ if __name__ == "__main__":
     print(f"  n_init={n_init}, batch_size={batch_size}, n_iterations={n_iterations}")
     print(f"  seed={args.seed}  hdhfr_fraction={args.hdhfr_fraction}  "
           f"acquisition_pool_size={args.acquisition_pool_size}")
+    print(f"  bounds_frame={args.bounds_path or 'published (evaluation_bounds.json)'}")
     loop = BOLoop(
         library_dir=args.library_dir,
         seed=args.seed,
+        bounds_path=args.bounds_path,
         n_init=n_init,
         hdhfr_fraction=args.hdhfr_fraction,
         acquisition_pool_size=args.acquisition_pool_size,

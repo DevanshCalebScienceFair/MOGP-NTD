@@ -765,7 +765,8 @@ def select_batch(model, likelihood, y_mean, y_std,
                  batch_size=20, diversity_threshold=0.7,
                  objective_signs=None, n_mc_samples=N_MC_SAMPLES, layout=None,
                  posterior_mode=DEFAULT_POSTERIOR_MODE,
-                 partitioning_alpha=DEFAULT_PARTITIONING_ALPHA):
+                 partitioning_alpha=DEFAULT_PARTITIONING_ALPHA,
+                 bounds=None):
     """Greedily select a diverse, high-qNEHVI batch of candidates.
 
     Candidates are ranked by their qNEHVI score (``compute_qnehvi``), then walked
@@ -799,6 +800,7 @@ def select_batch(model, likelihood, y_mean, y_std,
         X_candidates, candidate_admet, X_baseline, baseline_admet,
         objective_signs=objective_signs, n_mc_samples=n_mc_samples, layout=layout,
         posterior_mode=posterior_mode, partitioning_alpha=partitioning_alpha,
+        bounds=bounds,
     )
 
     # Rank candidates by qNEHVI score, highest first.

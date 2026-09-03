@@ -235,7 +235,8 @@ class BOLoop:
                  densify_max_pool=None, acquisition_pool_size=None,
                  posterior_mode=DEFAULT_POSTERIOR_MODE,
                  hdhfr_fraction=1.0, bounds_path=None,
-                 acquisition_ref_point=None, reject_artifacts=False):
+                 acquisition_ref_point=None, reject_artifacts=False,
+                 reject_artifacts_training=False):
         # --- Reproducibility ---
         # Normalization frame. None = the published frame in
         # evaluation.evaluation_bounds.json. An alternative frame (e.g. the
@@ -264,6 +265,24 @@ class BOLoop:
         # per campaign, worse in 6/6 seeds). Rejecting them during the search
         # attacks the same defect without handing the optimizer that gradient.
         self.reject_artifacts = bool(reject_artifacts)
+        # Keep clashing poses out of the GP TRAINING SET, which is a different
+        # and probably more important place than the front.
+        #
+        # ARTIFACT_REJECTION_RESULT.md: filtering only the baseline engaged
+        # (9.6% of the front removed) and changed nothing -- the rejecting arm
+        # even evaluated slightly MORE artifacts. The reason is that artifacts do
+        # not enter through the front, they enter through the MODEL. On seed 0,
+        # 31 of 290 evaluated molecules were artifacts with mean apparent
+        # selectivity +0.68 against +0.13 for physical ones, so the GP is fitted
+        # on labels saying "extremely selective", learns the fragments that
+        # produce them, and keeps proposing more.
+        #
+        # KNOWN RISK, and the reason this is a separate switch rather than the
+        # default: dropping those rows leaves the GP with NO data in that region,
+        # hence high posterior variance there, which qNEHVI may read as worth
+        # exploring. It could therefore make artifact chasing worse rather than
+        # better. That is exactly what the arm measures.
+        self.reject_artifacts_training = bool(reject_artifacts_training)
         self.acquisition_ref_point = acquisition_ref_point
         if (acquisition_ref_point is not None
                 and acquisition_ref_point not in acquisition.REF_POINT_MODES):
@@ -736,6 +755,20 @@ class BOLoop:
             train_rows = np.isfinite(self.Y_evaluated[:, dock_cols]).any(axis=1)
         else:
             train_rows = finite_rows
+        if self.reject_artifacts_training:
+            # A partly-docked molecule cannot be judged non-physical on a task it
+            # has no value for, so only rows with BOTH docking scores are subject
+            # to the filter; the rest pass through.
+            judgeable = np.isfinite(self.Y_evaluated[:, [j for j, _ in DOCKING_TASKS]]).all(axis=1)
+            keep = ~judgeable | evaluation.is_physical(self.Y_evaluated)
+            if (train_rows & keep).any():
+                train_rows = train_rows & keep
+            else:
+                warnings.warn(
+                    "reject_artifacts_training: filtering would empty the "
+                    "training set; keeping it unfiltered this iteration.",
+                    RuntimeWarning, stacklevel=2,
+                )
         train_x = self.fingerprints[eval_idx[train_rows]]
         train_y = self.Y_evaluated[train_rows].astype(np.float32)
         # ONE log line covering both switches. The earlier version reported
@@ -751,7 +784,10 @@ class BOLoop:
         if self.partial_labels and n_part:
             bits.append(f"{n_part} partly labelled")
         if self.reject_artifacts:
-            bits.append(f"{n_drop} artifacts rejected")
+            bits.append(f"{n_drop} artifacts off the front")
+        if self.reject_artifacts_training:
+            bits.append(f"{int(finite_rows.sum() - (train_rows & finite_rows).sum())} "
+                        f"artifacts out of training")
         extra = f" ({'; '.join(bits)})" if bits else ""
         print(f"\n[Iteration {iteration}] Training GP on "
               f"{int(train_rows.sum())}/{len(self.evaluated_indices)} molecules"
@@ -1038,6 +1074,14 @@ if __name__ == "__main__":
                              "the number of analogs added). Must be ABOVE the "
                              "current library size or densification is a no-op; "
                              "omit for no cap.")
+    parser.add_argument("--reject-artifacts-training", action="store_true",
+                        help="Exclude non-physical poses from the GP TRAINING SET, "
+                             "so the model never learns that a clashing pose is "
+                             "'selective'. Filtering only the front was measured to "
+                             "do nothing (ARTIFACT_REJECTION_RESULT.md); this is "
+                             "where the artifacts actually enter. RISK: it also "
+                             "leaves the GP with no data there, hence high variance, "
+                             "which qNEHVI may read as worth exploring.")
     parser.add_argument("--reject-artifacts", action="store_true",
                         help="Exclude non-physical docking poses (PfDHFR > -7.0 or "
                              "hDHFR > 0.0) from the qNEHVI BASELINE, so a clashing "
@@ -1103,13 +1147,15 @@ if __name__ == "__main__":
           f"acquisition_pool_size={args.acquisition_pool_size}")
     print(f"  bounds_frame={args.bounds_path or 'published (evaluation_bounds.json)'}")
     print(f"  acquisition_ref_point={args.acquisition_ref_point or 'zeros (default)'}")
-    print(f"  reject_artifacts={args.reject_artifacts}")
+    print(f"  reject_artifacts={args.reject_artifacts}  "
+          f"reject_artifacts_training={args.reject_artifacts_training}")
     loop = BOLoop(
         library_dir=args.library_dir,
         seed=args.seed,
         bounds_path=args.bounds_path,
         acquisition_ref_point=args.acquisition_ref_point,
         reject_artifacts=args.reject_artifacts,
+        reject_artifacts_training=args.reject_artifacts_training,
         n_init=n_init,
         hdhfr_fraction=args.hdhfr_fraction,
         acquisition_pool_size=args.acquisition_pool_size,

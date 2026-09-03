@@ -119,39 +119,45 @@ Still real and separate: `ninja` off PATH makes BoTorch fall back to pure-Python
 
 ## 4. Still open
 
-Three arms are **built, tested and staged**. None has been run.
+| arm | command | asks | ~time | status |
+|---|---|---|---|---|
+| **training-set filter** | `./run_artifact_training_arm.sh` | stop the MODEL learning that a clash is selective | 2.5 h | **built, not run** |
+| citations | — | `SOURCES.md`, verify each yourself | — | yours |
 
-| arm | command | asks | ~time |
-|---|---|---|---|
-| **artifact rejection** | `./run_artifact_rejection_arm.sh` | keep clashing poses off the front — the fix F19 pointed to | 2.5 h |
-| **reference point** | `./run_ref_point_arm.sh` | does a tighter acquisition reference help? | 2.5 h |
-| citations | — | `SOURCES.md`, verify each yourself | — |
+### Training-set filter — the one worth running
 
-### Artifact rejection — the highest-value one
+`--reject-artifacts-training` excludes non-physical poses from the **GP training
+set**, not the front.
 
-`--reject-artifacts` excludes non-physical poses (PfDHFR > -7.0 or hDHFR > 0.0)
-from the **qNEHVI baseline**. A clashing pose scores positive on hDHFR, so its
-selectivity looks enormous while it binds nothing; on the front it tells the
-optimizer that corner is already won. **42% of the campaign's raw top-5 by
-selectivity were non-physical.**
+F21 measured the front version: it engaged (9.6% of the front removed) and
+changed nothing, and the rejecting arm even evaluated slightly *more* artifacts.
+The diagnosis is that **artifacts enter through the model, not the front** — on
+seed 0, 31 of 290 evaluated molecules were artifacts with mean apparent
+selectivity **+0.68** against **+0.13** for physical ones, so the GP is fitted on
+labels saying "extremely selective" and learns the fragments that produce them.
 
-Motivated by F19: the hDHFR ceiling arm confirmed the selectivity axis is
-truncated, but un-truncating it mostly bought artifacts (+0.5 useful molecules,
-**+2.2 artifacts**, worse in 6/6 seeds). This attacks the same defect from the
-other side and keeps the published frame.
+**Stated in advance so the result cannot be spun:** dropping those rows leaves
+the GP with *no* data in that region, hence high posterior variance, which qNEHVI
+may read as worth exploring. **This arm could make artifact chasing worse.** That
+is the measurement, not a caveat added afterwards.
 
-**Directly comparable to the baseline** — the metric is unchanged and no molecule
-is discarded, so no re-scoring is needed (unlike the hDHFR arm). A test asserts
-the metric still scores every evaluated molecule.
+Metric unchanged, molecules not discarded, so directly comparable with no
+re-scoring. A partly-docked molecule is never judged an artifact — it has no
+value on one task, so it cannot be called non-physical (tested).
 
-Also: `evaluation.is_physical` is now the single source of truth for a filter
-that had been copy-pasted into five analysis scripts.
+### Judge it on the right endpoint
 
-### Reference point
+Seed noise on hypervolume in F21 was an order of magnitude larger than the mean
+effect (+0.032 and −0.024 in the same experiment). **Six seeds cannot settle this
+on hypervolume.** Judge on *artifacts evaluated* and *top-20 selectivity*, and
+expect to need more than six seeds for anything else.
 
-`--acquisition-ref-point {zeros,nadir}`. Also metric-preserving, so also directly
-comparable. Worth running alongside `alpha`, since a reference far beneath the
-data inflates total volume and makes `alpha` discard harder.
+### Done and settled
+
+`run_ref_point_arm.sh` and `run_artifact_rejection_arm.sh` have both been run;
+`run_hdhfr_bound_arm.sh` and `run_model_comparison.sh` too. Results in
+`ARTIFACT_REJECTION_RESULT.md`, `HDHFR_CEILING_RESULT.md`,
+`MODEL_COMPARISON_RESULT.md`, and the reference-point write-up.
 
 ## 5. Do NOT revisit
 

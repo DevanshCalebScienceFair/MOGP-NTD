@@ -72,3 +72,44 @@ def test_it_defaults_to_off():
     """Published behaviour must be untouched unless asked for."""
     from loop import BOLoop
     assert inspect.signature(BOLoop.__init__).parameters["reject_artifacts"].default is False
+
+
+# --- filtering the TRAINING set, which is where artifacts actually enter ------
+
+def test_training_filter_is_a_separate_switch_and_defaults_off():
+    from loop import BOLoop
+    import inspect
+    p = inspect.signature(BOLoop.__init__).parameters
+    assert "reject_artifacts_training" in p
+    assert p["reject_artifacts_training"].default is False
+    # and it must be independent of the front filter, since the front filter was
+    # measured to do nothing and the two are different hypotheses
+    assert "reject_artifacts" in p and p["reject_artifacts"].default is False
+
+
+def test_training_filter_is_wired_to_train_rows_not_the_baseline():
+    src = open("loop.py").read()
+    assert '"--reject-artifacts-training"' in src, "no CLI flag"
+    assert "reject_artifacts_training=args.reject_artifacts_training" in src, \
+        "flag never reaches BOLoop"
+    assert "train_rows = train_rows & keep" in src, \
+        "the training filter must narrow train_rows"
+    # and it must NOT be the same code path as the front filter
+    assert "baseline_rows = candidate_rows" in src
+
+
+def test_a_partly_docked_molecule_is_not_judged_an_artifact():
+    """It has no value on one task, so it cannot be called non-physical."""
+    import numpy as np
+    from mogp import DOCKING_TASK_INDICES
+    pf, hd = DOCKING_TASK_INDICES
+    Y = np.zeros((3, len(E.TASK_NAMES)))
+    Y[0, pf], Y[0, hd] = -9.0, -8.0          # physical
+    Y[1, pf], Y[1, hd] = -9.0, +2.0          # clash
+    Y[2, pf], Y[2, hd] = -9.0, np.nan        # only one label
+    judgeable = np.isfinite(Y[:, [pf, hd]]).all(axis=1)
+    keep = ~judgeable | E.is_physical(Y)
+    assert keep.tolist() == [True, False, True], (
+        "a partly-docked molecule must survive the filter; only a molecule "
+        "measured on BOTH tasks can be judged non-physical"
+    )

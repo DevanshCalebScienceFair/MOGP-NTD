@@ -738,20 +738,24 @@ class BOLoop:
             train_rows = finite_rows
         train_x = self.fingerprints[eval_idx[train_rows]]
         train_y = self.Y_evaluated[train_rows].astype(np.float32)
-        if self.partial_labels:
-            n_part = int(train_rows.sum() - finite_rows.sum())
-            print(f"\n[Iteration {iteration}] Training GP on "
-                  f"{int(train_rows.sum())}/{len(self.evaluated_indices)} molecules "
-                  f"({n_part} partly labelled); qNEHVI baseline "
-                  f"{int(finite_rows.sum())} fully evaluated...")
-        else:
-            n_drop = int(finite_rows.sum() - baseline_rows.sum())
-            print(f"\n[Iteration {iteration}] Training GP on "
-                  f"{int(finite_rows.sum())}/{len(self.evaluated_indices)} "
-                  f"fully-evaluated molecules"
-                  + (f"; qNEHVI baseline {int(baseline_rows.sum())} "
-                     f"({n_drop} artifacts rejected)" if self.reject_artifacts else "")
-                  + "...")
+        # ONE log line covering both switches. The earlier version reported
+        # `finite_rows` as the baseline size in the partial-labels branch, which
+        # is the UNFILTERED count -- so with --reject-artifacts on it printed
+        # "baseline 39" while the acquisition actually saw fewer, and the
+        # runner's post-hoc check reported 0 rejections for every seed. The
+        # science was right; the reporting was not, which is worse than useless
+        # because it would have been read as "the arm never engaged".
+        n_part = int(train_rows.sum() - finite_rows.sum())
+        n_drop = int(finite_rows.sum() - baseline_rows.sum())
+        bits = []
+        if self.partial_labels and n_part:
+            bits.append(f"{n_part} partly labelled")
+        if self.reject_artifacts:
+            bits.append(f"{n_drop} artifacts rejected")
+        extra = f" ({'; '.join(bits)})" if bits else ""
+        print(f"\n[Iteration {iteration}] Training GP on "
+              f"{int(train_rows.sum())}/{len(self.evaluated_indices)} molecules"
+              f"{extra}; qNEHVI baseline {int(baseline_rows.sum())}...")
         iter_start = time.perf_counter()
         t0 = time.perf_counter()
         model, likelihood, y_mean, y_std = self.train_fn(

@@ -235,7 +235,7 @@ class BOLoop:
                  densify_max_pool=None, acquisition_pool_size=None,
                  posterior_mode=DEFAULT_POSTERIOR_MODE,
                  hdhfr_fraction=1.0, bounds_path=None,
-                 acquisition_ref_point=None):
+                 acquisition_ref_point=None, reject_artifacts=False):
         # --- Reproducibility ---
         # Normalization frame. None = the published frame in
         # evaluation.evaluation_bounds.json. An alternative frame (e.g. the
@@ -246,6 +246,24 @@ class BOLoop:
         # uses evaluation.FIXED_REFERENCE_POINT (all zeros), so an arm using a
         # different acquisition reference stays comparable to every other run --
         # unlike a bounds change, which moves the metric itself.
+        # Exclude non-physical docking poses from the qNEHVI BASELINE -- the front
+        # the acquisition scores against. A clashing pose scores positive on
+        # hDHFR and therefore looks maximally SELECTIVE while binding nothing, so
+        # leaving it on the front tells the optimizer that region is already won
+        # and worth extending. 42% of the campaign's raw top-5 by selectivity
+        # were non-physical.
+        #
+        # This does NOT change the reported metric, and does NOT discard the
+        # molecules: they were docked, they stay in Y_evaluated, and hypervolume
+        # still scores them exactly as before. Only the acquisition's notion of
+        # "the current front" changes, so an arm using this remains directly
+        # comparable to every published run.
+        #
+        # Motivated by the hDHFR ceiling arm (HDHFR_CEILING_RESULT.md): widening
+        # the axis to un-censor selectivity mostly bought artifacts (2.3 -> 4.5
+        # per campaign, worse in 6/6 seeds). Rejecting them during the search
+        # attacks the same defect without handing the optimizer that gradient.
+        self.reject_artifacts = bool(reject_artifacts)
         self.acquisition_ref_point = acquisition_ref_point
         if (acquisition_ref_point is not None
                 and acquisition_ref_point not in acquisition.REF_POINT_MODES):
@@ -689,7 +707,21 @@ class BOLoop:
         # sit on the baseline front. Its library indices also index the
         # known-exact ADMET rows handed to the acquisition, so this array and
         # `baseline_x` must stay in lockstep.
-        baseline_library_indices = eval_idx[finite_rows]
+        baseline_rows = finite_rows
+        if self.reject_artifacts:
+            physical = evaluation.is_physical(self.Y_evaluated)
+            candidate_rows = finite_rows & physical
+            # Never hand qNEHVI an empty front: early iterations can legitimately
+            # contain no physical molecule at all, and an empty baseline raises.
+            if candidate_rows.any():
+                baseline_rows = candidate_rows
+            else:
+                warnings.warn(
+                    "reject_artifacts: no physical molecule evaluated yet; "
+                    "falling back to the unfiltered baseline this iteration.",
+                    RuntimeWarning, stacklevel=2,
+                )
+        baseline_library_indices = eval_idx[baseline_rows]
         baseline_x = self.fingerprints[baseline_library_indices]
 
         # The GP TRAINING SET is a different question. A model that accepts
@@ -713,9 +745,13 @@ class BOLoop:
                   f"({n_part} partly labelled); qNEHVI baseline "
                   f"{int(finite_rows.sum())} fully evaluated...")
         else:
+            n_drop = int(finite_rows.sum() - baseline_rows.sum())
             print(f"\n[Iteration {iteration}] Training GP on "
                   f"{int(finite_rows.sum())}/{len(self.evaluated_indices)} "
-                  f"fully-evaluated molecules...")
+                  f"fully-evaluated molecules"
+                  + (f"; qNEHVI baseline {int(baseline_rows.sum())} "
+                     f"({n_drop} artifacts rejected)" if self.reject_artifacts else "")
+                  + "...")
         iter_start = time.perf_counter()
         t0 = time.perf_counter()
         model, likelihood, y_mean, y_std = self.train_fn(
@@ -998,6 +1034,13 @@ if __name__ == "__main__":
                              "the number of analogs added). Must be ABOVE the "
                              "current library size or densification is a no-op; "
                              "omit for no cap.")
+    parser.add_argument("--reject-artifacts", action="store_true",
+                        help="Exclude non-physical docking poses (PfDHFR > -7.0 or "
+                             "hDHFR > 0.0) from the qNEHVI BASELINE, so a clashing "
+                             "pose cannot masquerade as a maximally selective "
+                             "molecule and steer the search. Does NOT change the "
+                             "reported metric and does NOT discard the molecules, "
+                             "so arms using it stay comparable to published runs.")
     parser.add_argument("--acquisition-ref-point", default=None,
                         choices=["zeros", "nadir"],
                         help="Reference point the ACQUISITION optimizes against. "
@@ -1056,11 +1099,13 @@ if __name__ == "__main__":
           f"acquisition_pool_size={args.acquisition_pool_size}")
     print(f"  bounds_frame={args.bounds_path or 'published (evaluation_bounds.json)'}")
     print(f"  acquisition_ref_point={args.acquisition_ref_point or 'zeros (default)'}")
+    print(f"  reject_artifacts={args.reject_artifacts}")
     loop = BOLoop(
         library_dir=args.library_dir,
         seed=args.seed,
         bounds_path=args.bounds_path,
         acquisition_ref_point=args.acquisition_ref_point,
+        reject_artifacts=args.reject_artifacts,
         n_init=n_init,
         hdhfr_fraction=args.hdhfr_fraction,
         acquisition_pool_size=args.acquisition_pool_size,

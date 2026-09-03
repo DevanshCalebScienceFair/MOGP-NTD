@@ -119,53 +119,39 @@ Still real and separate: `ninja` off PATH makes BoTorch fall back to pure-Python
 
 ## 4. Still open
 
-- **hDHFR bound — NOW RUNNABLE** (`HDHFR_BOUND_DECISION.md`). The machinery is built
-  and tested; the arm has not been run.
+Three arms are **built, tested and staged**. None has been run.
 
-  ```bash
-  python make_alt_bounds.py          # writes evaluation_bounds_hdhfr0.json
-  ./run_hdhfr_bound_arm.sh           # 6 seeds, ~25 min each
-  python analysis_scripts/hdhfr_bound_analysis.py
-  ```
+| arm | command | asks | ~time |
+|---|---|---|---|
+| **artifact rejection** | `./run_artifact_rejection_arm.sh` | keep clashing poses off the front — the fix F19 pointed to | 2.5 h |
+| **reference point** | `./run_ref_point_arm.sh` | does a tighter acquisition reference help? | 2.5 h |
+| citations | — | `SOURCES.md`, verify each yourself | — |
 
-  Re-measured on this repository's data (750 distinct fully-docked molecules, six
-  full-arm campaigns): **19/50 of the most selective molecules clip** above the -5.0
-  ceiling — 38%, not the 72% an earlier note quoted from a different set — collapsing
-  **13.14 kcal/mol** onto the single normalized value 1.0. Raising the ceiling to 0.0
-  leaves 5/50. Only 5/750 molecules score positive on hDHFR and **all five sit in the
-  top 50 by selectivity**, which is precisely why the ceiling is 0.0 and not wider: a
-  positive Vina score is a clash, not weak binding.
+### Artifact rejection — the highest-value one
 
-  **The trap:** the two arms are scored in DIFFERENT normalization frames, so their
-  hypervolumes are not comparable — changing a bound moves every number for reasons
-  unrelated to the method. `evaluation.bounds_fingerprint` exists to catch a mix, and
-  `hdhfr_bound_analysis.py` refuses to compare hypervolume, judging instead on
-  frame-independent quantities from raw kcal/mol.
+`--reject-artifacts` excludes non-physical poses (PfDHFR > -7.0 or hDHFR > 0.0)
+from the **qNEHVI baseline**. A clashing pose scores positive on hDHFR, so its
+selectivity looks enormous while it binds nothing; on the front it tells the
+optimizer that corner is already won. **42% of the campaign's raw top-5 by
+selectivity were non-physical.**
 
-- **Reference-point sweep — NOW RUNNABLE** (plan §4.1). Machinery built and tested;
-  the arm has not been run.
+Motivated by F19: the hDHFR ceiling arm confirmed the selectivity axis is
+truncated, but un-truncating it mostly bought artifacts (+0.5 useful molecules,
+**+2.2 artifacts**, worse in 6/6 seeds). This attacks the same defect from the
+other side and keeps the published frame.
 
-  ```bash
-  ./run_ref_point_arm.sh                 # 6 seeds, ~25 min each
-  python analysis_scripts/ref_point_analysis.py
-  ```
+**Directly comparable to the baseline** — the metric is unchanged and no molecule
+is discarded, so no re-scoring is needed (unlike the hDHFR arm). A test asserts
+the metric still scores every evaluated molecule.
 
-  `--acquisition-ref-point {zeros,nadir}`. `zeros` (default, and what every published
-  run used) is the worst corner of the normalized cube; `nadir` sits just below the
-  worst observed value per objective, concentrating improvement where the front
-  actually is.
+Also: `evaluation.is_physical` is now the single source of truth for a filter
+that had been copy-pasted into five analysis scripts.
 
-  **Unlike the hDHFR bound, this does NOT move the metric** — the reported
-  hypervolume always uses `evaluation.FIXED_REFERENCE_POINT`, so this arm is directly
-  comparable to `asym_campaign/full_seed*`. A test asserts `compute_hypervolume`
-  never takes a reference point, so that decoupling cannot silently rot.
+### Reference point
 
-  Second reason to care: `partitioning_alpha` discards cells below a fraction of
-  TOTAL volume, so a reference far beneath the data inflates the total and makes
-  alpha discard harder. alpha=1e-3 preserves the candidate ranking only weakly
-  (Spearman 0.505, `ALPHA_EXPLAINED.md`); a tighter reference is one lever that could
-  reduce that distortion. Worth measuring the two together.
-- **Citations.** `SOURCES.md` — verify each yourself before submission.
+`--acquisition-ref-point {zeros,nadir}`. Also metric-preserving, so also directly
+comparable. Worth running alongside `alpha`, since a reference far beneath the
+data inflates total volume and makes `alpha` discard harder.
 
 ## 5. Do NOT revisit
 

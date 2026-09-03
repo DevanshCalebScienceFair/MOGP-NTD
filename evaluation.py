@@ -216,6 +216,48 @@ def compute_objective_bounds(library_dir="data/library",
     return bounds
 
 
+# --- The docking-artifact filter, in one place -------------------------------
+# A Vina score that is POSITIVE, or barely negative, means a clashing or failed
+# pose rather than measured non-binding. Such molecules look maximally SELECTIVE
+# (huge hDHFR minus PfDHFR) while binding nothing, so they contaminate exactly
+# the endpoint this project is about: 42% of the campaign's raw top-5 by
+# selectivity were non-physical.
+#
+# These thresholds were used ad hoc in five separate analysis scripts before
+# being collected here. They operate on RAW kcal/mol, which is what
+# BOLoop.Y_evaluated stores in the docking columns.
+ARTIFACT_PF_MAX = -7.0   # must actually bind the parasite target
+ARTIFACT_HD_MAX = 0.0    # a positive hDHFR score is a clash, not weak binding
+
+
+def is_physical(Y, pf_max=ARTIFACT_PF_MAX, hd_max=ARTIFACT_HD_MAX):
+    """Boolean mask of rows whose docking poses are physically plausible.
+
+    Rows missing either docking value are NOT physical -- an unmeasured pose
+    cannot be vouched for. Objectives other than docking are ignored.
+
+    Args:
+        Y: ``(N, N_OBJECTIVES)`` in ORIGINAL units (raw kcal/mol for docking).
+        pf_max: Weakest acceptable PfDHFR score.
+        hd_max: Weakest acceptable hDHFR score.
+
+    Returns:
+        Boolean array of length ``N``.
+    """
+    Y = np.asarray(Y, dtype=float)
+    if Y.ndim != 2 or Y.shape[0] == 0:
+        return np.zeros(0 if Y.ndim != 2 else Y.shape[0], dtype=bool)
+    # Resolve the docking columns the same way the rest of this module does --
+    # via OBJECTIVE_SOURCES, never by assuming a column position.
+    from data import ADMET_COLUMNS
+    _, docking_tasks, _ = resolve_objective_layout(ADMET_COLUMNS)
+    dock = [j for j, _ in docking_tasks if j < Y.shape[1]]
+    if len(dock) < 2:
+        return np.ones(Y.shape[0], dtype=bool)
+    pf, hd = Y[:, dock[0]], Y[:, dock[1]]
+    return np.isfinite(pf) & np.isfinite(hd) & (pf <= pf_max) & (hd <= hd_max)
+
+
 def bounds_fingerprint(bounds):
     """Short stable hash of a bounds table.
 

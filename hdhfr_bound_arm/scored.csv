@@ -1,0 +1,2 @@
+seed,old_hv_published,new_hv_published,old_evaluated,old_physical,old_top20_SI,old_best_SI,old_best_pf,old_in_censored_band,old_artifacts,new_evaluated,new_physical,new_top20_SI,new_best_SI,new_best_pf,new_in_censored_band,new_artifacts
+0,0.3962918568802018,0.3978640601230384,282,255,2.15395,5.372,-11.1,9,2,282,248,2.43015,5.372,-11.1,11,7

@@ -23,6 +23,29 @@ PF_MAX, HD_MAX = -7.0, 0.0
 OLD_CEIL = E.DOCKING_KCAL_MAX          # -5.0
 
 
+PUB_BOUNDS = None          # filled in main; the PUBLISHED frame
+
+
+def rescore_in_published_frame(path):
+    """Score an arm's FOUND MOLECULES with the PUBLISHED metric.
+
+    This is the comparison that actually answers the question, and it is better
+    than the frame-independent proxies below. Each arm SEARCHED under its own
+    frame, but both arms' molecules can be scored with the same fixed ruler
+    afterwards. So:
+
+        did searching under the wider hDHFR ceiling find molecules that are
+        better BY THE PUBLISHED METRIC?
+
+    A run's own reported hypervolume cannot answer that -- widening the axis
+    lowers every number mechanically, which is why hdhfr0 seed 0 reports 0.2358
+    against 0.3963 while having found a comparable set of molecules.
+    """
+    ev = pd.read_csv(path)
+    cols = list(E.TASK_NAMES)
+    return float(E.compute_hypervolume(ev[cols].to_numpy(float), bounds=PUB_BOUNDS))
+
+
 def summarize(path):
     ev = pd.read_csv(path).dropna(subset=["PfDHFR_Docking", "hDHFR_Docking"])
     phys = ev[(ev.PfDHFR_Docking <= PF_MAX) & (ev.hDHFR_Docking <= HD_MAX)]
@@ -40,6 +63,8 @@ def summarize(path):
     )
 
 
+PUB_BOUNDS = E.compute_objective_bounds()
+
 rows = []
 for seed in range(10):
     a = f"{B}/asym_campaign/full_seed{seed}/evaluated.csv"       # published frame
@@ -47,6 +72,8 @@ for seed in range(10):
     if not (os.path.exists(a) and os.path.exists(b)):
         continue
     rows.append(dict(seed=seed,
+                     old_hv_published=rescore_in_published_frame(a),
+                     new_hv_published=rescore_in_published_frame(b),
                      **{f"old_{k}": v for k, v in summarize(a).items()},
                      **{f"new_{k}": v for k, v in summarize(b).items()}))
 
@@ -70,7 +97,23 @@ print("     the method, so the endpoints below are computed from RAW kcal/mol on
 print("\n" + "=" * 92)
 print(f"PAIRED, alternative frame vs published  (n={len(df)}), frame-independent endpoints")
 print("=" * 92)
+print("\n" + "=" * 92)
+print("THE HEADLINE COMPARISON — both arms' molecules re-scored with the PUBLISHED metric")
+print("=" * 92)
 rng = np.random.default_rng(0)
+print("  Each arm searched under its own frame; here they are graded with the same")
+print("  fixed ruler. This is what a run's own reported hypervolume cannot tell you.")
+a = df["new_hv_published"].values
+b = df["old_hv_published"].values
+d = a - b
+p = wilcoxon(d).pvalue if len(set(d)) > 1 else float("nan")
+boot = [rng.choice(d, len(d), replace=True).mean() for _ in range(10000)]
+lo, up = np.percentile(boot, [2.5, 97.5])
+print(f"\n  hypervolume (published frame)   new {a.mean():.4f} | old {b.mean():.4f} | "
+      f"delta {d.mean():+.4f} [{lo:+.4f},{up:+.4f}] | new wins {int((d>0).sum())}/{len(d)} | p={p:.4f}")
+print("\n" + "=" * 92)
+print("SUPPORTING — frame-independent endpoints, computed from raw kcal/mol")
+print("=" * 92)
 for label, col, hi in [("top-20 selectivity", "top20_SI", True),
                        ("best selectivity found", "best_SI", True),
                        ("physical molecules", "physical", True),

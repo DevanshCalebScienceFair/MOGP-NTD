@@ -1,5 +1,15 @@
 # The hDHFR upper bound: a queued model-quality change
 
+**RESOLVED 2026-09-03: DO NOT APPLY.** The arm was run — 6 paired seeds, both arms'
+molecules re-scored with the published ruler. Raising the ceiling to 0.0 reached only
+**0.5 more molecules** in the censored band while **nearly doubling docking artifacts**
+(2.3 → 4.5, worse in 6/6 seeds), and hypervolume on the published ruler went slightly
+**down** (−0.0066, CI excludes zero, 5/6 seeds favour the baseline). Full result in
+`HDHFR_CEILING_RESULT.md`, figure `F19_hdhfr_ceiling.png`. The real fix is to reject
+non-physical poses *during* the search rather than widening the axis.
+
+The original analysis below stands as the description of the defect, which is real.
+
 **Not applied.** Changing it alters the normalization frame, so it needs its own benchmark arm
 and must not be retrofitted onto the published campaign.
 

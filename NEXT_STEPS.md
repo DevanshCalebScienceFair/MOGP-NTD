@@ -117,47 +117,59 @@ the 1.8× from the joint posterior is mostly dedup, not covariance.
 Still real and separate: `ninja` off PATH makes BoTorch fall back to pure-Python qLogEHVI,
 ~3×. Fix by putting the env's `bin/` on PATH (`go.sh:43` already does).
 
-## 4. Still open
+## 4. Still open — WHAT TO ADD NEXT
 
-| arm | command | asks | ~time | status |
-|---|---|---|---|---|
-| **training-set filter** | `./run_artifact_training_arm.sh` | stop the MODEL learning that a clash is selective | 2.5 h | **built, not run** |
-| citations | — | `SOURCES.md`, verify each yourself | — | yours |
+The experimental queue from the old plan is empty: every arm has been run.
+`WHAT_THE_METHODS_ADD.md` and `F25_where_we_stand.png` carry the reckoning.
+**6 wins, 4 losses, 1 mixed — and all four losses were tuning knobs on an
+optimizer that already worked.** The next ideas are structural.
 
-### Training-set filter — the one worth running
+### 1. ADMET as CONSTRAINTS, not objectives — the biggest change available
 
-`--reject-artifacts-training` excludes non-physical poses from the **GP training
-set**, not the front.
+Three of the five objectives (hERG, Caco2, half-life) are **known exactly** and
+already excluded from the GP by the grey-box design. They do not need to be
+objectives at all.
 
-F21 measured the front version: it engaged (9.6% of the front removed) and
-changed nothing, and the rejecting arm even evaluated slightly *more* artifacts.
-The diagnosis is that **artifacts enter through the model, not the front** — on
-seed 0, 31 of 290 evaluated molecules were artifacts with mean apparent
-selectivity **+0.68** against **+0.13** for physical ones, so the GP is fitted on
-labels saying "extremely selective" and learns the fragments that produce them.
+Measured on 750 fully-docked molecules from this repo:
 
-**Stated in advance so the result cannot be spun:** dropping those rows leaves
-the GP with *no* data in that region, hence high posterior variance, which qNEHVI
-may read as worth exploring. **This arm could make artifact chasing worse.** That
-is the measurement, not a caveat added afterwards.
+| | |
+|---|---|
+| dropping any ONE ADMET objective shrinks the front by | **17–22 points** |
+| a lenient bar (75th/25th pct on all three) still passes | **50% of the library** |
+| 5 objectives → 2: front | **62.8% → 0.7%** |
+| 5 objectives → 2: exact boxes | **62,433 → 3** |
 
-Metric unchanged, molecules not discarded, so directly comparable with no
-re-scoring. A partly-docked molecule is never judged an artifact — it has no
-value on one task, so it cannot be called non-physical (tested).
+So they are half the curse, they cost nothing to convert (nothing is estimated),
+and converting them makes dominance meaningful again *and* removes the need for
+the `alpha` approximation that distorts candidate ranking (Spearman 0.505).
 
-### Judge it on the right endpoint
+Implementation: qNEHVI supports outcome constraints
+(`botorch.acquisition.multi_objective.logei` takes `constraints`), and the ADMET
+values are already available exactly in `CompositeKnownADMETObjective`. This is
+a real piece of work, not a flag.
 
-Seed noise on hypervolume in F21 was an order of magnitude larger than the mean
-effect (+0.032 and −0.024 in the same experiment). **Six seeds cannot settle this
-on hypervolume.** Judge on *artifacts evaluated* and *top-20 selectivity*, and
-expect to need more than six seeds for anything else.
+### 2. Remove the 2,000-candidate pool cap — the cheapest experiment here
 
-### Done and settled
+The search scores 2,000 of 26,660 candidates per iteration — **7.5% of the
+library, resampled at random, the rest ignored**. That cap exists for exactly one
+reason: the compute cost that `alpha` + dedup cut by 17×. **It has never been
+re-tested since.** `loop.py` already takes `--acquisition-pool-size`; omit it to
+score everything. One arm, 6 seeds, ~3 h/run uncapped.
 
-`run_ref_point_arm.sh` and `run_artifact_rejection_arm.sh` have both been run;
-`run_hdhfr_bound_arm.sh` and `run_model_comparison.sh` too. Results in
-`ARTIFACT_REJECTION_RESULT.md`, `HDHFR_CEILING_RESULT.md`,
-`MODEL_COMPARISON_RESULT.md`, and the reference-point write-up.
+### 3. Penalise artifacts rather than delete them
+
+`ARTIFACTS_CANNOT_BE_FIXED_IN_THE_OPTIMIZER.md`: deleting the rows left a
+no-data hole that the acquisition then explored. Keep the row, relabel the
+docking value to a penalty, so the model **learns the region is bad** instead of
+learning nothing about it. Untested, and directly motivated by a measured failure.
+
+### 4. More seeds
+
+**n=6 was the binding constraint on every arm on this branch** — it caps Wilcoxon
+at p=0.0312, so several questions came back "cannot tell" purely for lack of
+samples. The compute to fix that now exists.
+
+### 5. Citations — `SOURCES.md`, yours to verify
 
 ## 5. Do NOT revisit
 

@@ -236,7 +236,7 @@ class BOLoop:
                  posterior_mode=DEFAULT_POSTERIOR_MODE,
                  hdhfr_fraction=1.0, bounds_path=None,
                  acquisition_ref_point=None, reject_artifacts=False,
-                 reject_artifacts_training=False):
+                 reject_artifacts_training=False, admet_constraints=False):
         # --- Reproducibility ---
         # Normalization frame. None = the published frame in
         # evaluation.evaluation_bounds.json. An alternative frame (e.g. the
@@ -264,6 +264,24 @@ class BOLoop:
         # the axis to un-censor selectivity mostly bought artifacts (2.3 -> 4.5
         # per campaign, worse in 6/6 seeds). Rejecting them during the search
         # attacks the same defect without handing the optimizer that gradient.
+        # THE 5-TO-2 PIVOT. Enforce the three ADMET objectives as a hard pass/fail
+        # bar and optimize only the two docking objectives.
+        #
+        # At five objectives 62.8% of evaluated molecules are non-dominated, so
+        # "on the Pareto front" carries almost no information, and an exact box
+        # decomposition needs 62,433 cells. At two: 0.7% and 3 cells. Dropping any
+        # ONE ADMET objective shrinks the front by 17-22 points, so they are half
+        # that curse, not passengers.
+        #
+        # Nothing is lost by the change: all three are KNOWN EXACTLY and the
+        # grey-box already refuses to model them, so no estimate is discarded --
+        # only an axis the optimizer could not act on usefully anyway.
+        #
+        # NOTE FOR ANALYSIS: hypervolume under two objectives is a DIFFERENT
+        # frame and is NOT comparable to the published 5-objective numbers.
+        # Re-score both arms in one frame before comparing (the molecules are
+        # fully measured either way, so this is always possible).
+        self.admet_constraints = bool(admet_constraints)
         self.reject_artifacts = bool(reject_artifacts)
         # Keep clashing poses out of the GP TRAINING SET, which is a different
         # and probably more important place than the front.
@@ -821,6 +839,17 @@ class BOLoop:
             candidate_library_indices, self.acquisition_pool_size,
             self.seed, iteration,
         )
+        if self.admet_constraints:
+            passes = evaluation.passes_admet(
+                self.admet_scores[candidate_library_indices])
+            if passes.any():
+                candidate_library_indices = candidate_library_indices[passes]
+            else:
+                warnings.warn(
+                    "admet_constraints: no remaining candidate passes the ADMET "
+                    "bar; scoring the unfiltered pool this iteration.",
+                    RuntimeWarning, stacklevel=2,
+                )
         n_candidates_scored = int(len(candidate_library_indices))
         X_candidates = self.fingerprints[candidate_library_indices]
 
@@ -840,6 +869,8 @@ class BOLoop:
             batch_size=self.batch_size,
             bounds=self.bounds,
             ref_point=self.acquisition_ref_point,
+            emit_objectives=([j for j, _ in DOCKING_TASKS]
+                             if self.admet_constraints else None),
             diversity_threshold=self.diversity_threshold,
             partitioning_alpha=self.partitioning_alpha,
             posterior_mode=self.posterior_mode,
@@ -1079,6 +1110,15 @@ if __name__ == "__main__":
                              "the number of analogs added). Must be ABOVE the "
                              "current library size or densification is a no-op; "
                              "omit for no cap.")
+    parser.add_argument("--admet-constraints", action="store_true",
+                        help="THE 5-TO-2 PIVOT. Enforce the three ADMET objectives "
+                             "as a hard pass/fail bar on candidates and optimize "
+                             "only the two docking objectives. At 5 objectives "
+                             "62.8%% of molecules are non-dominated; at 2, 0.7%%. "
+                             "The ADMET values are known exactly, so nothing "
+                             "estimated is discarded. NOTE: hypervolume under 2 "
+                             "objectives is a DIFFERENT frame and is not "
+                             "comparable to the published 5-objective numbers.")
     parser.add_argument("--reject-artifacts-training", action="store_true",
                         help="Exclude non-physical poses from the GP TRAINING SET, "
                              "so the model never learns that a clashing pose is "
@@ -1154,6 +1194,7 @@ if __name__ == "__main__":
     print(f"  acquisition_ref_point={args.acquisition_ref_point or 'zeros (default)'}")
     print(f"  reject_artifacts={args.reject_artifacts}  "
           f"reject_artifacts_training={args.reject_artifacts_training}")
+    print(f"  admet_constraints={args.admet_constraints}")
     loop = BOLoop(
         library_dir=args.library_dir,
         seed=args.seed,
@@ -1161,6 +1202,7 @@ if __name__ == "__main__":
         acquisition_ref_point=args.acquisition_ref_point,
         reject_artifacts=args.reject_artifacts,
         reject_artifacts_training=args.reject_artifacts_training,
+        admet_constraints=args.admet_constraints,
         n_init=n_init,
         hdhfr_fraction=args.hdhfr_fraction,
         acquisition_pool_size=args.acquisition_pool_size,

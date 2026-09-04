@@ -230,6 +230,62 @@ ARTIFACT_PF_MAX = -7.0   # must actually bind the parasite target
 ARTIFACT_HD_MAX = 0.0    # a positive hDHFR score is a clash, not weak binding
 
 
+# --- ADMET as CONSTRAINTS rather than objectives -----------------------------
+# At five objectives, 62.8% of evaluated molecules are non-dominated and an exact
+# box decomposition needs 62,433 cells; at two, 0.7% and 3 cells (measured, F15).
+# Dropping any ONE ADMET objective shrinks the front by 17-22 points, so they are
+# half of that curse rather than passengers.
+#
+# But all three are KNOWN EXACTLY -- the grey-box already refuses to model them --
+# so nothing is estimated and nothing is lost by enforcing them as a pass/fail bar
+# instead of an axis. That is the whole argument for this mode.
+#
+# Thresholds: hERG <= 0.5 is the natural reading of a blocker PROBABILITY; Caco2
+# logPapp >= -5.15 is a standard high-permeability cutoff; a 3-hour half-life is a
+# conservative floor for a candidate. Together they pass 5,197 of the 26,660
+# searched molecules (19.5%) -- restrictive, but 18x more than a campaign
+# evaluates, so the search is not starved.
+ADMET_CONSTRAINTS = {
+    "hERG_Toxicity_Prob": ("<=", 0.5),
+    "Caco2_logPapp":      (">=", -5.15),
+    "Half_Life_hours":    (">=", 3.0),
+}
+
+
+def passes_admet(admet_rows, constraints=None):
+    """Boolean mask of rows meeting every ADMET constraint.
+
+    Args:
+        admet_rows: ``(N, n_admet)`` in ``data.ADMET_COLUMNS`` order -- i.e. the
+            ``admet_scores`` layout, NOT ``TASK_NAMES`` order. Column positions
+            are resolved through ``resolve_objective_layout``, never assumed.
+        constraints: ``{objective_name: (op, value)}``; defaults to
+            ``ADMET_CONSTRAINTS``.
+
+    Returns:
+        Boolean array of length ``N``.
+    """
+    from data import ADMET_COLUMNS
+
+    A = np.asarray(admet_rows, dtype=float)
+    if A.ndim != 2 or A.shape[0] == 0:
+        return np.zeros(0 if A.ndim != 2 else A.shape[0], dtype=bool)
+    rules = dict(ADMET_CONSTRAINTS if constraints is None else constraints)
+    library_tasks, _, _ = resolve_objective_layout(ADMET_COLUMNS)
+    by_name = {TASK_NAMES[j]: col for j, col in library_tasks}
+    unknown = set(rules) - set(by_name)
+    if unknown:
+        raise ValueError(
+            f"passes_admet: {sorted(unknown)} are not library-sourced objectives. "
+            f"Valid: {sorted(by_name)}."
+        )
+    ok = np.ones(A.shape[0], dtype=bool)
+    for name, (op, val) in rules.items():
+        col = A[:, by_name[name]]
+        ok &= (col <= val) if op == "<=" else (col >= val)
+    return ok
+
+
 def is_physical(Y, pf_max=ARTIFACT_PF_MAX, hd_max=ARTIFACT_HD_MAX):
     """Boolean mask of rows whose docking poses are physically plausible.
 

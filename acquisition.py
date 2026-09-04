@@ -586,6 +586,8 @@ class CompositeKnownADMETObjective(MCMultiOutputObjective):
         self.dock_task_indices = list(dock_task_indices)
         self.lib_task_indices = list(lib_task_indices)
         self.num_objectives = int(num_objectives)
+        # Set by `emit_only` to restrict which objectives leave this objective.
+        self.emit_indices = None
         self.n_admet = len(self.lib_task_indices)
 
         bounds = torch.as_tensor(bounds, dtype=_DTYPE)
@@ -618,7 +620,31 @@ class CompositeKnownADMETObjective(MCMultiOutputObjective):
         # put the best value at 1.0 and the worst at 0.0; clip so out-of-range
         # values saturate into the cube rather than escaping it.
         norm = torch.where(s > 0, (full - lo) / span, (hi - full) / span)
-        return norm.clamp(0.0, 1.0)
+        norm = norm.clamp(0.0, 1.0)
+        if self.emit_indices is not None:
+            # Emit only a SUBSET of the objectives. Used to drop the three ADMET
+            # objectives once they are enforced as hard constraints instead:
+            # at 5 objectives 62.8% of molecules are non-dominated, so dominance
+            # carries almost no information and the exact box decomposition needs
+            # 62,433 cells; at 2 it is 0.7% and 3 cells. The ADMET values are
+            # known EXACTLY, so nothing is estimated and nothing is lost by
+            # turning them into a pass/fail bar rather than an axis.
+            norm = norm[..., self.emit_indices]
+        return norm
+
+
+def emit_only(objective, keep_indices):
+    """Restrict a ``CompositeKnownADMETObjective`` to a subset of objectives.
+
+    Returns the same object, mutated, so the caller keeps one construction path.
+    ``keep_indices`` are positions in ``TASK_NAMES`` order.
+
+    This is how the 5-objective problem becomes a 2-objective one once the ADMET
+    values are enforced as constraints: they are known exactly, so removing them
+    from the objective vector removes no information the model had.
+    """
+    objective.emit_indices = list(keep_indices)
+    return objective
 
 
 def _augment_with_admet(X_fp, admet_rows, lib_admet_cols):
@@ -702,7 +728,8 @@ def compute_qnehvi(model, likelihood, y_mean, y_std,
                    ref_point=None, n_mc_samples=N_MC_SAMPLES, layout=None,
                    candidate_chunk=CANDIDATE_CHUNK,
                    posterior_mode=DEFAULT_POSTERIOR_MODE,
-                   partitioning_alpha=DEFAULT_PARTITIONING_ALPHA):
+                   partitioning_alpha=DEFAULT_PARTITIONING_ALPHA,
+                   emit_objectives=None):
     """Noisy Expected Hypervolume Improvement (qNEHVI) per candidate.
 
     Builds a 2-output docking posterior and a composite objective that folds each
@@ -777,7 +804,14 @@ def compute_qnehvi(model, likelihood, y_mean, y_std,
     objective = CompositeKnownADMETObjective(
         dock_task_indices, lib_task_indices, num_objectives, bounds, signs
     )
-    ref = _resolve_ref_point(ref_point, num_objectives, model_wrap, objective,
+    # Optionally optimize a SUBSET of the objectives. The reference point and the
+    # box decomposition must shrink with it, or qNEHVI would be handed a 2-vector
+    # against a 5-dimensional reference and fail -- or worse, broadcast.
+    n_obj_eff = num_objectives
+    if emit_objectives is not None:
+        emit_only(objective, emit_objectives)
+        n_obj_eff = len(list(emit_objectives))
+    ref = _resolve_ref_point(ref_point, n_obj_eff, model_wrap, objective,
                              Xb_aug)
 
     sampler = SobolQMCNormalSampler(sample_shape=torch.Size([int(n_mc_samples)]))
@@ -822,7 +856,7 @@ def select_batch(model, likelihood, y_mean, y_std,
                  objective_signs=None, n_mc_samples=N_MC_SAMPLES, layout=None,
                  posterior_mode=DEFAULT_POSTERIOR_MODE,
                  partitioning_alpha=DEFAULT_PARTITIONING_ALPHA,
-                 bounds=None, ref_point=None):
+                 bounds=None, ref_point=None, emit_objectives=None):
     """Greedily select a diverse, high-qNEHVI batch of candidates.
 
     Candidates are ranked by their qNEHVI score (``compute_qnehvi``), then walked
@@ -856,7 +890,7 @@ def select_batch(model, likelihood, y_mean, y_std,
         X_candidates, candidate_admet, X_baseline, baseline_admet,
         objective_signs=objective_signs, n_mc_samples=n_mc_samples, layout=layout,
         posterior_mode=posterior_mode, partitioning_alpha=partitioning_alpha,
-        bounds=bounds, ref_point=ref_point,
+        bounds=bounds, ref_point=ref_point, emit_objectives=emit_objectives,
     )
 
     # Rank candidates by qNEHVI score, highest first.

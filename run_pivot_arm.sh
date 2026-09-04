@@ -24,7 +24,14 @@
 # hypervolume over all five in the published frame, so history.csv is directly
 # comparable to every existing run. Verified on a smoke run (0.0341 both ways).
 #
-# Uncapped scoring is ~6x slower per iteration, so budget ~2.5-3 h per run.
+# MEASURED, 2026-09-04 (this replaces my earlier ~2.5-3 h/run guess, which was
+# wrong by ~7x): ~22 s/iteration, so ~20 min per run and ~2.5 h for 6 seeds.
+# The guess assumed uncapping would dominate. It does not, because the 5->2
+# collapse makes acquisition nearly free: this arm scores 5,189 candidates in
+# 5.8-9.2 s/iter, while the capped 5-objective baseline needed 14.1-35.7 s for
+# 2,000. More candidates, less time. Docking (real Vina, cache misses) is now
+# the dominant per-iteration cost -- the baseline's docking was 0.0 s because
+# every molecule it picked was already in the cache.
 #
 # Usage:  ./run_pivot_arm.sh            # 6 seeds
 #         SEEDS="0 1 2" ./run_pivot_arm.sh

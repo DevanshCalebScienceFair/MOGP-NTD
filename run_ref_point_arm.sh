@@ -31,7 +31,23 @@ ITERS=50
 SEEDS="${SEEDS:-0 1 2 3 4 5}"
 mkdir -p "$ROOT/logs"
 
+# Optional wall-clock budget, set by run_night2.sh. No NEW seed starts once the
+# budget is spent; a run already in flight finishes. Both arms are resumable, so
+# whatever is skipped is picked up by re-running.
+BUDGET_START="${BUDGET_START:-}"
+BUDGET_H="${BUDGET_H:-}"
+budget_spent () {
+  [ -z "$BUDGET_START" ] && return 1
+  [ -z "$BUDGET_H" ] && return 1
+  local e=$(( $(date +%s) - BUDGET_START ))
+  awk -v e="$e" -v b="$BUDGET_H" 'BEGIN{exit !(e > b*3600)}'
+}
+
 for SEED in $SEEDS; do
+  if budget_spent; then
+    echo "### BUDGET REACHED — stopping before seed=$SEED. Re-run to finish."
+    break
+  fi
   OUT="$ROOT/nadir_seed${SEED}"; LOG="$ROOT/logs/nadir_seed${SEED}.log"
   if [ -f "$OUT/history.csv" ] && [ "$(wc -l < "$OUT/history.csv")" -ge $((ITERS+1)) ]; then
     echo "[skip] $OUT already complete"; continue

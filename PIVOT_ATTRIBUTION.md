@@ -127,3 +127,93 @@ box decomposition that alpha was introduced to control, at 13x the pool. Skipped
 deliberately as a cost decision, which means the uncap effect is measured only in
 the presence of the pivot (B->D). If the two changes turn out to interact
 strongly, that limitation is load-bearing and must be stated.
+
+---
+
+# INTERIM, n=1 (seed 0 only) — read nothing into this yet
+
+Seed 0 of arm D finished at 01:54 (37 min wall-clock, matching the ~35 min
+estimate). One seed cannot support a conclusion; this is recorded now so the
+framing cannot drift once the remaining seeds land.
+
+## The pivot LOSES the headline metric, and not narrowly
+
+| | arm A (5 obj) | arm D (pivot) |
+|---|---|---|
+| **hypervolume, 5-objective (published)** | **0.3963** | **0.2703** |
+| hypervolume, docking pair only | **0.9734** | 0.9018 |
+| ADMET pass rate | 68.8% | **89.0%** |
+| best PfDHFR (kcal/mol) | -11.100 | **-11.510** |
+| top-20 mean SI (own set) | 2.508 | **5.012** |
+| best SI (own set) | 8.200 | **11.951** |
+
+It loses on the published metric by 32%. **It also loses on the two-objective
+hypervolume — the frame it optimizes.** That second one is the uncomfortable
+number and it must not be buried: if the pivot were simply "the same search with
+a cleaner scoreboard" it should win there.
+
+The shape of the result is *worse fronts, better individual molecules*. Both
+docking-pair figures are near ceiling (0.97 / 0.90 against a maximum of 1.0), and
+this project has already established that runs saturate by n=290, so final
+hypervolume is a low-power endpoint. That is a reason to weight it less, not a
+reason to discount a loss.
+
+The SI figures are on each arm's OWN evaluated set, which is the exact
+structurally-biased endpoint `nominate_and_score.py` exists to correct: arm D
+drew its top-20 from 250 passing molecules and arm A from 194. `nominate_pivot.py`
+runs the unbiased version once the arms are complete.
+
+## Where the 5-objective deficit comes from
+
+Normalized per-objective means, all mapped to [0,1] with higher better:
+
+| objective | A | D | D - A |
+|---|---|---|---|
+| PfDHFR_Docking | 0.562 | 0.609 | **+0.048** |
+| hDHFR_Docking | 0.456 | 0.429 | -0.026 |
+| hERG_Toxicity_Prob | 0.688 | 0.718 | +0.030 |
+| Caco2_logPapp | 0.771 | 0.714 | -0.058 |
+| **Half_Life_hours** | 0.312 | 0.136 | **-0.176** |
+
+**Half-life is most of the deficit**, and the raw numbers say why the baseline's
+advantage there is hollow: arm A reaches a mean half-life of 20.5 h (38.7% of its
+molecules above 24 h, max 64.8 h) while the safety bar asks only for >= 3 h --
+which **95.4% of arm A's and 96.1% of arm D's molecules already clear.** The
+baseline is spending its search budget pushing an objective far past the point
+where more is useful, and the hypervolume pays it for that.
+
+This is the "bloated frame" argument in one number. It is also exactly the kind
+of argument that is easy to make self-servingly, so state the limit with it: a
+longer half-life is not worthless, and calling 64 h "gaming the metric" rather
+than "a real property" is a judgement about antimalarial pharmacology, not a
+measurement. What IS measured is that the bar is already cleared by ~96% of both
+arms, so the difference is entirely above the threshold anyone set.
+
+## A hypothesis I formed and immediately falsified
+
+**Hypothesis:** the pivot loses the docking-pair front because the ADMET bar locks
+it out of the best binders (the pool drops from 26,660 to 5,189).
+
+**Test:** pool every molecule this project has docked (1,830 unique) and compare
+those passing the bar against those failing it.
+
+| | passes bar | fails bar |
+|---|---|---|
+| mean PfDHFR | **-8.468** | -8.349 |
+| mean Selectivity Index | **0.283** | 0.114 |
+| best PfDHFR ever found | **-11.510** | -11.100 |
+| best SI ever found | **12.582** | 9.787 |
+
+**False.** Safety and potency are positively associated in this library, not in
+tension. 69 of the 100 strongest binders and 69 of the 100 most selective
+molecules clear the bar, against a 19.5% library base rate. The best binder and
+the best selective molecule ever found both pass. The constraint is not what is
+costing the front.
+
+(Caveat on that test: the pooled set is itself optimizer-selected and so already
+65.6% passing, which makes it a statement about the docked population, not a
+clean library-wide one.)
+
+So the docking-pair deficit is currently **unexplained**, and with n=1 the honest
+possibilities include ordinary seed noise. No further hypothesis until the six
+seeds are in.

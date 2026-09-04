@@ -161,13 +161,16 @@ ax.text(0, .90,
 "    the 40 random init molecules are unfiltered)\n\n"
 "   evaluated-set Jaccard vs baseline: 0.129\n"
 "   (noise floor 0.686 -> genuinely new chemistry)\n\n"
-"It loses the frame it optimizes for. That cannot be\n"
-"explained as metric bloat, and three mechanisms for it\n"
-"were tested and falsified (the bar does NOT exclude\n"
-"good binders, does NOT cost front coverage, and the\n"
-"fronts are NOT artifact-driven).\n\n"
+"UNBIASED nomination test (all arms rank the SAME\n"
+"library, pay the SAME 40 docks), 12 tests, Holm:\n"
+"   0 of 12 significant.  mean true SI +0.018 = TIE.\n"
+"   The own-set selectivity edge was pool-size bias.\n\n"
+"It loses the frame it optimizes for, and three\n"
+"mechanisms were tested and falsified (the bar does NOT\n"
+"exclude good binders, does NOT cost front coverage,\n"
+"and the fronts are NOT artifact-driven).\n\n"
 "VERDICT: keep --admet-constraints as an output filter,\n"
-"not as the optimization frame.",
+"not as the optimization frame. Keep the uncap.",
         fontsize=8.0, transform=ax.transAxes, va="top", family="monospace", color=DK)
 
 fig.suptitle("F26 · The 5-to-2 pivot: attributing two edits separately",

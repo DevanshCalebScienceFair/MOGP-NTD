@@ -162,6 +162,60 @@ Whether that trade is worth making depends on whether the endpoint you care abou
 is the front or the shortlist -- and the selectivity figures above are still
 scored on each arm's own molecules, so `nominate_pivot.py` is the arbiter.
 
+## THE ARBITER: the unbiased nomination test says the arms are indistinguishable
+
+Every arm retrains on its own bought labels, ranks the **same** ~26,300 unmeasured
+library molecules, nominates 20, and pays the **same** 40 verification docks. This
+is the endpoint that is not biased by how many usable molecules an arm happened to
+measure -- the bias that made arm D look 2x better on selectivity when scored on
+its own set.
+
+| | A base | B pivot | D pivot+uncap |
+|---|---|---|---|
+| mean true SI of 20 nominees | 1.187 | 1.204 | 1.105 |
+| best true SI | 4.780 | 6.234 | 4.681 |
+| best true PfDHFR | -10.209 | -9.870 | -10.038 |
+| physical (non-artifact) of 20 | 17.50 | 16.33 | 14.17 |
+
+**Holm-corrected across the whole family of 12 tests: 0 of 12 significant.**
+
+| test | delta | wins | p raw | p Holm |
+|---|---|---|---|---|
+| A->D combined / physical | -3.333 | 0/6 | 0.0312 | 0.3750 |
+| B->D uncap / best_SI | -1.554 | 0/6 | 0.1250 | 1.000 |
+| A->B pivot / best_SI | +1.455 | 5/6 | 0.1562 | 1.000 |
+| A->B pivot / mean_SI | **+0.018** | 4/6 | 0.8438 | 1.000 |
+| ...8 more, all p_raw >= 0.19 | | | | |
+
+**The pivot's apparent molecule-quality advantage does not survive.** Mean true
+selectivity moves by +0.018 -- a dead tie. The +0.479 top-20 advantage seen on the
+arms' own sets was the pool-size bias, exactly as `nominate_and_score.py` was
+written to catch. This is the fifth time on this project that an endpoint scored on
+an arm's own measured set has flattered the arm that measured more.
+
+The one raw-significant result (arm D nominates 3.3 fewer physical molecules out of
+20, 0/6, complete separation) is **not** significant after correcting for the 12
+tests, and it must not be quoted as if it were. It is worth one sentence as a
+direction to watch: the shipped arm may be worse at telling real binders from
+clashing poses, and if that is real it is a second cost on top of the hypervolume.
+
+**The hypervolume result is not part of this family.** It was the pre-registered
+primary endpoint, a single comparison, 0/6 with complete separation. It stands.
+
+## FINAL SCORECARD
+
+| endpoint | verdict |
+|---|---|
+| 5-objective hypervolume (primary) | **pivot loses -34.2%, 0/6, p=0.0312** |
+| 2-objective hypervolume (its own frame) | **pivot loses, 0/6, p=0.0312** |
+| unbiased molecule quality, 12 tests | **no difference, 0/12 survive Holm** |
+| ADMET compliance of the optimizer's picks | **pivot wins, 100% vs 67.7%, 6/6** |
+| the uncap, on its own | free: +2.8% HV, no quality cost that survives correction |
+
+The pivot costs a third of the hypervolume, produces molecules that are **not
+better** on the unbiased test, and buys one thing: every molecule it selects clears
+the safety bar.
+
 ## What this means for the pitch
 
 Two sentences of the planned pitch do not survive:

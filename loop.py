@@ -755,6 +755,12 @@ class BOLoop:
             train_rows = np.isfinite(self.Y_evaluated[:, dock_cols]).any(axis=1)
         else:
             train_rows = finite_rows
+        # Capture the count BEFORE the artifact filter narrows it: `n_part` below
+        # is train_rows minus finite_rows, so computing it after the filter made
+        # the printed "partly labelled" figure NEGATIVE (-34) once rows started
+        # being removed. The artifact count itself was right; the other one was
+        # measuring two things at once.
+        n_part = int(train_rows.sum() - finite_rows.sum())
         if self.reject_artifacts_training:
             # A partly-docked molecule cannot be judged non-physical on a task it
             # has no value for, so only rows with BOTH docking scores are subject
@@ -778,7 +784,6 @@ class BOLoop:
         # runner's post-hoc check reported 0 rejections for every seed. The
         # science was right; the reporting was not, which is worse than useless
         # because it would have been read as "the arm never engaged".
-        n_part = int(train_rows.sum() - finite_rows.sum())
         n_drop = int(finite_rows.sum() - baseline_rows.sum())
         bits = []
         if self.partial_labels and n_part:

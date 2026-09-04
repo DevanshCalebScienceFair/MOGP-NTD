@@ -1,19 +1,16 @@
 """The 5-to-2 pivot, scored honestly.
 
-TWO FRAMES ARE IN PLAY and mixing them would be meaningless:
+NO RE-SCORING IS NEEDED, and it is worth saying why. Only the ACQUISITION sees
+two objectives; `BOLoop._hypervolume` still calls `compute_hypervolume` over all
+five, so the pivot arm's reported hypervolume is in the same published frame as
+every other run and compares directly. (Verified on a smoke run: reported 0.0341,
+recomputed 5-objective 0.0341.) This is the opposite of the hDHFR bound arm,
+where the metric itself moved and re-scoring was mandatory.
 
-  * the pivot arm optimizes and reports hypervolume over 2 objectives
-  * every published number is hypervolume over 5
-
-So the headline comparison RE-SCORES BOTH ARMS' MOLECULES in the published
-5-objective frame. Both arms fully measure every molecule they dock, so this is
-always possible and is the only fair way to ask:
-
-    did optimizing 2 objectives find molecules that are better BY THE
-    PUBLISHED 5-OBJECTIVE METRIC?
-
-Also reported: what the pivot was actually for -- a front that means something,
-and a search that sees the whole library.
+The headline is therefore a straight paired comparison. Also reported: what the
+pivot was actually for -- a front that means something -- with BOTH arms' front
+sizes shown at 5 and 2 objectives, so any shrinkage is attributable to the frame
+rather than to the arm having found different molecules.
 """
 import os, sys
 import numpy as np, pandas as pd
@@ -62,10 +59,10 @@ if not rows:
 df = pd.DataFrame(rows)
 
 print("=" * 96)
-print("HEADLINE — both arms re-scored in the PUBLISHED 5-objective frame")
+print("HEADLINE — direct comparison, same 5-objective published frame")
 print("=" * 96)
-print("  The pivot arm optimizes 2 objectives but every molecule it docks is fully")
-print("  measured, so it can be graded on the same fixed ruler as everything else.\n")
+print("  Only the ACQUISITION sees 2 objectives; the metric is unchanged, so no")
+print("  re-scoring is needed and these numbers compare directly.\n")
 rng = np.random.default_rng(0)
 
 

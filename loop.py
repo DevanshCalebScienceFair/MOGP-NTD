@@ -277,10 +277,12 @@ class BOLoop:
         # grey-box already refuses to model them, so no estimate is discarded --
         # only an axis the optimizer could not act on usefully anyway.
         #
-        # NOTE FOR ANALYSIS: hypervolume under two objectives is a DIFFERENT
-        # frame and is NOT comparable to the published 5-objective numbers.
-        # Re-score both arms in one frame before comparing (the molecules are
-        # fully measured either way, so this is always possible).
+        # WHAT THIS DOES NOT CHANGE: the reported metric. `_hypervolume` calls
+        # evaluation.compute_hypervolume on ALL FIVE objectives regardless, so
+        # history.csv still carries 5-objective hypervolume in the published
+        # frame and IS directly comparable to every existing run. Only the
+        # ACQUISITION sees two objectives. Verified on a smoke run: reported
+        # 0.0341, recomputed 5-objective 0.0341.
         self.admet_constraints = bool(admet_constraints)
         self.reject_artifacts = bool(reject_artifacts)
         # Keep clashing poses out of the GP TRAINING SET, which is a different

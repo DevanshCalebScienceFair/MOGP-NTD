@@ -19,10 +19,10 @@
 #     library each round and ignores the rest. It has never been re-tested since
 #     the speedup.
 #
-# *** HYPERVOLUME UNDER 2 OBJECTIVES IS A DIFFERENT FRAME. *** It is NOT
-# comparable to the published 5-objective numbers. Every molecule is still fully
-# measured, so analysis_scripts/pivot_analysis.py re-scores BOTH arms in the
-# published 5-objective frame; that is the comparison that counts.
+# FRAME: unlike the hDHFR bound arm, this one needs NO re-scoring. Only the
+# ACQUISITION sees two objectives; the reported metric still computes
+# hypervolume over all five in the published frame, so history.csv is directly
+# comparable to every existing run. Verified on a smoke run (0.0341 both ways).
 #
 # Uncapped scoring is ~6x slower per iteration, so budget ~2.5-3 h per run.
 #

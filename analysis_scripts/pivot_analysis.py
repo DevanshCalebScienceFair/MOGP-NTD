@@ -154,5 +154,41 @@ for lab, col in [("front, 5 objectives %", "front5_pct"),
 print("\n  ADMET pass % is the deliverable: the fraction of evaluated molecules a")
 print("  chemist could actually take forward. The pivot arms enforce it by")
 print("  construction; the baseline pays no attention to it.")
+# --- Is the pivot finding DIFFERENT chemistry, or the same molecules re-ranked?
+# Compared against the same-config noise floor: two runs differing only by
+# machine had Jaccard 0.686, about the same as two random seeds (0.688). An
+# overlap at or above that floor means the arms are picking the same molecules.
+print("\n" + "=" * 100)
+print("EVALUATED-SET OVERLAP — same molecules, or new chemistry?")
+print("=" * 100)
+NOISE_FLOOR = 0.686
+
+
+def smiles_set(d):
+    f = f"{d}/evaluated.csv"
+    if not os.path.exists(f):
+        return None
+    c = pd.read_csv(f)
+    col = "SMILES" if "SMILES" in c.columns else ("smiles" if "smiles" in c.columns else None)
+    return set(c[col]) if col else None
+
+
+for lo_arm, hi_arm, title in STEPS:
+    lo_t = dict((k, t) for k, t, _ in ARMS)[lo_arm]
+    hi_t = dict((k, t) for k, t, _ in ARMS)[hi_arm]
+    js = []
+    for s_ in df.seed:
+        A_, D_ = smiles_set(f"{B}/{lo_t.format(s=s_)}"), smiles_set(f"{B}/{hi_t.format(s=s_)}")
+        if A_ and D_:
+            js.append(len(A_ & D_) / len(A_ | D_))
+    if js:
+        m = float(np.mean(js))
+        verdict = ("SAME molecules (at/above the %.3f noise floor)" % NOISE_FLOOR
+                   if m >= NOISE_FLOOR else
+                   "GENUINELY different chemistry (below the %.3f noise floor)" % NOISE_FLOOR)
+        print(f"  {title:34s} Jaccard {m:.3f} over {len(js)} seeds  -> {verdict}")
+    else:
+        print(f"  {title:34s} (arm missing)")
+
 df.to_csv(f"{B}/pivot_arm/scored.csv", index=False)
 print(f"\nWrote pivot_arm/scored.csv   (n=6 -> minimum two-sided Wilcoxon p is 0.0312)")

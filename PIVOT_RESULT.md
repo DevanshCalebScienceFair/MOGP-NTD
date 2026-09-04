@@ -88,6 +88,80 @@ has falsified four times already.
 
 **So the docking-pair loss remains substantially unexplained.**
 
+## THE ATTRIBUTION — arm B lands, and it is unambiguous
+
+Arm B (the pivot at the baseline's 2,000 draw, no uncap) finished 05:32.
+
+| seed | A base | B pivot | D pivot+uncap |
+|---|---|---|---|
+| 0 | 0.3963 | 0.2717 | 0.2703 |
+| 1 | 0.3703 | 0.2785 | 0.2705 |
+| 2 | 0.4012 | 0.2873 | 0.2945 |
+| 3 | 0.4000 | 0.2305 | 0.2499 |
+| 4 | 0.4017 | 0.2414 | 0.2563 |
+| 5 | 0.3991 | 0.2493 | 0.2615 |
+| **mean** | **0.3948** | **0.2598** | **0.2672** |
+
+| step | effect | wins | p |
+|---|---|---|---|
+| A -> B, **THE PIVOT** | **-0.1350 (-34.2%)** | **0/6** | **0.0312** |
+| B -> D, **THE UNCAP** | +0.0074 (+2.8%) | 4/6 | 0.2188 |
+| A -> D, combined | -0.1276 (-32.3%) | 0/6 | 0.0312 |
+
+**The pivot owns the entire loss. The uncap is harmless and slightly positive.**
+
+This is the whole reason arm B was built. Without it the only available statement
+would have been "the combination lost 32%", with no way to tell which of the two
+ideas was responsible -- and the natural guess (that scoring 2.5x more candidates
+must be the risky change) would have been exactly wrong.
+
+**So the two directives split cleanly:**
+
+- **Uncapping the library: KEEP.** +2.8% (not significant, but the sign is right
+  in 4/6), and it buys 2.53x the candidates for the same total acquisition time.
+  It costs nothing and the 2,000-cap is genuinely obsolete.
+- **The 5-to-2 pivot as the optimization frame: DO NOT SHIP.** -34.2%, 0/6,
+  complete separation.
+
+Arm B also confirms the pool arithmetic predicted in `PIVOT_ATTRIBUTION.md`: it
+scored **391 candidates per iteration**, i.e. 2,000 drawn then ~19.5% surviving
+the bar, and ran in 558 s against arm D's 2,225 s.
+
+## The tension the attribution exposes: the metric and the molecules disagree
+
+Arm B is not simply "arm A but worse". On every molecule-quality endpoint it is
+BETTER than the baseline, while losing the metric:
+
+| endpoint (A -> B, the pivot alone) | A | B | delta [95% CI] | wins | p |
+|---|---|---|---|---|---|
+| hypervolume, 5-obj | 0.3948 | 0.2598 | **-0.1350** [-0.156, -0.112] | **0/6** | **0.0312** |
+| top-20 selectivity | 2.550 | 3.029 | **+0.479** [+0.020, +0.897] | 5/6 | 0.1562 |
+| best selectivity | 5.464 | 6.587 | +1.123 [-0.141, +2.294] | 5/6 | 0.2188 |
+| best PfDHFR | -11.202 | -11.328 | **+0.127** [+0.007, +0.255] | 4/6 | 0.1250 |
+| ADMET pass rate | 67.7% | 88.8% | **+21.2** [+19.6, +22.6] | **6/6** | **0.0312** |
+
+Two of those bootstrap CIs exclude zero (top-20 selectivity, best PfDHFR) while
+the Wilcoxon does not reach significance -- at n=6 the test has almost no power,
+so read these as "consistent direction, not established".
+
+**And the uncap runs the other way on quality**: B -> D moves hypervolume +0.0074
+but best selectivity **-1.04** [-2.27, -0.07], which is why the combined arm D
+washes out the pivot's molecule-quality gain. The configuration that finds the
+best individual molecules is **arm B**, not the shipped arm D.
+
+Front sizes track the frame as predicted: 5-objective front 60.2% -> 33.6% ->
+33.3%; the pivot roughly halves the "everything is optimal" problem.
+
+All three contrasts explore genuinely different chemistry (Jaccard 0.116 for the
+pivot, 0.222 for the uncap, 0.129 combined; noise floor 0.686).
+
+**So the honest statement is not "the pivot fails".** It is: *the pivot trades a
+large, certain hypervolume loss for a small, uncertain gain in the quality of
+individual molecules, plus a large and certain gain in safety compliance.*
+Whether that trade is worth making depends on whether the endpoint you care about
+is the front or the shortlist -- and the selectivity figures above are still
+scored on each arm's own molecules, so `nominate_pivot.py` is the arbiter.
+
 ## What this means for the pitch
 
 Two sentences of the planned pitch do not survive:

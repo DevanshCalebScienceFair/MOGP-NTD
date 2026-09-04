@@ -49,13 +49,19 @@ for tag, desc, path, c, y in boxes:
     ax.text(.75, y + 1.02, tag, fontsize=13, weight="bold", color=c, va="center")
     ax.text(1.8, y + 1.02, desc, fontsize=9, va="center", color=DK, weight="bold")
     ax.text(1.8, y + .42, path, fontsize=7.6, va="center", color="#666", family="monospace")
-for y, lab in [(7.1, "+ --admet-constraints      THE PIVOT"),
-               (4.1, "-- pool cap                 THE UNCAP")]:
+# Measured effects annotated onto the step that produced them.
+for y, lab, eff, col in [(7.1, "+ --admet-constraints   THE PIVOT",
+                          "-34.2%   0/6   p=0.0312", LOSS),
+                         (4.1, "-- pool cap             THE UNCAP",
+                          "+2.8%    4/6   p=0.22", WIN)]:
     ax.annotate("", xy=(1.0, y - 1.0), xytext=(1.0, y),
-                arrowprops=dict(arrowstyle="-|>", color=DK, lw=1.6))
-    ax.text(1.45, y - .5, lab, fontsize=8.2, va="center", color=DK, family="monospace")
-ax.text(0, .55, "Each pair differs in EXACTLY one flag.", fontsize=8.6, weight="bold")
-ax.text(0, .05, "Model, posterior, alpha, budget, seeds identical.", fontsize=8, color="#555")
+                arrowprops=dict(arrowstyle="-|>", color=col, lw=2.2))
+    ax.text(1.45, y - .3, lab, fontsize=8.2, va="center", color=DK, family="monospace")
+    ax.text(1.45, y - .82, eff, fontsize=8.4, va="center", color=col,
+            family="monospace", weight="bold")
+ax.text(0, .62, "The PIVOT owns the entire loss.", fontsize=9.2, weight="bold", color=LOSS)
+ax.text(0, .12, "The uncap is free. Without arm B this was\nindistinguishable from 'the combination lost 32%'.",
+        fontsize=7.9, color="#555")
 
 # ---- (b) the enrichment finding ----
 ax = fig.add_subplot(gs[0, 1])

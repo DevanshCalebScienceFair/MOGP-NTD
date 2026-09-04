@@ -76,8 +76,8 @@ ax.set_ylabel("% of molecules passing the safety bar"); ax.set_ylim(0, 112)
 ax.axhline(100, color=DK, ls=":", lw=1)
 ax.set_title("2 · Safety was ALREADY being selected for", fontsize=11.5,
              weight="bold", loc="left", pad=40)
-ax.text(0, 1.005, "3.47× enrichment before we changed anything — the pivot converts\n"
-        "a tendency (67.7%) into a guarantee (100%), which is a smaller claim",
+ax.text(0, 1.005, "3.47× enrichment before we changed anything. The pivot's PICKS are 100%\n"
+        "compliant (6/6); the reported 88.8% includes the unfiltered random init.",
         transform=ax.transAxes, fontsize=8.3, color="#555", va="bottom")
 
 # ---- (c) the cost inversion ----
@@ -95,9 +95,9 @@ if os.path.exists(log):
         ax.plot(it_d, acq_d, "-", color=WIN, lw=2, label="D · 2 obj, ~5,189 cand.")
 ax.set_xlabel("iteration"); ax.set_ylabel("acquisition seconds")
 ax.legend(fontsize=8, frameon=False, loc="upper left")
-ax.set_title("3 · More candidates, less time", fontsize=11.5, weight="bold", loc="left", pad=40)
-ax.text(0, 1.005, "2.6× the candidates at ~⅓ the cost. This is why the 2,000-cap,\n"
-        "which existed only to bound this cost, is no longer needed.",
+ax.set_title("3 · More candidates for the same money", fontsize=11.5, weight="bold", loc="left", pad=40)
+ax.text(0, 1.005, "2.53× the candidates for equal TOTAL acquisition time (1131 s vs 1166 s\n"
+        "per run) = 2.61× cheaper per candidate. D is cheaper early, dearer late.",
         transform=ax.transAxes, fontsize=8.3, color="#555", va="bottom")
 
 # ---- (d) hypervolume, the headline ----
@@ -143,24 +143,25 @@ ax = fig.add_subplot(gs[1, 2]); ax.axis("off")
 ax.text(0, 1.0, "6 · What this does and does not license",
         fontsize=11.5, weight="bold", transform=ax.transAxes, va="top")
 ax.text(0, .90,
-"CAN say:\n"
-"   every molecule returned clears the safety bar\n"
-"   by construction, not by tendency (67.7% → 100%)\n\n"
-"   acquisition is spent only on the two objectives\n"
-"   that are uncertain; the ADMET three were always\n"
-"   known exactly\n\n"
-"   2.6× the candidates at ⅓ the acquisition cost\n\n"
-"CANNOT say (yet):\n"
-"   'the pivot made our molecules safe' — they were\n"
-"   already 67.7% safe at 5 objectives\n\n"
-"   'we scan 100% of the library' — the ADMET filter\n"
-"   removes 80% first, so the pool is ~5,189 not 26,660\n\n"
-"   'uncapping alone helps' — arm C (uncapped, 5 obj)\n"
-"   was skipped on cost, so the uncap is only ever\n"
-"   measured WITH the pivot\n\n"
-"   any wall-clock total — arm A's docking was cached\n"
-"   (0.0 s); only the acquisition column compares",
-        fontsize=8.15, transform=ax.transAxes, va="top", family="monospace", color=DK)
+"MEASURED, 6 seeds, complete separation:\n\n"
+"   hypervolume 5-obj   0.3948 -> 0.2672\n"
+"                       0/6 wins   -32.3%   p=0.0312\n\n"
+"   hypervolume 2-obj   0.9589 -> 0.8830\n"
+"   (the pivot's OWN)   0/6 wins            p=0.0312\n\n"
+"   ADMET pass rate      67.7% -> 88.8%\n"
+"                       6/6 wins            p=0.0312\n"
+"   (BO-SELECTED picks: 100.0%, all 6 seeds;\n"
+"    the 40 random init molecules are unfiltered)\n\n"
+"   evaluated-set Jaccard vs baseline: 0.129\n"
+"   (noise floor 0.686 -> genuinely new chemistry)\n\n"
+"It loses the frame it optimizes for. That cannot be\n"
+"explained as metric bloat, and three mechanisms for it\n"
+"were tested and falsified (the bar does NOT exclude\n"
+"good binders, does NOT cost front coverage, and the\n"
+"fronts are NOT artifact-driven).\n\n"
+"VERDICT: keep --admet-constraints as an output filter,\n"
+"not as the optimization frame.",
+        fontsize=8.0, transform=ax.transAxes, va="top", family="monospace", color=DK)
 
 fig.suptitle("F26 · The 5-to-2 pivot: attributing two edits separately",
              fontsize=13.5, weight="bold", x=.5, y=.985)

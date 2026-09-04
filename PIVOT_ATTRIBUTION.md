@@ -102,7 +102,12 @@ is not, and the effect is large enough to invert the tradeoff:
 | A, 5 objectives, capped | 2,000 | 14.1 s -> 35.7 s |
 | D, 2 objectives, uncapped | ~5,189 | 5.8 s -> 13.3 s |
 
-**2.6x more candidates at roughly a third of the cost.** This is why my earlier
+**2.53x more candidates for the SAME total acquisition time** (1,131 s vs 1,166 s
+per run), i.e. 2.61x cheaper per candidate. Arm D is cheaper per iteration early
+and DEARER late (5.8 s -> 44 s against A's 14.1 s -> 35.7 s), because its front
+grows faster; the totals come out level. An earlier version of this file said
+"roughly a third of the cost", which was read off the early iterations only.
+This is also why my earlier
 "~2.5-3 h per run" estimate was wrong by about 7x: it assumed uncapping would
 dominate, when the 5->2 collapse makes acquisition nearly free. Measured
 ~22-36 s/iteration, so ~30 min per run.

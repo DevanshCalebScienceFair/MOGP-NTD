@@ -54,6 +54,24 @@ Applying the same bar post hoc to the molecules arm A chose to evaluate:
 Against a library base rate of 19.5%, that is a **3.47x enrichment**, tight across
 all six seeds (65.2-70.6%).
 
+**Split by where the molecule came from, the effect is sharper and self-checking.**
+Each run's first 40 rows are the random initialization, the remaining ~250 are the
+optimizer's own picks:
+
+| | pass rate | vs library |
+|---|---|---|
+| random init (first 40) | **17.5%** | 0.90x — i.e. no enrichment, as expected |
+| BO-selected (next ~250) | **75.1%** | **3.85x** |
+| library base rate | 19.5% | — |
+
+The random draw landing on 17.5% against a 19.5% library rate is a built-in
+negative control: it says the enrichment is produced by the optimizer, not by the
+library composition or by a column-mapping error in this measurement. Per-seed the
+BO figure is 76/72/72/79/76/75 — tight.
+
+So three quarters of what the 5-objective optimizer chose already cleared the
+safety bar.
+
 **So the honest version of the claim is not "the pivot makes your molecules
 safe."** They were already 67.7% safe. Treating ADMET as objectives was doing real
 work, and saying otherwise would be claiming credit for something the baseline

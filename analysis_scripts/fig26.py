@@ -59,9 +59,10 @@ for y, lab, eff, col in [(7.1, "+ --admet-constraints   THE PIVOT",
     ax.text(1.45, y - .3, lab, fontsize=8.2, va="center", color=DK, family="monospace")
     ax.text(1.45, y - .82, eff, fontsize=8.4, va="center", color=col,
             family="monospace", weight="bold")
-ax.text(0, .62, "The PIVOT owns the entire loss.", fontsize=9.2, weight="bold", color=LOSS)
-ax.text(0, .12, "The uncap is free. Without arm B this was\nindistinguishable from 'the combination lost 32%'.",
-        fontsize=7.9, color="#555")
+ax.text(0, 1.05, "The PIVOT owns the entire loss.", fontsize=9.2, weight="bold",
+        color=LOSS, va="bottom")
+ax.text(0, .85, "The uncap is free. Without arm B this was\nindistinguishable from 'the combination lost 32%'.",
+        fontsize=7.9, color="#555", va="top")
 
 # ---- (b) the enrichment finding ----
 ax = fig.add_subplot(gs[0, 1])

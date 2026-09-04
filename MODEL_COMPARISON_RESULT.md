@@ -47,6 +47,26 @@ Not what the run was for, but it is the first explicit determinism check on the
 pipeline and it passed 6/6. Worth stating in the paper: same machine, same
 config, same answer.
 
+## The complete picture: both regimes
+
+`F23_model_comparison_full.png` puts the two regimes side by side, because the
+tie above is only half the comparison.
+
+| hDHFR labels | OLD (Kronecker) | NEW (Hadamard) |
+|---|---|---|
+| 100% | trains | trains |
+| 75% | **refuses** | trains, predicts both |
+| 50% | **refuses** | trains, predicts both |
+| 25% | **refuses** | trains, predicts both |
+
+Measured directly, not asserted. And "refuses" is the *fixed* behaviour — before
+the guard added on this branch it did not raise at all: it silently dropped the
+task and returned NaN predictions for half the objective, so a run would finish
+and report plausible numbers for the other half.
+
+Under missing labels the new model also beats a non-sharing model given the same
+labels, by a margin that grows as labels thin out (F13: p ≤ 0.004 below 50%).
+
 ## Verdict
 
 **The new model strictly dominates for practical use.** It matches the old one

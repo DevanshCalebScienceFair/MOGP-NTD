@@ -23,7 +23,16 @@ import numpy as np
 import pandas as pd
 from rdkit import Chem, RDLogger
 from rdkit.Chem import Crippen, Descriptors
-from scipy.stats import pearsonr, spearmanr
+
+# Own-code statistics (mogp_core.stats) in place of scipy.stats. ``pearson_r`` is
+# scipy's normalise-then-dot formulation and ``spearman_rho`` is Pearson on
+# TIE-CORRECTED average ranks — NOT the 1-6*sum(d^2)/(n(n^2-1)) shortcut, which
+# is only an algebraic simplification for tie-FREE samples. On integer
+# heavy_atoms data at this script's own N_SAMPLE = 150 the shortcut is wrong by a
+# measured 4.323e-03 (and by 4.571e-01 at n = 5). Agreement with scipy over 400
+# x 150-molecule real subsamples x both score columns: max |diff| 5.551e-16.
+# See mogp_core/stats.py and spec/stats/SPEC.md.
+from mogp_core.stats import pearson_r, spearman_rho
 
 import docking
 from validate_known_actives import KNOWN_ACTIVES
@@ -76,7 +85,7 @@ def corr_block(df, score_col, label):
     for desc in ("MW", "logP"):
         x = df[desc].to_numpy(float)
         y = df[score_col].to_numpy(float)
-        out[desc] = (float(pearsonr(x, y)[0]), float(spearmanr(x, y)[0]))
+        out[desc] = (float(pearson_r(x, y)), float(spearman_rho(x, y)))
     return out
 
 

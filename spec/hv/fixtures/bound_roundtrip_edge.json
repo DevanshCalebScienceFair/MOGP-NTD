@@ -1,0 +1,12 @@
+{
+ "_doc": "The one archived row that normalizes to exactly 0.0 for a float-serialization reason rather than a scientific one. Proves the clip is load-bearing: without it this objective would be a small NEGATIVE number, which the strict reference filter would then silently drop the whole row for.",
+ "bound_is_exactly_a_float32_value": true,
+ "bound_lo_hex": "0x1.8154de0000000p-2",
+ "bound_lo_repr": "0.37630030512809753",
+ "clipped_normalized_repr": "0.0",
+ "csv_value_hex": "0x1.8154ddfffffffp-2",
+ "csv_value_repr": "0.3763003051280975",
+ "difference_repr": "-5.551115123125783e-17",
+ "objective": "Half_Life_hours",
+ "unclipped_normalized_repr": "-8.609973506672763e-19"
+}

@@ -94,7 +94,13 @@ def test_gp_trains_only_docking_and_predicts_nan_admet():
     # trained; the trained-task count is exactly len(DOCKING_TASK_INDICES) == 2.
     observed = np.where(np.isfinite(y_mean) & np.isfinite(y_std))[0].tolist()
     assert observed == list(DOCKING_TASK_INDICES)
-    assert int(likelihood.num_tasks) == len(DOCKING_TASK_INDICES) == 2
+    # The trained-task count used to be read off the gpytorch likelihood
+    # (``likelihood.num_tasks``). There is no likelihood object in the numpy
+    # stack — slot 1 of the 4-tuple is None and the noise lives in
+    # ``model.theta`` — so the same count is read off the returned GPState,
+    # whose ``n_tasks`` is the width of the target block it was fitted on.
+    assert likelihood is None
+    assert int(model.n_tasks) == len(DOCKING_TASK_INDICES) == 2
 
     mean, variance = predict(model, likelihood, y_mean, y_std, X[:3])
     assert mean.shape == (3, len(TASK_NAMES))

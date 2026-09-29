@@ -1,0 +1,38 @@
+{
+  "empirical_pearson_r_of_the_training_targets": 0.9312456745696731,
+  "recommended_test": "assert abs(corr_new - corr_ref) <= 1.0e-2 when both sides run 200 Adam steps at lr=0.1; assert abs(corr_new - 1.0) <= 1.0e-4 when both sides are driven to the stationary point.",
+  "reference_mle": {
+    "correlation_01_mean": 0.9999999999266587,
+    "correlation_01_per_init": [
+      0.9999999999223431,
+      0.9999999999268526,
+      0.9999999999347127,
+      0.9999999999227265
+    ],
+    "det_B_per_init": [
+      1.2817440103886155e-10,
+      1.2071727788924066e-10,
+      1.0775780512595571e-10,
+      1.27559518350083e-10
+    ]
+  },
+  "shipped_schedule_200_adam_steps_lr0.1": {
+    "correlation_01_mean": 0.9937832702364102,
+    "correlation_01_per_seed": [
+      0.9954769720822665,
+      0.9929330543704289,
+      0.9972000165431419,
+      0.9953687566550835,
+      0.9878559676816732,
+      0.9936458786331251,
+      0.993880993088322,
+      0.9939045228372406
+    ],
+    "correlation_01_spread": 0.009344048861468779
+  },
+  "target": "the fitted task CORRELATION matrix, never W",
+  "task_order": [
+    "PfDHFR_Docking",
+    "hDHFR_Docking"
+  ]
+}

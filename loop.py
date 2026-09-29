@@ -33,13 +33,16 @@ Run ``python loop.py --help`` for the command-line options.
 import os
 
 # ---------------------------------------------------------------------------
-# Threading / OpenMP guard — MUST run before numpy/torch/botorch are imported.
-# On Apple Silicon a duplicate libomp runtime can crash on import (OMP Error #15)
-# or deadlock inside torch autograd (_C.backward); pinning every math backend to
-# a single thread and tolerating the duplicate runtime avoids both. launch.py
-# sets the same variables (before it imports this module); setdefault means
-# whichever runs first wins and an explicit outer override is always respected,
-# so `python loop.py` is safe standalone without the old `env KMP_...` prefix.
+# Threading / OpenMP guard — MUST run before numpy (or any math backend) is
+# imported. On Apple Silicon a duplicate libomp runtime can crash on import
+# (OMP Error #15); pinning every math backend to a single thread and tolerating
+# the duplicate runtime avoids that. Single-threaded is also what keeps the
+# numerics independent of the machine: a threaded BLAS splits a reduction
+# across however many cores it finds, and the summation order — hence the last
+# bits — goes with it. The values below are unchanged. launch.py sets the same
+# variables (before it imports this module); setdefault means whichever runs
+# first wins and an explicit outer override is always respected, so
+# `python loop.py` is safe standalone without the old `env KMP_...` prefix.
 # ---------------------------------------------------------------------------
 for _thread_var in ("KMP_DUPLICATE_LIB_OK", "OMP_NUM_THREADS", "MKL_NUM_THREADS",
                     "VECLIB_MAXIMUM_THREADS", "NUMEXPR_NUM_THREADS"):
@@ -52,7 +55,6 @@ import argparse
 import warnings
 
 import numpy as np
-import torch
 import pandas as pd
 
 from data import (
@@ -91,10 +93,16 @@ LIBRARY_TASKS, DOCKING_TASKS, DOCKING_TARGETS = resolve_objective_layout(
 # columns filled by docking.
 DOCKING_COLUMNS = [j for j, _ in DOCKING_TASKS]
 
-# Margin (kcal/mol) below evaluation.DOCKING_KCAL_MIN at which we
-# warn that observed docking ligand efficiencies are saturating the fixed
-# normalization floor (see BOLoop._warn_if_docking_saturates). On the LE scale
-# (range ~0.55 wide) this is far smaller than the old raw-kcal margin.
+# Margin below evaluation.DOCKING_KCAL_MIN at which we warn that observed
+# docking scores are saturating the fixed normalization floor (see
+# BOLoop._warn_if_docking_saturates). KNOWN ISSUE, DELIBERATELY UNCHANGED: the
+# value was sized for the ligand-efficiency scale this objective briefly used
+# (a span of ~0.55 kcal/mol/atom, so 0.25 was ~45% of it). The objective has
+# since reverted to raw kcal/mol, whose normalization span is
+# DOCKING_KCAL_MAX - DOCKING_KCAL_MIN = 6.0 kcal/mol, so the same 0.25 is now
+# ~4.2% of the range and the warning fires far later than it was meant to.
+# Retuning it would move a study-wide threshold mid-study, so it stays at 0.25;
+# only this comment's unit wording is corrected.
 DOCKING_SATURATION_MARGIN = 0.25
 
 
@@ -115,38 +123,24 @@ GRAND_CAMPAIGN_PARAMS = {"n_init": 40, "batch_size": 5, "n_iterations": 50}
 
 
 def assert_fast_acquisition_path():
-    """Fail loudly if botorch cannot compile its fused qLogEHVI kernel.
+    """Retained startup hook; there is no longer a fast/slow kernel to assert.
 
-    Calling the env's python by absolute path (rather than activating the env)
-    leaves the env's ``bin/`` off PATH, so torch cannot find ``ninja`` and
-    botorch silently drops to the pure-Python qLogEHVI — roughly 3x slower on
-    the acquisition hot path. Acquisition is about half the wall-clock of a BO
-    config, so on a full sweep that silent fallback costs hours.
+    This used to fail loudly if botorch could not compile its fused qLogEHVI
+    extension. Calling the env's python by absolute path (rather than activating
+    the env) left the env's ``bin/`` off PATH, so torch could not find ``ninja``
+    and botorch silently dropped to the pure-Python qLogEHVI — roughly 3x slower
+    on the acquisition hot path, on some machines only, with a warning rather
+    than an error. That was the performance equivalent of a silently wrong
+    score, so the loop refused to start on the slow path.
 
-    It is silent by design upstream (a warning, not an error), which makes it
-    the performance equivalent of a silently wrong score: everything still
-    "works", just far slower and only on some machines. ``go.sh`` fixes the
-    PATH; this asserts the fix actually took. Set ``MOGP_ALLOW_SLOW_EHVI=1`` to
-    proceed anyway (a short run may not care).
+    The acquisition is now this project's own code: pure numpy, one code path,
+    no compiled extension to build and therefore no silent fallback to detect.
+    Nothing is left to check, so this is a no-op. The function, its name and its
+    call site in ``run`` are kept because they are the loop's public startup
+    contract, and ``MOGP_ALLOW_SLOW_EHVI`` is still accepted — now ignored — so
+    existing launchers and docs that set it keep working.
     """
-    if os.environ.get("MOGP_ALLOW_SLOW_EHVI") == "1":
-        return
-    try:
-        from torch.utils.cpp_extension import verify_ninja_availability
-        verify_ninja_availability()
-    except Exception as exc:                                           # noqa: BLE001
-        raise RuntimeError(
-            f"loop: botorch's fused qLogEHVI kernel cannot be built "
-            f"({exc.__class__.__name__}: {exc}).\n"
-            "  Acquisition would fall back to the ~3x slower pure-Python path, "
-            "silently.\n"
-            "  Usual cause: the conda env's bin/ is not on PATH because python "
-            "was invoked by absolute path.\n"
-            "  Fix: launch via go.sh, or export "
-            "PATH=\"$(dirname $(command -v python))/../bin:$PATH\" with the env "
-            "activated.\n"
-            "  Override: MOGP_ALLOW_SLOW_EHVI=1"
-        ) from exc
+    return
 
 
 def resolve_train_fn(model, rank=1):
@@ -194,9 +188,27 @@ class BOLoop:
                  densify=False, densify_every=1, densify_per_parent=20,
                  densify_max_pool=None):
         # --- Reproducibility ---
+        # One seed, one global RNG. `np.random.seed(seed)` covers `initialize`'s
+        # random draw here, and `_densify` derives its own explicit seed from
+        # `self.seed`, so both are pinned by the argument above.
+        #
+        # This used to be seeded twice. ``torch.manual_seed(seed)`` sat here not
+        # because this file did any torch arithmetic — it never did — but because
+        # botorch built its ``SobolQMCNormalSampler`` with ``seed=None``, and
+        # botorch's ``MCSampler.__init__`` then draws the Sobol scramble seed
+        # from torch's GLOBAL RNG (``int(torch.randint(0, 1000000, (1,)).item())``).
+        # The torch seed therefore decided the quasi-MC draws — the qNEHVI scores
+        # and the selected batch — through a hidden global: numerically
+        # load-bearing, and invisible from here.
+        #
+        # The own-code acquisition mirrors that structure rather than the exact
+        # stream (no numpy seed can reproduce a torch one): it draws its Sobol'
+        # scramble seed from numpy's ambient global RNG, once per
+        # ``compute_qnehvi`` call (``acquisition._draw_scramble_seed``). So the
+        # line below is now the single control for the whole run, and there is no
+        # torch RNG left to seed.
         self.seed = seed
         np.random.seed(seed)
-        torch.manual_seed(seed)
 
         # --- GP training function ---
         # The PRIMARY / headline model is the coregionalized (ICM) GP, which

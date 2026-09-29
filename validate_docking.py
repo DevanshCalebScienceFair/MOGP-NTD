@@ -43,7 +43,6 @@ import argparse
 
 import numpy as np
 import pandas as pd
-from scipy.stats import pearsonr, spearmanr
 from rdkit import Chem
 from rdkit.Chem import Descriptors, Crippen
 
@@ -51,6 +50,17 @@ import docking
 from docking_cache import canonicalize_smiles
 from data import load_library
 from validate_known_actives import KNOWN_ACTIVES
+
+# Own-code statistics (mogp_core.stats) in place of scipy.stats. ``pearson_r``
+# reproduces scipy's normalise-then-dot formulation; ``spearman_rho`` is Pearson
+# on TIE-CORRECTED average ranks, NOT the 1-6*sum(d^2)/(n(n^2-1)) shortcut, which
+# is only an algebraic simplification for tie-FREE samples. heavy_atoms here is
+# integer and heavily tied (measured on this script's own 2108-molecule sample:
+# 30 distinct values, largest tie group 148), and the shortcut is wrong by a
+# measured 1.836e-03 on that sample, 4.323e-03 at n=150 and 4.571e-01 at n=5.
+# Agreement with scipy on the same sample: pearson max|diff| 0.0, spearman
+# max|diff| 3.331e-16.
+from mogp_core.stats import pearson_r, spearman_rho
 
 
 # The docking objective column as written by the pipeline (mogp.TASK_NAMES).
@@ -309,8 +319,8 @@ def report_correlations(sample_df):
     flagged = False
     for col in ("MW", "logP"):
         x = sample_df[col].to_numpy()
-        pear = float(pearsonr(x, y)[0])
-        spear = float(spearmanr(x, y)[0])
+        pear = float(pearson_r(x, y))
+        spear = float(spearman_rho(x, y))
         out[col] = {"raw": (pear, spear)}
         strong = abs(pear) > CORR_STRONG or abs(spear) > CORR_STRONG
         flagged = flagged or strong
@@ -331,8 +341,8 @@ def report_correlations(sample_df):
           "buys score.")
     for col in ("MW", "logP"):
         x = sample_df[col].to_numpy()
-        lp = float(pearsonr(x, le)[0])
-        ls = float(spearmanr(x, le)[0])
+        lp = float(pearson_r(x, le))
+        ls = float(spearman_rho(x, le))
         out[col]["le"] = (lp, ls)
         raw_abs = abs(out[col]["raw"][0])
         label = "LE vs " + col
@@ -394,7 +404,7 @@ def report_ligand_efficiency(sample_df, top_k):
           f"({overlap_frac * 100:.0f}%)")
     print(f"    raw-score leaders LE demotes: {len(dropped)}/{k}")
 
-    corr_le_mw = (float(spearmanr(df["MW"], df["LE"])[0])
+    corr_le_mw = (float(spearman_rho(df["MW"], df["LE"]))
                   if len(df) >= 3 else float("nan"))
     print(f"    Spearman(LE, MW) = {corr_le_mw:+.3f} "
           "(closer to 0 = LE has removed more of the size trend)")

@@ -1,0 +1,3397 @@
+{
+  "canonical_bounds_path": "/Users/calebsuh/MOGP-NTD/evaluation_bounds.json",
+  "per_run": [
+    {
+      "run": "benchmark_5way_densify_seed0_2026-08-19/gpmobo/seed_0",
+      "n_rows": 69,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 68,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -10.11,
+          "obs_max": -6.304,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 68,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -10.25,
+          "obs_max": -5.908,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 69,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.0301946960389614,
+          "obs_max": 0.9986268281936646,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 69,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -5.861367702484131,
+          "obs_max": -4.084721088409424,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 69,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 1.109547138214111,
+          "obs_max": 37.7877311706543,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_5way_densify_seed0_2026-08-19/greedy/seed_0",
+      "n_rows": 69,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 69,
+          "n_zero": 0,
+          "n_one": 1,
+          "obs_min": -11.17,
+          "obs_max": -5.649,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 69,
+          "n_zero": 0,
+          "n_one": 1,
+          "obs_min": -10.9,
+          "obs_max": -4.058,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 69,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.029465464875102,
+          "obs_max": 0.4950762391090393,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 69,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -5.485170841217041,
+          "obs_max": -4.3346428871154785,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 69,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 2.350440502166748,
+          "obs_max": 25.536544799804688,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_5way_densify_seed0_2026-08-19/mogp/seed_0",
+      "n_rows": 69,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 68,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -10.36,
+          "obs_max": -7.256,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 68,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -10.69,
+          "obs_max": -6.767,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 69,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.0156715270131826,
+          "obs_max": 0.9986268281936646,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 69,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -5.561645984649658,
+          "obs_max": -3.8908379077911377,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 69,
+          "n_zero": 0,
+          "n_one": 2,
+          "obs_min": 1.109547138214111,
+          "obs_max": 76.04608154296875,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_5way_densify_seed0_2026-08-19/random/seed_0",
+      "n_rows": 69,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 66,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -10.26,
+          "obs_max": -6.332,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 66,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -10.64,
+          "obs_max": -6.187,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 69,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.0074896872974932,
+          "obs_max": 0.9993714094161988,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 69,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -6.891854763031006,
+          "obs_max": -4.244588375091553,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 69,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 1.058611512184143,
+          "obs_max": 17.868906021118164,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_5way_densify_seed0_2026-08-19/single_obj/seed_0",
+      "n_rows": 69,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 67,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -10.89,
+          "obs_max": -6.302,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 67,
+          "n_zero": 0,
+          "n_one": 1,
+          "obs_min": -10.67,
+          "obs_max": -4.585,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 69,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.021988745778799,
+          "obs_max": 0.9986268281936646,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 69,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -5.618409633636475,
+          "obs_max": -4.281731128692627,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 69,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 1.109547138214111,
+          "obs_max": 24.248022079467773,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_thicc_2026-08-14/greedy/seed_0",
+      "n_rows": 65,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 1,
+          "obs_min": -11.17,
+          "obs_max": -5.649,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 1,
+          "obs_min": -10.9,
+          "obs_max": -4.058,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.0298250913619995,
+          "obs_max": 0.4950762391090393,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -5.41688871383667,
+          "obs_max": -4.3346428871154785,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 2.350440502166748,
+          "obs_max": 25.536544799804688,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_thicc_2026-08-14/greedy/seed_1",
+      "n_rows": 65,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 64,
+          "n_zero": 1,
+          "n_one": 0,
+          "obs_min": -10.9,
+          "obs_max": -4.222,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 64,
+          "n_zero": 0,
+          "n_one": 2,
+          "obs_min": -10.77,
+          "obs_max": 1.199,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.0167560297995805,
+          "obs_max": 0.4909587502479553,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -5.464391708374023,
+          "obs_max": -4.303004264831543,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 2.0030598640441895,
+          "obs_max": 38.69343185424805,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_thicc_2026-08-14/greedy/seed_2",
+      "n_rows": 65,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 64,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -9.97,
+          "obs_max": -5.726,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 64,
+          "n_zero": 0,
+          "n_one": 1,
+          "obs_min": -10.95,
+          "obs_max": -4.935,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.0159828774631023,
+          "obs_max": 0.4951842725276947,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -5.36292839050293,
+          "obs_max": -3.994135618209839,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 2.116863489151001,
+          "obs_max": 22.409164428710938,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_thicc_2026-08-14/greedy/seed_3",
+      "n_rows": 65,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 64,
+          "n_zero": 0,
+          "n_one": 1,
+          "obs_min": -11.17,
+          "obs_max": -6.151,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 64,
+          "n_zero": 1,
+          "n_one": 1,
+          "obs_min": -11.06,
+          "obs_max": -4.228,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.0190183687955141,
+          "obs_max": 0.4981826245784759,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -5.449863910675049,
+          "obs_max": -4.189834117889404,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 2.0200629234313965,
+          "obs_max": 31.895755767822266,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_thicc_2026-08-14/greedy/seed_4",
+      "n_rows": 65,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 64,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -10.64,
+          "obs_max": -5.432,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 64,
+          "n_zero": 0,
+          "n_one": 1,
+          "obs_min": -10.41,
+          "obs_max": -4.913,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.0241724457591772,
+          "obs_max": 0.4745664298534393,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -5.492217540740967,
+          "obs_max": -4.227964878082275,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 2.090182065963745,
+          "obs_max": 27.643617630004883,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_thicc_2026-08-14/mogp/seed_0",
+      "n_rows": 65,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 64,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -10.36,
+          "obs_max": -7.237,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 64,
+          "n_zero": 1,
+          "n_one": 0,
+          "obs_min": -11.05,
+          "obs_max": -6.767,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.0197479482740163,
+          "obs_max": 0.9986268281936646,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -5.561645984649658,
+          "obs_max": -3.8908379077911377,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 2,
+          "obs_min": 1.109547138214111,
+          "obs_max": 81.63323974609375,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_thicc_2026-08-14/mogp/seed_1",
+      "n_rows": 65,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 65,
+          "n_zero": 1,
+          "n_one": 0,
+          "obs_min": -10.35,
+          "obs_max": -1.85,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 65,
+          "n_zero": 1,
+          "n_one": 3,
+          "obs_min": -11.28,
+          "obs_max": 6.191,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.0216742511838674,
+          "obs_max": 0.9830721616744996,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -5.77716588973999,
+          "obs_max": -3.8908379077911377,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 1.0566681623458862,
+          "obs_max": 60.32347869873047,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_thicc_2026-08-14/mogp/seed_2",
+      "n_rows": 65,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 64,
+          "n_zero": 1,
+          "n_one": 0,
+          "obs_min": -10.69,
+          "obs_max": -4.823,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 64,
+          "n_zero": 0,
+          "n_one": 2,
+          "obs_min": -10.74,
+          "obs_max": -1.191,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.0101275844499468,
+          "obs_max": 0.9964655637741088,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -5.899472236633301,
+          "obs_max": -3.8908379077911377,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 1.3194087743759155,
+          "obs_max": 64.69560241699219,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_thicc_2026-08-14/mogp/seed_3",
+      "n_rows": 65,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 64,
+          "n_zero": 1,
+          "n_one": 0,
+          "obs_min": -10.47,
+          "obs_max": -4.613,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 64,
+          "n_zero": 1,
+          "n_one": 0,
+          "obs_min": -11.05,
+          "obs_max": -5.66,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.02802100405097,
+          "obs_max": 0.9937372803688048,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -5.7337775230407715,
+          "obs_max": -3.877017736434937,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 1.1412698030471802,
+          "obs_max": 60.32347869873047,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_thicc_2026-08-14/mogp/seed_4",
+      "n_rows": 65,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 64,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -10.11,
+          "obs_max": -5.693,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 64,
+          "n_zero": 0,
+          "n_one": 1,
+          "obs_min": -10.64,
+          "obs_max": -4.048,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.0124070467427372,
+          "obs_max": 0.9934391975402832,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -5.559296131134033,
+          "obs_max": -3.8991196155548096,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 1.6596444845199585,
+          "obs_max": 64.69560241699219,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_thicc_2026-08-14/random/seed_0",
+      "n_rows": 65,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 60,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -10.97,
+          "obs_max": -6.642,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 60,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -10.59,
+          "obs_max": -5.633,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.01202476862818,
+          "obs_max": 0.9986268281936646,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -6.891854763031006,
+          "obs_max": -4.237066268920898,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 1.109547138214111,
+          "obs_max": 29.2114200592041,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_thicc_2026-08-14/random/seed_1",
+      "n_rows": 65,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 62,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -10.33,
+          "obs_max": -5.497,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 62,
+          "n_zero": 1,
+          "n_one": 2,
+          "obs_min": -11.28,
+          "obs_max": -3.332,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.0526141934096813,
+          "obs_max": 0.9961223006248474,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -6.326109409332275,
+          "obs_max": -4.145849227905273,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.926956593990326,
+          "obs_max": 29.05073928833008,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_thicc_2026-08-14/random/seed_2",
+      "n_rows": 65,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 61,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -10.38,
+          "obs_max": -5.853,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 61,
+          "n_zero": 0,
+          "n_one": 3,
+          "obs_min": -10.36,
+          "obs_max": -3.682,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.0207346063107252,
+          "obs_max": 0.9993698596954346,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -6.654016971588135,
+          "obs_max": -4.42118501663208,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 1.1272361278533936,
+          "obs_max": 30.316551208496097,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_thicc_2026-08-14/random/seed_3",
+      "n_rows": 65,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 62,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -10.53,
+          "obs_max": -5.849,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 62,
+          "n_zero": 0,
+          "n_one": 1,
+          "obs_min": -10.34,
+          "obs_max": -2.839,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.0525230877101421,
+          "obs_max": 0.9980727434158324,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -5.751603603363037,
+          "obs_max": -4.26979398727417,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 1.1298152208328247,
+          "obs_max": 22.202495574951172,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_thicc_2026-08-14/random/seed_4",
+      "n_rows": 65,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 64,
+          "n_zero": 2,
+          "n_one": 0,
+          "obs_min": -10.02,
+          "obs_max": -4.232,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 64,
+          "n_zero": 0,
+          "n_one": 2,
+          "obs_min": -10.92,
+          "obs_max": -3.551,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.0632622838020324,
+          "obs_max": 0.9988687038421632,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -5.764388084411621,
+          "obs_max": -4.2725324630737305,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.9456073045730592,
+          "obs_max": 22.762666702270508,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_thicc_2026-08-14/single_obj/seed_0",
+      "n_rows": 65,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 63,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -10.89,
+          "obs_max": -7.256,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 63,
+          "n_zero": 0,
+          "n_one": 1,
+          "obs_min": -10.56,
+          "obs_max": -4.585,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.0301946960389614,
+          "obs_max": 0.9986268281936646,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -5.6811933517456055,
+          "obs_max": -4.281731128692627,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.9372271299362184,
+          "obs_max": 24.248022079467773,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_thicc_2026-08-14/single_obj/seed_1",
+      "n_rows": 65,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 63,
+          "n_zero": 0,
+          "n_one": 1,
+          "obs_min": -11.12,
+          "obs_max": -5.497,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 63,
+          "n_zero": 1,
+          "n_one": 1,
+          "obs_min": -11.28,
+          "obs_max": -3.332,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.0526141934096813,
+          "obs_max": 0.9927559494972228,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -5.77716588973999,
+          "obs_max": -4.145849227905273,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 1.0566681623458862,
+          "obs_max": 37.79669570922851,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_thicc_2026-08-14/single_obj/seed_2",
+      "n_rows": 65,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 63,
+          "n_zero": 0,
+          "n_one": 2,
+          "obs_min": -11.18,
+          "obs_max": -6.907,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 63,
+          "n_zero": 2,
+          "n_one": 3,
+          "obs_min": -11.65,
+          "obs_max": -1.005,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.0263086892664432,
+          "obs_max": 0.9964655637741088,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -6.439904689788818,
+          "obs_max": -4.265680313110352,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 1.1219701766967771,
+          "obs_max": 30.269201278686523,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_thicc_2026-08-14/single_obj/seed_3",
+      "n_rows": 65,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 63,
+          "n_zero": 0,
+          "n_one": 1,
+          "obs_min": -11.12,
+          "obs_max": -5.849,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 63,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -10.82,
+          "obs_max": -5.058,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.0525230877101421,
+          "obs_max": 0.9937372803688048,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -5.7337775230407715,
+          "obs_max": -4.273344039916992,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 1.1219701766967771,
+          "obs_max": 37.79669570922851,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_thicc_2026-08-14/single_obj/seed_4",
+      "n_rows": 65,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 64,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -10.7,
+          "obs_max": -6.446,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 64,
+          "n_zero": 1,
+          "n_one": 0,
+          "obs_min": -11.34,
+          "obs_max": -6.26,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.1284549832344055,
+          "obs_max": 0.997915744781494,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -5.693474292755127,
+          "obs_max": -4.356934070587158,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 65,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 1.0868600606918335,
+          "obs_max": 22.762666702270508,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/greedy/seed_0",
+      "n_rows": 90,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 1,
+          "obs_min": -11.17,
+          "obs_max": -5.649,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 1,
+          "obs_min": -10.9,
+          "obs_max": -4.058,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.029465464875102,
+          "obs_max": 0.4950762391090393,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -5.485170841217041,
+          "obs_max": -4.327788352966309,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 2.010197877883911,
+          "obs_max": 25.536544799804688,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/greedy/seed_1",
+      "n_rows": 90,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 88,
+          "n_zero": 1,
+          "n_one": 0,
+          "obs_min": -10.92,
+          "obs_max": -4.222,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 88,
+          "n_zero": 0,
+          "n_one": 2,
+          "obs_min": -10.77,
+          "obs_max": 1.199,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.0167560297995805,
+          "obs_max": 0.4987097978591919,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -5.495284557342529,
+          "obs_max": -4.303004264831543,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 2.0030598640441895,
+          "obs_max": 38.69343185424805,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/greedy/seed_2",
+      "n_rows": 90,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 87,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -10.12,
+          "obs_max": -5.726,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 87,
+          "n_zero": 0,
+          "n_one": 2,
+          "obs_min": -10.95,
+          "obs_max": -4.935,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.0159828774631023,
+          "obs_max": 0.4951842725276947,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -5.499112606048584,
+          "obs_max": -3.994135618209839,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 2.116863489151001,
+          "obs_max": 25.030244827270508,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/greedy/seed_3",
+      "n_rows": 90,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 89,
+          "n_zero": 0,
+          "n_one": 1,
+          "obs_min": -11.17,
+          "obs_max": -5.785,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 89,
+          "n_zero": 1,
+          "n_one": 1,
+          "obs_min": -11.06,
+          "obs_max": -4.228,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.0190183687955141,
+          "obs_max": 0.4981826245784759,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -5.449863910675049,
+          "obs_max": -4.189834117889404,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 2.0200629234313965,
+          "obs_max": 38.34092712402344,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/greedy/seed_7",
+      "n_rows": 90,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 86,
+          "n_zero": 1,
+          "n_one": 0,
+          "obs_min": -10.31,
+          "obs_max": -2.649,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 86,
+          "n_zero": 3,
+          "n_one": 4,
+          "obs_min": -11.36,
+          "obs_max": 5.413,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.0166221335530281,
+          "obs_max": 0.4983945488929748,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -5.482044219970703,
+          "obs_max": -4.357644557952881,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 2.002255916595459,
+          "obs_max": 31.16408348083496,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/greedy/seed_8",
+      "n_rows": 90,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 85,
+          "n_zero": 0,
+          "n_one": 1,
+          "obs_min": -11.27,
+          "obs_max": -5.221,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 85,
+          "n_zero": 1,
+          "n_one": 3,
+          "obs_min": -12.04,
+          "obs_max": 4.258,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.0049995277076959,
+          "obs_max": 0.4889394342899322,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -5.497915744781494,
+          "obs_max": -4.103984832763672,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 2.042829751968384,
+          "obs_max": 28.6641902923584,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/greedy/seed_9",
+      "n_rows": 90,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 89,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -10.7,
+          "obs_max": -6.062,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 89,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -10.27,
+          "obs_max": -5.979,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.0265155304223299,
+          "obs_max": 0.4904626905918121,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -5.498993873596191,
+          "obs_max": -4.13507604598999,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 2.0030598640441895,
+          "obs_max": 17.692419052124023,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/mogp/seed_0",
+      "n_rows": 90,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 89,
+          "n_zero": 2,
+          "n_one": 0,
+          "obs_min": -10.35,
+          "obs_max": -1.85,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 89,
+          "n_zero": 0,
+          "n_one": 5,
+          "obs_min": -10.74,
+          "obs_max": 6.191,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.0187898371368646,
+          "obs_max": 0.9986268281936646,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -5.561645984649658,
+          "obs_max": -3.8908379077911377,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 1,
+          "obs_min": 1.109547138214111,
+          "obs_max": 67.8887710571289,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/mogp/seed_1",
+      "n_rows": 90,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 89,
+          "n_zero": 1,
+          "n_one": 0,
+          "obs_min": -10.34,
+          "obs_max": -1.85,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 89,
+          "n_zero": 1,
+          "n_one": 4,
+          "obs_min": -11.28,
+          "obs_max": 6.191,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.0124070467427372,
+          "obs_max": 0.9830721616744996,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -5.77716588973999,
+          "obs_max": -3.8908379077911377,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 1,
+          "obs_min": 1.0566681623458862,
+          "obs_max": 67.8887710571289,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/mogp/seed_2",
+      "n_rows": 90,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 89,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -10.63,
+          "obs_max": -6.877,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 89,
+          "n_zero": 1,
+          "n_one": 1,
+          "obs_min": -11.14,
+          "obs_max": -4.769,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.0156715270131826,
+          "obs_max": 0.9964655637741088,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -5.899472236633301,
+          "obs_max": -3.8908379077911377,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 1.3194087743759155,
+          "obs_max": 60.32347869873047,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/mogp/seed_3",
+      "n_rows": 90,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 89,
+          "n_zero": 1,
+          "n_one": 0,
+          "obs_min": -10.47,
+          "obs_max": -1.85,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 89,
+          "n_zero": 2,
+          "n_one": 3,
+          "obs_min": -11.06,
+          "obs_max": 6.191,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.0201030280441045,
+          "obs_max": 0.9937372803688048,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -5.7337775230407715,
+          "obs_max": -3.8692009449005127,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 1.1412698030471802,
+          "obs_max": 62.47792434692383,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/mogp/seed_7",
+      "n_rows": 90,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 90,
+          "n_zero": 1,
+          "n_one": 0,
+          "obs_min": -10.5,
+          "obs_max": -1.85,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 90,
+          "n_zero": 2,
+          "n_one": 3,
+          "obs_min": -11.69,
+          "obs_max": 6.191,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.0153367668390274,
+          "obs_max": 0.9817451238632202,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -5.953100204467773,
+          "obs_max": -3.8991196155548096,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 1.5824233293533323,
+          "obs_max": 58.42399215698242,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/mogp/seed_8",
+      "n_rows": 90,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 1,
+          "obs_min": -11.01,
+          "obs_max": -5.333,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 90,
+          "n_zero": 3,
+          "n_one": 0,
+          "obs_min": -11.57,
+          "obs_max": -5.789,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.0144296772778034,
+          "obs_max": 0.9676678776741028,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -6.763812065124512,
+          "obs_max": -3.8991196155548096,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 1.5011974573135376,
+          "obs_max": 62.47792434692383,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/mogp/seed_9",
+      "n_rows": 90,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 89,
+          "n_zero": 1,
+          "n_one": 0,
+          "obs_min": -10.9,
+          "obs_max": -1.85,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 89,
+          "n_zero": 0,
+          "n_one": 4,
+          "obs_min": -10.64,
+          "obs_max": 6.191,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.0218572095036506,
+          "obs_max": 0.9992241859436036,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -5.559296131134033,
+          "obs_max": -3.8908379077911377,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 1.375165581703186,
+          "obs_max": 62.94902801513672,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/random/seed_0",
+      "n_rows": 90,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 86,
+          "n_zero": 1,
+          "n_one": 0,
+          "obs_min": -10.32,
+          "obs_max": -3.914,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 86,
+          "n_zero": 1,
+          "n_one": 1,
+          "obs_min": -11.28,
+          "obs_max": 5.054,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.0250030849128961,
+          "obs_max": 0.9986268281936646,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -6.891854763031006,
+          "obs_max": -4.109610557556152,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 90,
+          "n_zero": 1,
+          "n_one": 0,
+          "obs_min": 0.3763003051280975,
+          "obs_max": 38.10746765136719,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/random/seed_1",
+      "n_rows": 90,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 88,
+          "n_zero": 1,
+          "n_one": 0,
+          "obs_min": -10.9,
+          "obs_max": 4.213,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 88,
+          "n_zero": 1,
+          "n_one": 2,
+          "obs_min": -11.28,
+          "obs_max": 6.244,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.0526141934096813,
+          "obs_max": 0.996536374092102,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -6.089492321014404,
+          "obs_max": -4.145849227905273,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 1.0566681623458862,
+          "obs_max": 29.05073928833008,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/random/seed_2",
+      "n_rows": 90,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 82,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -10.84,
+          "obs_max": -6.528,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 82,
+          "n_zero": 0,
+          "n_one": 1,
+          "obs_min": -10.58,
+          "obs_max": -4.769,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.0149933891370892,
+          "obs_max": 0.9993698596954346,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -5.956042766571045,
+          "obs_max": -4.255221843719482,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.8814634680747986,
+          "obs_max": 32.23517990112305,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/random/seed_3",
+      "n_rows": 90,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 87,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -10.68,
+          "obs_max": -5.117,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 87,
+          "n_zero": 2,
+          "n_one": 1,
+          "obs_min": -12.38,
+          "obs_max": -3.907,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.031245170161128,
+          "obs_max": 0.9941213130950928,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -6.3429083824157715,
+          "obs_max": -4.38147497177124,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.8328174948692322,
+          "obs_max": 35.63307189941406,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/random/seed_7",
+      "n_rows": 90,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 88,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -10.7,
+          "obs_max": -6.294,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 88,
+          "n_zero": 2,
+          "n_one": 2,
+          "obs_min": -11.69,
+          "obs_max": 0.6735,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.0329666845500469,
+          "obs_max": 0.9908601641654968,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -6.800114154815674,
+          "obs_max": -3.958852767944336,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 1.0681761503219604,
+          "obs_max": 21.4261474609375,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/random/seed_8",
+      "n_rows": 90,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 88,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -10.55,
+          "obs_max": -5.333,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 88,
+          "n_zero": 2,
+          "n_one": 1,
+          "obs_min": -11.57,
+          "obs_max": -4.229,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.0144296772778034,
+          "obs_max": 0.9959281086921692,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -6.763812065124512,
+          "obs_max": -4.178687572479248,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.8359536528587341,
+          "obs_max": 17.638303756713867,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/random/seed_9",
+      "n_rows": 90,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 85,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -10.54,
+          "obs_max": -5.771,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 85,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -10.76,
+          "obs_max": -5.492,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.0235913898795843,
+          "obs_max": 0.9992241859436036,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -6.313320636749268,
+          "obs_max": -4.297927379608154,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 1.375165581703186,
+          "obs_max": 27.781164169311523,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/single_obj/seed_0",
+      "n_rows": 90,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 87,
+          "n_zero": 0,
+          "n_one": 1,
+          "obs_min": -11.3,
+          "obs_max": -6.681,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 87,
+          "n_zero": 1,
+          "n_one": 1,
+          "obs_min": -11.23,
+          "obs_max": -4.963,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.0301946960389614,
+          "obs_max": 0.9986268281936646,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -6.333621978759766,
+          "obs_max": -4.281731128692627,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.9372271299362184,
+          "obs_max": 24.248022079467773,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/single_obj/seed_1",
+      "n_rows": 90,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 88,
+          "n_zero": 0,
+          "n_one": 3,
+          "obs_min": -11.17,
+          "obs_max": -5.497,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 88,
+          "n_zero": 3,
+          "n_one": 1,
+          "obs_min": -11.28,
+          "obs_max": -3.332,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.038293894380331,
+          "obs_max": 0.9968851208686828,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -5.77716588973999,
+          "obs_max": -4.145849227905273,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 1.0566681623458862,
+          "obs_max": 34.543148040771484,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/single_obj/seed_2",
+      "n_rows": 90,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 87,
+          "n_zero": 0,
+          "n_one": 2,
+          "obs_min": -11.27,
+          "obs_max": -6.231,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 87,
+          "n_zero": 5,
+          "n_one": 3,
+          "obs_min": -12.08,
+          "obs_max": -1.005,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.0263086892664432,
+          "obs_max": 0.998561143875122,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -5.951840877532959,
+          "obs_max": -4.108197212219238,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 1.3194087743759155,
+          "obs_max": 30.269201278686523,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/single_obj/seed_3",
+      "n_rows": 90,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 89,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -10.91,
+          "obs_max": -5.849,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 89,
+          "n_zero": 1,
+          "n_one": 0,
+          "obs_min": -11.24,
+          "obs_max": -5.058,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.0525230877101421,
+          "obs_max": 0.9937372803688048,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -5.76334285736084,
+          "obs_max": -4.207546710968018,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 1.1219701766967771,
+          "obs_max": 24.868305206298828,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/single_obj/seed_7",
+      "n_rows": 90,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 89,
+          "n_zero": 0,
+          "n_one": 1,
+          "obs_min": -11.23,
+          "obs_max": -5.853,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 89,
+          "n_zero": 3,
+          "n_one": 2,
+          "obs_min": -12.07,
+          "obs_max": -3.702,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.032917708158493,
+          "obs_max": 0.998901665210724,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -6.436838626861572,
+          "obs_max": -4.315616130828857,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 1.5824233293533323,
+          "obs_max": 22.630603790283203,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/single_obj/seed_8",
+      "n_rows": 90,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 84,
+          "n_zero": 1,
+          "n_one": 0,
+          "obs_min": -10.82,
+          "obs_max": -0.9254,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 84,
+          "n_zero": 2,
+          "n_one": 3,
+          "obs_min": -11.57,
+          "obs_max": 10.73,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.0144296772778034,
+          "obs_max": 0.9992201328277588,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -7.065454959869385,
+          "obs_max": -4.108197212219238,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 1.5011974573135376,
+          "obs_max": 21.130430221557617,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/single_obj/seed_9",
+      "n_rows": 90,
+      "per_objective": {
+        "PfDHFR_Docking": {
+          "n_finite": 89,
+          "n_zero": 1,
+          "n_one": 0,
+          "obs_min": -10.89,
+          "obs_max": -2.649,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": -1
+        },
+        "hDHFR_Docking": {
+          "n_finite": 89,
+          "n_zero": 2,
+          "n_one": 1,
+          "obs_min": -11.28,
+          "obs_max": -4.585,
+          "lo": -11.0,
+          "hi": -5.0,
+          "sign": 1
+        },
+        "hERG_Toxicity_Prob": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.021988745778799,
+          "obs_max": 0.9992241859436036,
+          "lo": 0.001999363536015153,
+          "hi": 0.9998417496681213,
+          "sign": -1
+        },
+        "Caco2_logPapp": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": -5.76334285736084,
+          "obs_max": -4.302233695983887,
+          "lo": -7.260476112365723,
+          "hi": -3.825927495956421,
+          "sign": 1
+        },
+        "Half_Life_hours": {
+          "n_finite": 90,
+          "n_zero": 0,
+          "n_one": 0,
+          "obs_min": 0.9440606236457824,
+          "obs_max": 33.76791763305664,
+          "lo": 0.37630030512809753,
+          "hi": 64.84938049316406,
+          "sign": 1
+        }
+      }
+    }
+  ],
+  "pooled": {
+    "PfDHFR_Docking": {
+      "n_finite": 4061,
+      "n_zero": 18,
+      "n_one": 18,
+      "obs_min": -11.3,
+      "obs_max": 4.213,
+      "lo": -11.0,
+      "hi": -5.0,
+      "sign": -1
+    },
+    "hDHFR_Docking": {
+      "n_finite": 4061,
+      "n_zero": 48,
+      "n_one": 79,
+      "obs_min": -12.38,
+      "obs_max": 10.73,
+      "lo": -11.0,
+      "hi": -5.0,
+      "sign": 1
+    },
+    "hERG_Toxicity_Prob": {
+      "n_finite": 4165,
+      "n_zero": 0,
+      "n_one": 0,
+      "obs_min": 0.0049995277076959,
+      "obs_max": 0.9993714094161988,
+      "lo": 0.001999363536015153,
+      "hi": 0.9998417496681213,
+      "sign": -1
+    },
+    "Caco2_logPapp": {
+      "n_finite": 4165,
+      "n_zero": 0,
+      "n_one": 0,
+      "obs_min": -7.065454959869385,
+      "obs_max": -3.8692009449005127,
+      "lo": -7.260476112365723,
+      "hi": -3.825927495956421,
+      "sign": 1
+    },
+    "Half_Life_hours": {
+      "n_finite": 4165,
+      "n_zero": 1,
+      "n_one": 6,
+      "obs_min": 0.3763003051280975,
+      "obs_max": 81.63323974609375,
+      "lo": 0.37630030512809753,
+      "hi": 64.84938049316406,
+      "sign": 1
+    }
+  },
+  "deduplicated": {
+    "PfDHFR_Docking": {
+      "n_finite": 2369,
+      "n_zero": 11,
+      "n_one": 10,
+      "obs_min": -11.3,
+      "obs_max": 4.213,
+      "lo": -11.0,
+      "hi": -5.0,
+      "sign": -1
+    },
+    "hDHFR_Docking": {
+      "n_finite": 2369,
+      "n_zero": 33,
+      "n_one": 43,
+      "obs_min": -12.38,
+      "obs_max": 10.73,
+      "lo": -11.0,
+      "hi": -5.0,
+      "sign": 1
+    },
+    "hERG_Toxicity_Prob": {
+      "n_finite": 2437,
+      "n_zero": 0,
+      "n_one": 0,
+      "obs_min": 0.0049995277076959,
+      "obs_max": 0.9993714094161988,
+      "lo": 0.001999363536015153,
+      "hi": 0.9998417496681213,
+      "sign": -1
+    },
+    "Caco2_logPapp": {
+      "n_finite": 2437,
+      "n_zero": 0,
+      "n_one": 0,
+      "obs_min": -7.065454959869385,
+      "obs_max": -3.8692009449005127,
+      "lo": -7.260476112365723,
+      "hi": -3.825927495956421,
+      "sign": 1
+    },
+    "Half_Life_hours": {
+      "n_finite": 2437,
+      "n_zero": 1,
+      "n_one": 5,
+      "obs_min": 0.3763003051280975,
+      "obs_max": 81.63323974609375,
+      "lo": 0.37630030512809753,
+      "hi": 64.84938049316406,
+      "sign": 1
+    }
+  },
+  "final_hv_canonical_vs_holo": [
+    {
+      "run": "benchmark_5way_densify_seed0_2026-08-19/gpmobo/seed_0",
+      "archived": 0.190962890514037,
+      "canonical": 0.19096289051403706,
+      "holo": 0.3032447232781798
+    },
+    {
+      "run": "benchmark_5way_densify_seed0_2026-08-19/greedy/seed_0",
+      "archived": 0.1061241402867198,
+      "canonical": 0.10612414028671983,
+      "holo": 0.1662424308030156
+    },
+    {
+      "run": "benchmark_5way_densify_seed0_2026-08-19/mogp/seed_0",
+      "archived": 0.3493809106642326,
+      "canonical": 0.3493809106642326,
+      "holo": 0.43318380276490337
+    },
+    {
+      "run": "benchmark_5way_densify_seed0_2026-08-19/random/seed_0",
+      "archived": 0.0652013769426069,
+      "canonical": 0.06520137694260693,
+      "holo": 0.10124427970335168
+    },
+    {
+      "run": "benchmark_5way_densify_seed0_2026-08-19/single_obj/seed_0",
+      "archived": 0.0679428377727444,
+      "canonical": 0.06794283777274442,
+      "holo": 0.1055832328972188
+    },
+    {
+      "run": "benchmark_thicc_2026-08-14/greedy/seed_0",
+      "archived": 0.1044372355194723,
+      "canonical": 0.10443723551947233,
+      "holo": 0.16367658283160252
+    },
+    {
+      "run": "benchmark_thicc_2026-08-14/greedy/seed_1",
+      "archived": 0.1693202429148252,
+      "canonical": 0.16932024291482528,
+      "holo": 0.25898753022610843
+    },
+    {
+      "run": "benchmark_thicc_2026-08-14/greedy/seed_2",
+      "archived": 0.1154467748986633,
+      "canonical": 0.11544677489866335,
+      "holo": 0.18109209699352696
+    },
+    {
+      "run": "benchmark_thicc_2026-08-14/greedy/seed_3",
+      "archived": 0.1562465646306541,
+      "canonical": 0.15624656463065417,
+      "holo": 0.2421553461043747
+    },
+    {
+      "run": "benchmark_thicc_2026-08-14/greedy/seed_4",
+      "archived": 0.1073107812737448,
+      "canonical": 0.10731078127374484,
+      "holo": 0.16694009723858744
+    },
+    {
+      "run": "benchmark_thicc_2026-08-14/mogp/seed_0",
+      "archived": 0.367971062686238,
+      "canonical": 0.367971062686238,
+      "holo": 0.42846787644573575
+    },
+    {
+      "run": "benchmark_thicc_2026-08-14/mogp/seed_1",
+      "archived": 0.4172648666655477,
+      "canonical": 0.41726486666554774,
+      "holo": 0.5183198609179
+    },
+    {
+      "run": "benchmark_thicc_2026-08-14/mogp/seed_2",
+      "archived": 0.3995266351287615,
+      "canonical": 0.3995266351287616,
+      "holo": 0.5024057996981877
+    },
+    {
+      "run": "benchmark_thicc_2026-08-14/mogp/seed_3",
+      "archived": 0.3937442006355294,
+      "canonical": 0.3937442006355295,
+      "holo": 0.4939503207560126
+    },
+    {
+      "run": "benchmark_thicc_2026-08-14/mogp/seed_4",
+      "archived": 0.4369766798190065,
+      "canonical": 0.43697667981900656,
+      "holo": 0.5357368758373108
+    },
+    {
+      "run": "benchmark_thicc_2026-08-14/random/seed_0",
+      "archived": 0.0848921209906094,
+      "canonical": 0.0848921209906095,
+      "holo": 0.13068619716421867
+    },
+    {
+      "run": "benchmark_thicc_2026-08-14/random/seed_1",
+      "archived": 0.0781659358045056,
+      "canonical": 0.0781659358045056,
+      "holo": 0.114202935535768
+    },
+    {
+      "run": "benchmark_thicc_2026-08-14/random/seed_2",
+      "archived": 0.0916207966421006,
+      "canonical": 0.09162079664210059,
+      "holo": 0.13909620649097487
+    },
+    {
+      "run": "benchmark_thicc_2026-08-14/random/seed_3",
+      "archived": 0.0906435668251025,
+      "canonical": 0.09064356682510258,
+      "holo": 0.14084601507804453
+    },
+    {
+      "run": "benchmark_thicc_2026-08-14/random/seed_4",
+      "archived": 0.0783111875982947,
+      "canonical": 0.07831118759829479,
+      "holo": 0.12094270279636828
+    },
+    {
+      "run": "benchmark_thicc_2026-08-14/single_obj/seed_0",
+      "archived": 0.0674646329310383,
+      "canonical": 0.06746463293103834,
+      "holo": 0.10484546059185779
+    },
+    {
+      "run": "benchmark_thicc_2026-08-14/single_obj/seed_1",
+      "archived": 0.1527452638740052,
+      "canonical": 0.15274526387400528,
+      "holo": 0.23955659375274677
+    },
+    {
+      "run": "benchmark_thicc_2026-08-14/single_obj/seed_2",
+      "archived": 0.1246959951126085,
+      "canonical": 0.12469599511260859,
+      "holo": 0.1951165086002166
+    },
+    {
+      "run": "benchmark_thicc_2026-08-14/single_obj/seed_3",
+      "archived": 0.1223812502585806,
+      "canonical": 0.12238125025858063,
+      "holo": 0.19010617063876922
+    },
+    {
+      "run": "benchmark_thicc_2026-08-14/single_obj/seed_4",
+      "archived": 0.0710130926909462,
+      "canonical": 0.07101309269094622,
+      "holo": 0.10964332122210214
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/greedy/seed_0",
+      "archived": 0.1127880842597421,
+      "canonical": 0.11278808425974217,
+      "holo": 0.17685678382365871
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/greedy/seed_1",
+      "archived": 0.1787357125175445,
+      "canonical": 0.17873571251754453,
+      "holo": 0.27497272260573813
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/greedy/seed_2",
+      "archived": 0.1347024638049053,
+      "canonical": 0.13470246380490536,
+      "holo": 0.21020514463622247
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/greedy/seed_3",
+      "archived": 0.1837106907173704,
+      "canonical": 0.18371069071737048,
+      "holo": 0.28413153482957637
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/greedy/seed_7",
+      "archived": 0.1373663188680537,
+      "canonical": 0.13736631886805376,
+      "holo": 0.21160930966332187
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/greedy/seed_8",
+      "archived": 0.1393134255462251,
+      "canonical": 0.13931342554622514,
+      "holo": 0.21581292392088874
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/greedy/seed_9",
+      "archived": 0.0905188582207624,
+      "canonical": 0.09051885822076247,
+      "holo": 0.14206411407858063
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/mogp/seed_0",
+      "archived": 0.3562050279642957,
+      "canonical": 0.35620502796429576,
+      "holo": 0.4782917308944767
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/mogp/seed_1",
+      "archived": 0.3914587931488573,
+      "canonical": 0.3914587931488573,
+      "holo": 0.49097058130480703
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/mogp/seed_2",
+      "archived": 0.4078540699680278,
+      "canonical": 0.40785406996802787,
+      "holo": 0.5183165184033957
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/mogp/seed_3",
+      "archived": 0.3687533929128845,
+      "canonical": 0.36875339291288456,
+      "holo": 0.4938935251295286
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/mogp/seed_7",
+      "archived": 0.466410444955083,
+      "canonical": 0.46641044495508305,
+      "holo": 0.610559235789035
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/mogp/seed_8",
+      "archived": 0.4259171558493006,
+      "canonical": 0.4259171558493006,
+      "holo": 0.5489141214754958
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/mogp/seed_9",
+      "archived": 0.4456688262706583,
+      "canonical": 0.44566882627065846,
+      "holo": 0.5564286505452979
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/random/seed_0",
+      "archived": 0.1020542384335348,
+      "canonical": 0.1020542384335348,
+      "holo": 0.15797430057092637
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/random/seed_1",
+      "archived": 0.087450504710551,
+      "canonical": 0.08745050471055103,
+      "holo": 0.13309113584887144
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/random/seed_2",
+      "archived": 0.129162777182678,
+      "canonical": 0.129162777182678,
+      "holo": 0.19531331717855832
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/random/seed_3",
+      "archived": 0.1051476327787439,
+      "canonical": 0.10514763277874391,
+      "holo": 0.16397283730727297
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/random/seed_7",
+      "archived": 0.0725282414384272,
+      "canonical": 0.07252824143842723,
+      "holo": 0.11213208370768446
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/random/seed_8",
+      "archived": 0.0611026073231622,
+      "canonical": 0.06110260732316221,
+      "holo": 0.09348840480426332
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/random/seed_9",
+      "archived": 0.0720479592904742,
+      "canonical": 0.0720479592904742,
+      "holo": 0.11108222649120902
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/single_obj/seed_0",
+      "archived": 0.0697288009718366,
+      "canonical": 0.06972880097183666,
+      "holo": 0.10845825017401149
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/single_obj/seed_1",
+      "archived": 0.1287997415412276,
+      "canonical": 0.12879974154122764,
+      "holo": 0.2017311313857499
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/single_obj/seed_2",
+      "archived": 0.0945955427095644,
+      "canonical": 0.09459554270956447,
+      "holo": 0.1468942474474584
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/single_obj/seed_3",
+      "archived": 0.1096578771055631,
+      "canonical": 0.10965787710556317,
+      "holo": 0.1719186688389333
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/single_obj/seed_7",
+      "archived": 0.0917351963120795,
+      "canonical": 0.09173519631207956,
+      "holo": 0.14200963423044224
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/single_obj/seed_8",
+      "archived": 0.0596696661413749,
+      "canonical": 0.059669666141374936,
+      "holo": 0.09265368589951795
+    },
+    {
+      "run": "benchmark_thicccc_2026-08-16/single_obj/seed_9",
+      "archived": 0.1069433644411556,
+      "canonical": 0.10694336444115565,
+      "holo": 0.164237023721038
+    }
+  ]
+}

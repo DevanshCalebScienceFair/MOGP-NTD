@@ -1,0 +1,968 @@
+{
+  "_doc": "mogp.train_mogp(X, Y, n_iterations=200, lr=0.1) run on real library fingerprints. theta is reported in the SPEC layout [u_0..u_{T-1}, c_0..c_{T-1}, w_0..w_{T-1}, v]. The NumPy column is the SPEC's own analytic-gradient + Adam implementation started from the same all-zero initialization.",
+  "adam": {
+    "amsgrad": false,
+    "betas": [
+      0.9,
+      0.999
+    ],
+    "eps": 1e-08,
+    "init_raw": "all zeros",
+    "lr": 0.1,
+    "n_steps": 200,
+    "weight_decay": 0.0
+  },
+  "cases": {
+    "edge_n400_t2": {
+      "N": 400,
+      "N_times_T": 800,
+      "T_trained": 2,
+      "agreement": {
+        "max_abs_outputscale_numpy64_vs_gpytorch": 2.5632033162636958e-08,
+        "max_abs_tau_numpy64_vs_gpytorch": 1.4786919962789247e-08,
+        "max_abs_theta_numpy32_vs_gpytorch": 7.152557373046875e-07,
+        "max_abs_theta_numpy64_vs_gpytorch": 1.1152391696800379e-06,
+        "max_rel_tau_numpy64_vs_gpytorch": 8.811371723303978e-07
+      },
+      "below_or_at_max_cholesky_size": true,
+      "final_loss_at_gpytorch_theta": 1.2283514738082886,
+      "fingerprint_rows": "data/library/fingerprints.npy[:400]",
+      "natural_gpytorch": {
+        "constant_mean": [
+          -0.08514470607042313,
+          0.18003764748573303
+        ],
+        "outputscale": [
+          0.9168532715369442,
+          0.8618849001257782
+        ],
+        "shared_sigma2": 0.007711779942505855,
+        "task_noise_d": [
+          0.006643378677164811,
+          0.009069852279048671
+        ],
+        "tau_effective": [
+          0.014355158619670665,
+          0.016781632221554526
+        ]
+      },
+      "natural_numpy_float64": {
+        "constant_mean": [
+          -0.0851458213095928,
+          0.18003803502231994
+        ],
+        "outputscale": [
+          0.9168532971689773,
+          0.8618849250292735
+        ],
+        "shared_sigma2": 0.007711772890352639,
+        "task_noise_d": [
+          0.006643381602586466,
+          0.009069844544281924
+        ],
+        "tau_effective": [
+          0.014355154492939105,
+          0.016781617434634563
+        ]
+      },
+      "numpy_loss_trace_first5": [
+        1.4681462383539252,
+        1.4474748358613831,
+        1.4278086602150395,
+        1.4091457208788274,
+        1.3916993259848018
+      ],
+      "numpy_loss_trace_last5": [
+        1.228421024511481,
+        1.22840679685135,
+        1.228392732537508,
+        1.228378828935861,
+        1.228365083458974
+      ],
+      "observed_mask_full_5col": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "task_names_trained": [
+        "PfDHFR_Docking",
+        "hDHFR_Docking"
+      ],
+      "theta_raw_gpytorch": [
+        0.40640249848365784,
+        0.31307142972946167,
+        -0.08514470607042313,
+        0.18003764748573303,
+        -5.026028156280518,
+        -4.709397792816162,
+        -4.8742499351501465
+      ],
+      "theta_raw_numpy_float32": [
+        0.40640226006507874,
+        0.3130713701248169,
+        -0.08514542132616043,
+        0.18003812432289124,
+        -5.026027679443359,
+        -4.709397315979004,
+        -4.874249458312988
+      ],
+      "theta_raw_numpy_float64": [
+        0.4064025411877021,
+        0.31307147284233455,
+        -0.0851458213095928,
+        0.18003803502231994,
+        -5.026027707735102,
+        -4.7093986589967365,
+        -4.874250865159987
+      ],
+      "y_mean_full_5col": [
+        -8.000001907348633,
+        -7.000001907348633,
+        "NaN",
+        "NaN",
+        "NaN"
+      ],
+      "y_source": "synthetic_docking_seed_20260927",
+      "y_source_file": null,
+      "y_std_full_5col": [
+        1.1999995708465576,
+        1.0,
+        "NaN",
+        "NaN",
+        "NaN"
+      ]
+    },
+    "large_n200_t2": {
+      "N": 200,
+      "N_times_T": 400,
+      "T_trained": 2,
+      "agreement": {
+        "max_abs_outputscale_numpy64_vs_gpytorch": 8.461220069033715e-08,
+        "max_abs_tau_numpy64_vs_gpytorch": 1.2856886597023554e-08,
+        "max_abs_theta_numpy32_vs_gpytorch": 3.5762786865234375e-07,
+        "max_abs_theta_numpy64_vs_gpytorch": 1.2255172041619744e-06,
+        "max_rel_tau_numpy64_vs_gpytorch": 4.4598890402874775e-07
+      },
+      "below_or_at_max_cholesky_size": true,
+      "final_loss_at_gpytorch_theta": 1.3169690370559692,
+      "fingerprint_rows": "data/library/fingerprints.npy[:200]",
+      "natural_gpytorch": {
+        "constant_mean": [
+          -0.14508335292339325,
+          0.09027531743049622
+        ],
+        "outputscale": [
+          0.9943602941470606,
+          0.9692351614719977
+        ],
+        "shared_sigma2": 0.013080877895455489,
+        "task_noise_d": [
+          0.011158479467828589,
+          0.01574693930107911
+        ],
+        "tau_effective": [
+          0.02423935736328408,
+          0.0288278171965346
+        ]
+      },
+      "natural_numpy_float64": {
+        "constant_mean": [
+          -0.14508354210700758,
+          0.0902755573613803
+        ],
+        "outputscale": [
+          0.9943603787592613,
+          0.969235171541537
+        ],
+        "shared_sigma2": 0.013080892629423408,
+        "task_noise_d": [
+          0.01115846599013869,
+          0.015746937423997787
+        ],
+        "tau_effective": [
+          0.0242393586195621,
+          0.028827830053421197
+        ]
+      },
+      "numpy_loss_trace_first5": [
+        1.4929662649647013,
+        1.473729464756484,
+        1.4556663575257962,
+        1.438627933235968,
+        1.42306526386163
+      ],
+      "numpy_loss_trace_last5": [
+        1.3170234832559284,
+        1.3170123106203875,
+        1.3170012671110871,
+        1.3169903506211917,
+        1.31697955908994
+      ],
+      "observed_mask_full_5col": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "task_names_trained": [
+        "PfDHFR_Docking",
+        "hDHFR_Docking"
+      ],
+      "theta_raw_gpytorch": [
+        0.5323882699012756,
+        0.4922100007534027,
+        -0.14508335292339325,
+        0.09027531743049622,
+        -4.4990234375,
+        -4.149646282196045,
+        -4.337780475616455
+      ],
+      "theta_raw_numpy_float32": [
+        0.5323886275291443,
+        0.4922098219394684,
+        -0.14508354663848877,
+        0.0902751013636589,
+        -4.4990234375,
+        -4.149646282196045,
+        -4.337780475616455
+      ],
+      "theta_raw_numpy_float64": [
+        0.5323884041978334,
+        0.4922100169781892,
+        -0.14508354210700758,
+        0.0902755573613803,
+        -4.499024663017204,
+        -4.1496464031018006,
+        -4.337779333182446
+      ],
+      "y_mean_full_5col": [
+        -8.000000953674316,
+        -7.0,
+        "NaN",
+        "NaN",
+        "NaN"
+      ],
+      "y_source": "synthetic_docking_seed_20260927",
+      "y_source_file": null,
+      "y_std_full_5col": [
+        1.1999999284744263,
+        0.9999998807907104,
+        "NaN",
+        "NaN",
+        "NaN"
+      ]
+    },
+    "mid_n100_t2": {
+      "N": 100,
+      "N_times_T": 200,
+      "T_trained": 2,
+      "agreement": {
+        "max_abs_outputscale_numpy64_vs_gpytorch": 4.7985569517905446e-08,
+        "max_abs_tau_numpy64_vs_gpytorch": 5.324575251541841e-08,
+        "max_abs_theta_numpy32_vs_gpytorch": 9.5367431640625e-07,
+        "max_abs_theta_numpy64_vs_gpytorch": 9.806989225147333e-07,
+        "max_rel_tau_numpy64_vs_gpytorch": 8.42792271764213e-07
+      },
+      "below_or_at_max_cholesky_size": true,
+      "final_loss_at_gpytorch_theta": 1.3824362754821777,
+      "fingerprint_rows": "data/library/fingerprints.npy[:100]",
+      "natural_gpytorch": {
+        "constant_mean": [
+          -0.15025734901428223,
+          0.018146080896258354
+        ],
+        "outputscale": [
+          1.0533048730022125,
+          1.0159843311184205
+        ],
+        "shared_sigma2": 0.028167726359925285,
+        "task_noise_d": [
+          0.03501006287627564,
+          0.02365983336041964
+        ],
+        "tau_effective": [
+          0.06317778923620092,
+          0.051827559720344925
+        ]
+      },
+      "natural_numpy_float64": {
+        "constant_mean": [
+          -0.15025770979146758,
+          0.018146182203951616
+        ],
+        "outputscale": [
+          1.0533048742859226,
+          1.01598437910399
+        ],
+        "shared_sigma2": 0.02816769921665626,
+        "task_noise_d": [
+          0.035010036773792136,
+          0.023659836880940633
+        ],
+        "tau_effective": [
+          0.0631777359904484,
+          0.051827536097596896
+        ]
+      },
+      "numpy_loss_trace_first5": [
+        1.510265986621714,
+        1.4922013164477743,
+        1.4750016331334064,
+        1.4591686820832819,
+        1.4450143457188067
+      ],
+      "numpy_loss_trace_last5": [
+        1.3824939066517368,
+        1.3824820742257622,
+        1.3824703898417652,
+        1.3824588508397921,
+        1.3824474546117471
+      ],
+      "observed_mask_full_5col": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "task_names_trained": [
+        "PfDHFR_Docking",
+        "hDHFR_Docking"
+      ],
+      "theta_raw_gpytorch": [
+        0.6243922710418701,
+        0.566495418548584,
+        -0.15025734901428223,
+        0.018146080896258354,
+        -3.3374743461608887,
+        -3.7364089488983154,
+        -3.559068202972412
+      ],
+      "theta_raw_numpy_float32": [
+        0.6243918538093567,
+        0.5664951801300049,
+        -0.15025755763053894,
+        0.01814587041735649,
+        -3.3374733924865723,
+        -3.7364084720611572,
+        -3.559067726135254
+      ],
+      "theta_raw_numpy_float64": [
+        0.6243922730131185,
+        0.5664954937664837,
+        -0.15025770979146758,
+        0.018146182203951616,
+        -3.3374751069949187,
+        -3.7364087977022113,
+        -3.5590691836713346
+      ],
+      "y_mean_full_5col": [
+        -8.000000953674316,
+        -7.000001430511475,
+        "NaN",
+        "NaN",
+        "NaN"
+      ],
+      "y_source": "synthetic_docking_seed_20260927",
+      "y_source_file": null,
+      "y_std_full_5col": [
+        1.2000000476837158,
+        0.9999999403953552,
+        "NaN",
+        "NaN",
+        "NaN"
+      ]
+    },
+    "real_docking_n36_t2": {
+      "N": 36,
+      "N_times_T": 72,
+      "T_trained": 2,
+      "agreement": {
+        "max_abs_outputscale_numpy64_vs_gpytorch": 9.810459411507821e-08,
+        "max_abs_tau_numpy64_vs_gpytorch": 1.3865537812352002e-07,
+        "max_abs_theta_numpy32_vs_gpytorch": 4.924368113279343e-07,
+        "max_abs_theta_numpy64_vs_gpytorch": 1.1146514702353727e-06,
+        "max_rel_tau_numpy64_vs_gpytorch": 8.410757393818706e-07
+      },
+      "below_or_at_max_cholesky_size": true,
+      "final_loss_at_gpytorch_theta": 1.415078043937683,
+      "fingerprint_rows": "matched by SMILES",
+      "natural_gpytorch": {
+        "constant_mean": [
+          0.1238846555352211,
+          0.0011278364108875394
+        ],
+        "outputscale": [
+          0.9174699292829848,
+          0.02710126163862341
+        ],
+        "shared_sigma2": 0.1126689407742367,
+        "task_noise_d": [
+          0.05218586555440813,
+          0.863679012020005
+        ],
+        "tau_effective": [
+          0.16485480632864483,
+          0.9763479527942417
+        ]
+      },
+      "natural_numpy_float64": {
+        "constant_mean": [
+          0.12388466327808983,
+          0.0011282758105032732
+        ],
+        "outputscale": [
+          0.9174700273875789,
+          0.027101255600548237
+        ],
+        "shared_sigma2": 0.11266882210375626,
+        "task_noise_d": [
+          0.05218584556951045,
+          0.8636791657978771
+        ],
+        "tau_effective": [
+          0.1648546676732667,
+          0.9763479879016334
+        ]
+      },
+      "numpy_loss_trace_first5": [
+        1.522741119113758,
+        1.5054228245891401,
+        1.4883345223963431,
+        1.4730255037409528,
+        1.4595708660512883
+      ],
+      "numpy_loss_trace_last5": [
+        1.4151875454146907,
+        1.4151650208827342,
+        1.4151428061824491,
+        1.4151208967101436,
+        1.4150992879273658
+      ],
+      "observed_mask_full_5col": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "task_names_trained": [
+        "PfDHFR_Docking",
+        "hDHFR_Docking"
+      ],
+      "theta_raw_gpytorch": [
+        0.40742966532707214,
+        -3.5945937633514404,
+        0.1238846555352211,
+        0.0011278364108875394,
+        -2.9287056922912598,
+        0.3160024583339691,
+        -2.1273770332336426
+      ],
+      "theta_raw_numpy_float32": [
+        0.40742963552474976,
+        -3.5945932865142822,
+        0.12388456612825394,
+        0.0011283288476988673,
+        -2.9287056922912598,
+        0.3160019814968109,
+        -2.1273767948150635
+      ],
+      "theta_raw_numpy_float64": [
+        0.40742982870636163,
+        -3.594593989180969,
+        0.12388466327808983,
+        0.0011282758105032732,
+        -2.9287060860619034,
+        0.31600272422476167,
+        -2.127378147885113
+      ],
+      "y_mean_full_5col": [
+        -8.66614055633545,
+        -8.678277969360352,
+        "NaN",
+        "NaN",
+        "NaN"
+      ],
+      "y_source": "real archived docking values (input only)",
+      "y_source_file": "benchmark_5way_densify_seed0_2026-08-19/mogp/seed_0/evaluated.csv",
+      "y_std_full_5col": [
+        0.8295031785964966,
+        0.9301520586013794,
+        "NaN",
+        "NaN",
+        "NaN"
+      ]
+    },
+    "single_task_n60_t1": {
+      "N": 60,
+      "N_times_T": 60,
+      "T_trained": 1,
+      "agreement": {
+        "max_abs_outputscale_numpy64_vs_gpytorch": 1.4345722386052695e-08,
+        "max_abs_tau_numpy64_vs_gpytorch": 9.014261670436952e-09,
+        "max_abs_theta_numpy32_vs_gpytorch": 7.005291990935802e-07,
+        "max_abs_theta_numpy64_vs_gpytorch": 1.0173115327916094e-06,
+        "max_rel_tau_numpy64_vs_gpytorch": 9.109972231028563e-09
+      },
+      "below_or_at_max_cholesky_size": true,
+      "final_loss_at_gpytorch_theta": 1.4198744297027588,
+      "fingerprint_rows": "data/library/fingerprints.npy[:60]",
+      "natural_gpytorch": {
+        "constant_mean": [
+          -0.0007317086565308273
+        ],
+        "outputscale": [
+          0.014201981526590657
+        ],
+        "shared_sigma2": 0.4947469345589429,
+        "task_noise_d": [
+          0.4947469345589429
+        ],
+        "tau_effective": [
+          0.9894938691178858
+        ]
+      },
+      "natural_numpy_float64": {
+        "constant_mean": [
+          -0.0007308194647150823
+        ],
+        "outputscale": [
+          0.014201967180868271
+        ],
+        "shared_sigma2": 0.49474693906607375,
+        "task_noise_d": [
+          0.49474693906607375
+        ],
+        "tau_effective": [
+          0.9894938781321475
+        ]
+      },
+      "numpy_loss_trace_first5": [
+        1.5240514172858977,
+        1.5072342944208381,
+        1.490612205108115,
+        1.4759607300212414,
+        1.4630523276533758
+      ],
+      "numpy_loss_trace_last5": [
+        1.4199198131943036,
+        1.4199104676793701,
+        1.4199012670386653,
+        1.4198922082421785,
+        1.419883288336431
+      ],
+      "observed_mask_full_5col": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "task_names_trained": [
+        "PfDHFR_Docking"
+      ],
+      "theta_raw_gpytorch": [
+        -4.247264385223389,
+        -0.0007317086565308273,
+        -0.44641345739364624,
+        -0.44641345739364624
+      ],
+      "theta_raw_numpy_float32": [
+        -4.247264385223389,
+        -0.0007310081273317337,
+        -0.4464133083820343,
+        -0.4464133083820343
+      ],
+      "theta_raw_numpy_float64": [
+        -4.2472654025349215,
+        -0.0007308194647150823,
+        -0.44641344584323356,
+        -0.44641344584323356
+      ],
+      "y_mean_full_5col": [
+        -8.0,
+        "NaN",
+        "NaN",
+        "NaN",
+        "NaN"
+      ],
+      "y_source": "synthetic_docking_seed_20260927",
+      "y_source_file": null,
+      "y_std_full_5col": [
+        1.2000001668930054,
+        "NaN",
+        "NaN",
+        "NaN",
+        "NaN"
+      ]
+    },
+    "small_n30_t2": {
+      "N": 30,
+      "N_times_T": 60,
+      "T_trained": 2,
+      "agreement": {
+        "max_abs_outputscale_numpy64_vs_gpytorch": 1.1428665385587733e-08,
+        "max_abs_tau_numpy64_vs_gpytorch": 4.695086364137069e-08,
+        "max_abs_theta_numpy32_vs_gpytorch": 7.152557373046875e-07,
+        "max_abs_theta_numpy64_vs_gpytorch": 1.1330409224186155e-06,
+        "max_rel_tau_numpy64_vs_gpytorch": 4.728423843936871e-08
+      },
+      "below_or_at_max_cholesky_size": true,
+      "final_loss_at_gpytorch_theta": 1.4197742938995361,
+      "fingerprint_rows": "data/library/fingerprints.npy[:30]",
+      "natural_gpytorch": {
+        "constant_mean": [
+          -0.001778840203769505,
+          -7.844961510272697e-05
+        ],
+        "outputscale": [
+          0.01890135432654981,
+          0.010137940341438268
+        ],
+        "shared_sigma2": 0.49498044654668316,
+        "task_noise_d": [
+          0.4896093523418671,
+          0.49796911108602554
+        ],
+        "tau_effective": [
+          0.9845897988885502,
+          0.9929495576327088
+        ]
+      },
+      "natural_numpy_float64": {
+        "constant_mean": [
+          -0.001779107037153814,
+          -7.838796782001968e-05
+        ],
+        "outputscale": [
+          0.018901349922748854,
+          0.010137928912772882
+        ],
+        "shared_sigma2": 0.4949804549784055,
+        "task_noise_d": [
+          0.48960936380054126,
+          0.4979691496051669
+        ],
+        "tau_effective": [
+          0.9845898187789468,
+          0.9929496045835724
+        ]
+      },
+      "numpy_loss_trace_first5": [
+        1.528051478445235,
+        1.511478981435409,
+        1.4944428319030232,
+        1.4797272965270731,
+        1.4668485737079977
+      ],
+      "numpy_loss_trace_last5": [
+        1.4198104555780515,
+        1.4198030084351667,
+        1.4197956658321182,
+        1.4197884257683653,
+        1.4197812862828936
+      ],
+      "observed_mask_full_5col": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "task_names_trained": [
+        "PfDHFR_Docking",
+        "hDHFR_Docking"
+      ],
+      "theta_raw_gpytorch": [
+        -3.9590561389923096,
+        -4.586397171020508,
+        -0.001778840203769505,
+        -7.844961510272697e-05,
+        -0.4596327543258667,
+        -0.438176691532135,
+        -0.44581514596939087
+      ],
+      "theta_raw_numpy_float32": [
+        -3.9590554237365723,
+        -4.586397171020508,
+        -0.0017794063314795494,
+        -7.832552364561707e-05,
+        -0.45963308215141296,
+        -0.4381766617298126,
+        -0.4458148181438446
+      ],
+      "theta_raw_numpy_float64": [
+        -3.95905637418982,
+        -4.58639830406143,
+        -0.001779107037153814,
+        -7.838796782001968e-05,
+        -0.45963272472247,
+        -0.43817659331299835,
+        -0.445815124369319
+      ],
+      "y_mean_full_5col": [
+        -8.000000953674316,
+        -7.0,
+        "NaN",
+        "NaN",
+        "NaN"
+      ],
+      "y_source": "synthetic_docking_seed_20260927",
+      "y_source_file": null,
+      "y_std_full_5col": [
+        1.2000000476837158,
+        1.0,
+        "NaN",
+        "NaN",
+        "NaN"
+      ]
+    },
+    "tiny_n12_t2": {
+      "N": 12,
+      "N_times_T": 24,
+      "T_trained": 2,
+      "agreement": {
+        "max_abs_outputscale_numpy64_vs_gpytorch": 9.251781694918915e-09,
+        "max_abs_tau_numpy64_vs_gpytorch": 1.157003604035367e-07,
+        "max_abs_theta_numpy32_vs_gpytorch": 9.5367431640625e-07,
+        "max_abs_theta_numpy64_vs_gpytorch": 1.0173868592033841e-06,
+        "max_rel_tau_numpy64_vs_gpytorch": 1.1699495348020009e-07
+      },
+      "below_or_at_max_cholesky_size": true,
+      "final_loss_at_gpytorch_theta": 1.4196940660476685,
+      "fingerprint_rows": "data/library/fingerprints.npy[:12]",
+      "natural_gpytorch": {
+        "constant_mean": [
+          0.000303672713926062,
+          0.0001466309913666919
+        ],
+        "outputscale": [
+          0.014043802450258115,
+          0.007912167208530918
+        ],
+        "shared_sigma2": 0.4967921554831796,
+        "task_noise_d": [
+          0.4921424691467411,
+          0.4982618501928389
+        ],
+        "tau_effective": [
+          0.9889346246299207,
+          0.9950540056760185
+        ]
+      },
+      "natural_numpy_float64": {
+        "constant_mean": [
+          0.0003038059445334599,
+          0.00014659644058350054
+        ],
+        "outputscale": [
+          0.01404379319847642,
+          0.007912175226508309
+        ],
+        "shared_sigma2": 0.49679222801856526,
+        "task_noise_d": [
+          0.49214251231171585,
+          0.49826170686139715
+        ],
+        "tau_effective": [
+          0.9889347403302811,
+          0.9950539348799624
+        ]
+      },
+      "numpy_loss_trace_first5": [
+        1.5343005397501817,
+        1.518552056347185,
+        1.5009881561898695,
+        1.4865835087464323,
+        1.4741026231696754
+      ],
+      "numpy_loss_trace_last5": [
+        1.4197234413903999,
+        1.4197174386599807,
+        1.4197115120105195,
+        1.4197056600839275,
+        1.4196998815372257
+      ],
+      "observed_mask_full_5col": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "task_names_trained": [
+        "PfDHFR_Docking",
+        "hDHFR_Docking"
+      ],
+      "theta_raw_gpytorch": [
+        -4.258543968200684,
+        -4.835394859313965,
+        0.000303672713926062,
+        0.0001466309913666919,
+        -0.4531015455722809,
+        -0.43743041157722473,
+        -0.4411805272102356
+      ],
+      "theta_raw_numpy_float32": [
+        -4.258543014526367,
+        -4.835394382476807,
+        0.00030362821416929364,
+        0.00014668787480331957,
+        -0.4531014859676361,
+        -0.437430739402771,
+        -0.4411802589893341
+      ],
+      "theta_raw_numpy_float64": [
+        -4.258544631618012,
+        -4.835393841927106,
+        0.0003038059445334599,
+        0.00014659644058350054,
+        -0.4531014345008653,
+        -0.4374307768893389,
+        -0.44118034191560657
+      ],
+      "y_mean_full_5col": [
+        -8.000000953674316,
+        -7.0,
+        "NaN",
+        "NaN",
+        "NaN"
+      ],
+      "y_source": "synthetic_docking_seed_20260927",
+      "y_source_file": null,
+      "y_std_full_5col": [
+        1.1999999284744263,
+        1.0,
+        "NaN",
+        "NaN",
+        "NaN"
+      ]
+    }
+  },
+  "identifiability": {
+    "_doc": "Four inits that differ only along the flat direction (v = +shift, w_t = -shift), 400 Adam steps each. tau is pinned far better than the sigma2 / d_t split.",
+    "runs": [
+      {
+        "final_loss": 1.3159996834297711,
+        "init_shift": 0.0,
+        "outputscale": [
+          1.0100547686363428,
+          0.9893369799783418
+        ],
+        "shared_sigma2": 0.00509242835126032,
+        "task_noise_d": [
+          0.004185584471028157,
+          0.006496614970534995
+        ],
+        "tau_effective": [
+          0.009278012822288476,
+          0.011589043321795315
+        ]
+      },
+      {
+        "final_loss": 1.3160650681800519,
+        "init_shift": 1.0,
+        "outputscale": [
+          1.0084386897209394,
+          0.9889734069857896
+        ],
+        "shared_sigma2": 0.008703919787842193,
+        "task_noise_d": [
+          0.0021139655292746065,
+          0.0031949999043550197
+        ],
+        "tau_effective": [
+          0.010817885317116801,
+          0.011898919692197214
+        ]
+      },
+      {
+        "final_loss": 1.3160606573736546,
+        "init_shift": -1.0,
+        "outputscale": [
+          1.0095989010235396,
+          0.9870606437389503
+        ],
+        "shared_sigma2": 0.0025375725400510816,
+        "task_noise_d": [
+          0.00717457608086254,
+          0.010995452297705204
+        ],
+        "tau_effective": [
+          0.009712148620913621,
+          0.013533024837756286
+        ]
+      },
+      {
+        "final_loss": 1.3162091129962221,
+        "init_shift": 2.0,
+        "outputscale": [
+          1.0056837793271725,
+          0.9867135114564684
+        ],
+        "shared_sigma2": 0.012539926344578458,
+        "task_noise_d": [
+          0.0009078703977105109,
+          0.0012899467065643933
+        ],
+        "tau_effective": [
+          0.013447796742288968,
+          0.013829873051142852
+        ]
+      }
+    ],
+    "spread_loss": 0.00020942956645098043,
+    "spread_shared_sigma2": 0.007447497993318138,
+    "spread_tau": 0.004169783920000492
+  },
+  "mll_divisor_sensitivity": {
+    "N": 200,
+    "T": 2,
+    "_doc": "Adam's update is invariant to a constant rescaling of the loss except through eps=1e-8, so the divisor barely moves the fit. It DOES move the reported loss value and every gradient by exactly that factor.",
+    "variants": {
+      "N": {
+        "divisor": 200.0,
+        "max_abs_vs_divide_by_NT": 6.742670972670339e-07,
+        "theta_raw": [
+          0.532388422686045,
+          0.4922100413246899,
+          -0.14508354430945494,
+          0.09027555747179351,
+          -4.499025337284301,
+          -4.149647002186768,
+          -4.337779643872949
+        ]
+      },
+      "NT": {
+        "divisor": 400.0,
+        "max_abs_vs_divide_by_NT": 0.0,
+        "theta_raw": [
+          0.5323884041978334,
+          0.4922100169781892,
+          -0.14508354210700758,
+          0.0902755573613803,
+          -4.499024663017204,
+          -4.1496464031018006,
+          -4.337779333182446
+        ]
+      },
+      "one": {
+        "divisor": 1.0,
+        "max_abs_vs_divide_by_NT": 1.3451633300576304e-06,
+        "theta_raw": [
+          0.5323884410818146,
+          0.49221006554946245,
+          -0.14508354650145353,
+          0.09027555758088557,
+          -4.499026008180534,
+          -4.149647598276738,
+          -4.3377799530100996
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "_doc": "sha256 of every BYTE-COMPARABLE fixture in this directory. Re-run capture_gp.py in a fresh interpreter and these must match exactly. stochastic_threshold.json is excluded by design: it measures a randomized quantity.",
+  "byte_comparable": {
+    "metadata.json": {
+      "bytes": 1435,
+      "sha256": "78a492911cc05a3c7bb46812fb6ef16ab61b37ca78195b63f9cc8ddca64653d8"
+    },
+    "mll_gradients.json": {
+      "bytes": 38661,
+      "sha256": "90272dc26c56d33bcce187d60622c1967d2990c3c1cc89ef197d47a04132301e"
+    },
+    "model_parameters.json": {
+      "bytes": 8173,
+      "sha256": "b8e3227e3ca78d473aa23318e1ad0bf8dcacddd963c5c6a415c504de891e8454"
+    },
+    "posterior.json": {
+      "bytes": 68461,
+      "sha256": "9257dccd4e7f4d0a61c309c7c8769af0d7c76924fc5b88b2888eb2367bd70f61"
+    },
+    "standardization_nan.json": {
+      "bytes": 4905,
+      "sha256": "cef9fd459b368e1d85e453e7cade61479fc1c0df614949fcba01145a9c533c07"
+    },
+    "tanimoto_gram.json": {
+      "bytes": 27340,
+      "sha256": "65063bdd55dd6943604d879d3cf4a10078b8cff1fd3b726d91e9b5997a390614"
+    },
+    "trained_hyperparameters.json": {
+      "bytes": 26014,
+      "sha256": "e01f642427648f00ad5bd2de8f02c946bce0b673d5ed2cde4be67721f729ddfd"
+    }
+  },
+  "excluded_stochastic": {
+    "stochastic_threshold.json": {
+      "reason": "gpytorch draws SLQ probe vectors from the global torch RNG above N*T = 800; the measured spreads and biases differ run to run"
+    }
+  }
+}

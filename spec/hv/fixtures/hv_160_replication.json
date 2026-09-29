@@ -1,0 +1,1614 @@
+{
+ "_doc": "Replication of the briefed 160-front experiment. botorch's Hypervolume and GP-MOBO's numpy Hypervolume are line-for-line the same algorithm (Fonseca 2006 dimension sweep), so their bitwise agreement measures transliteration fidelity, NOT portability of the indicator. The candidate is an independently derived slicing algorithm; its agreement is the meaningful number.",
+ "fronts": [
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.61889cdf64cedp-4",
+   "hv_candidate": "0x1.61889cdf64cedp-4",
+   "hv_gpmobo": "0x1.61889cdf64cedp-4",
+   "m": 2,
+   "n": 1
+  },
+  {
+   "abs_diff_botorch_candidate": "1.1102230246251565e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.b52aa8e664f2ap-1",
+   "hv_candidate": "0x1.b52aa8e664f2bp-1",
+   "hv_gpmobo": "0x1.b52aa8e664f2ap-1",
+   "m": 2,
+   "n": 2
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.65017150f32dcp-1",
+   "hv_candidate": "0x1.65017150f32dcp-1",
+   "hv_gpmobo": "0x1.65017150f32dcp-1",
+   "m": 2,
+   "n": 3
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.36ef456f4bf0ap-1",
+   "hv_candidate": "0x1.36ef456f4bf0ap-1",
+   "hv_gpmobo": "0x1.36ef456f4bf0ap-1",
+   "m": 2,
+   "n": 4
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.71d9fb0366b4ap-1",
+   "hv_candidate": "0x1.71d9fb0366b4ap-1",
+   "hv_gpmobo": "0x1.71d9fb0366b4ap-1",
+   "m": 2,
+   "n": 5
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.b2789ab540f1cp-1",
+   "hv_candidate": "0x1.b2789ab540f1cp-1",
+   "hv_gpmobo": "0x1.b2789ab540f1cp-1",
+   "m": 2,
+   "n": 6
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.9fa94bd4a76d5p-1",
+   "hv_candidate": "0x1.9fa94bd4a76d5p-1",
+   "hv_gpmobo": "0x1.9fa94bd4a76d5p-1",
+   "m": 2,
+   "n": 7
+  },
+  {
+   "abs_diff_botorch_candidate": "2.220446049250313e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.9ae8ba4dc015fp-1",
+   "hv_candidate": "0x1.9ae8ba4dc0161p-1",
+   "hv_gpmobo": "0x1.9ae8ba4dc015fp-1",
+   "m": 2,
+   "n": 8
+  },
+  {
+   "abs_diff_botorch_candidate": "2.220446049250313e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.850d37f0b7edap-1",
+   "hv_candidate": "0x1.850d37f0b7edcp-1",
+   "hv_gpmobo": "0x1.850d37f0b7edap-1",
+   "m": 2,
+   "n": 9
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.68ace231c1c7ep-1",
+   "hv_candidate": "0x1.68ace231c1c7ep-1",
+   "hv_gpmobo": "0x1.68ace231c1c7ep-1",
+   "m": 2,
+   "n": 10
+  },
+  {
+   "abs_diff_botorch_candidate": "1.1102230246251565e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.a2ae9019f8391p-1",
+   "hv_candidate": "0x1.a2ae9019f8390p-1",
+   "hv_gpmobo": "0x1.a2ae9019f8391p-1",
+   "m": 2,
+   "n": 11
+  },
+  {
+   "abs_diff_botorch_candidate": "1.1102230246251565e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.551bd070a0500p-1",
+   "hv_candidate": "0x1.551bd070a04ffp-1",
+   "hv_gpmobo": "0x1.551bd070a0500p-1",
+   "m": 2,
+   "n": 12
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.8192b7bb0a824p-1",
+   "hv_candidate": "0x1.8192b7bb0a824p-1",
+   "hv_gpmobo": "0x1.8192b7bb0a824p-1",
+   "m": 2,
+   "n": 13
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.c3261154c7042p-1",
+   "hv_candidate": "0x1.c3261154c7042p-1",
+   "hv_gpmobo": "0x1.c3261154c7042p-1",
+   "m": 2,
+   "n": 14
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.b482bd4c62c22p-1",
+   "hv_candidate": "0x1.b482bd4c62c22p-1",
+   "hv_gpmobo": "0x1.b482bd4c62c22p-1",
+   "m": 2,
+   "n": 15
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.947c39b13132fp-1",
+   "hv_candidate": "0x1.947c39b13132fp-1",
+   "hv_gpmobo": "0x1.947c39b13132fp-1",
+   "m": 2,
+   "n": 16
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.bb7ca3d1b87e5p-1",
+   "hv_candidate": "0x1.bb7ca3d1b87e5p-1",
+   "hv_gpmobo": "0x1.bb7ca3d1b87e5p-1",
+   "m": 2,
+   "n": 17
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.dcbe8edb4afcdp-1",
+   "hv_candidate": "0x1.dcbe8edb4afcdp-1",
+   "hv_gpmobo": "0x1.dcbe8edb4afcdp-1",
+   "m": 2,
+   "n": 18
+  },
+  {
+   "abs_diff_botorch_candidate": "2.220446049250313e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.cea6cc09694a2p-1",
+   "hv_candidate": "0x1.cea6cc09694a4p-1",
+   "hv_gpmobo": "0x1.cea6cc09694a2p-1",
+   "m": 2,
+   "n": 19
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.cbb419c389b45p-1",
+   "hv_candidate": "0x1.cbb419c389b45p-1",
+   "hv_gpmobo": "0x1.cbb419c389b45p-1",
+   "m": 2,
+   "n": 20
+  },
+  {
+   "abs_diff_botorch_candidate": "2.220446049250313e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.c2d3c0733726cp-1",
+   "hv_candidate": "0x1.c2d3c0733726ep-1",
+   "hv_gpmobo": "0x1.c2d3c0733726cp-1",
+   "m": 2,
+   "n": 21
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.e70a9a8ccc356p-1",
+   "hv_candidate": "0x1.e70a9a8ccc356p-1",
+   "hv_gpmobo": "0x1.e70a9a8ccc356p-1",
+   "m": 2,
+   "n": 22
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.b6b87a5f24bc8p-1",
+   "hv_candidate": "0x1.b6b87a5f24bc8p-1",
+   "hv_gpmobo": "0x1.b6b87a5f24bc8p-1",
+   "m": 2,
+   "n": 23
+  },
+  {
+   "abs_diff_botorch_candidate": "1.1102230246251565e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.b87517553a011p-1",
+   "hv_candidate": "0x1.b87517553a012p-1",
+   "hv_gpmobo": "0x1.b87517553a011p-1",
+   "m": 2,
+   "n": 24
+  },
+  {
+   "abs_diff_botorch_candidate": "1.1102230246251565e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.d9785b5de4cf3p-1",
+   "hv_candidate": "0x1.d9785b5de4cf2p-1",
+   "hv_gpmobo": "0x1.d9785b5de4cf3p-1",
+   "m": 2,
+   "n": 25
+  },
+  {
+   "abs_diff_botorch_candidate": "1.1102230246251565e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.cc2b4350c8bfdp-1",
+   "hv_candidate": "0x1.cc2b4350c8bfep-1",
+   "hv_gpmobo": "0x1.cc2b4350c8bfdp-1",
+   "m": 2,
+   "n": 26
+  },
+  {
+   "abs_diff_botorch_candidate": "1.1102230246251565e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.7f222b9840046p-1",
+   "hv_candidate": "0x1.7f222b9840045p-1",
+   "hv_gpmobo": "0x1.7f222b9840046p-1",
+   "m": 2,
+   "n": 27
+  },
+  {
+   "abs_diff_botorch_candidate": "2.220446049250313e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.d7da758a9b505p-1",
+   "hv_candidate": "0x1.d7da758a9b507p-1",
+   "hv_gpmobo": "0x1.d7da758a9b505p-1",
+   "m": 2,
+   "n": 28
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.bea0db83c04c9p-1",
+   "hv_candidate": "0x1.bea0db83c04c9p-1",
+   "hv_gpmobo": "0x1.bea0db83c04c9p-1",
+   "m": 2,
+   "n": 29
+  },
+  {
+   "abs_diff_botorch_candidate": "1.1102230246251565e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.ef7d7f8d188f8p-1",
+   "hv_candidate": "0x1.ef7d7f8d188f9p-1",
+   "hv_gpmobo": "0x1.ef7d7f8d188f8p-1",
+   "m": 2,
+   "n": 30
+  },
+  {
+   "abs_diff_botorch_candidate": "1.1102230246251565e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.c159bb5d0b163p-1",
+   "hv_candidate": "0x1.c159bb5d0b164p-1",
+   "hv_gpmobo": "0x1.c159bb5d0b163p-1",
+   "m": 2,
+   "n": 31
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.982d99e8c5d9bp-1",
+   "hv_candidate": "0x1.982d99e8c5d9bp-1",
+   "hv_gpmobo": "0x1.982d99e8c5d9bp-1",
+   "m": 2,
+   "n": 32
+  },
+  {
+   "abs_diff_botorch_candidate": "2.220446049250313e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.c3c94bdd99e57p-1",
+   "hv_candidate": "0x1.c3c94bdd99e55p-1",
+   "hv_gpmobo": "0x1.c3c94bdd99e57p-1",
+   "m": 2,
+   "n": 33
+  },
+  {
+   "abs_diff_botorch_candidate": "1.1102230246251565e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.fb70db4659d45p-1",
+   "hv_candidate": "0x1.fb70db4659d44p-1",
+   "hv_gpmobo": "0x1.fb70db4659d45p-1",
+   "m": 2,
+   "n": 34
+  },
+  {
+   "abs_diff_botorch_candidate": "1.1102230246251565e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.8f75d9adcd132p-1",
+   "hv_candidate": "0x1.8f75d9adcd133p-1",
+   "hv_gpmobo": "0x1.8f75d9adcd132p-1",
+   "m": 2,
+   "n": 35
+  },
+  {
+   "abs_diff_botorch_candidate": "1.1102230246251565e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.a1f14576a27a7p-1",
+   "hv_candidate": "0x1.a1f14576a27a8p-1",
+   "hv_gpmobo": "0x1.a1f14576a27a7p-1",
+   "m": 2,
+   "n": 36
+  },
+  {
+   "abs_diff_botorch_candidate": "1.1102230246251565e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.dceedcdc0f5cdp-1",
+   "hv_candidate": "0x1.dceedcdc0f5cep-1",
+   "hv_gpmobo": "0x1.dceedcdc0f5cdp-1",
+   "m": 2,
+   "n": 37
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.bfd5dd6d4202ep-1",
+   "hv_candidate": "0x1.bfd5dd6d4202ep-1",
+   "hv_gpmobo": "0x1.bfd5dd6d4202ep-1",
+   "m": 2,
+   "n": 38
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.d845b833278b3p-1",
+   "hv_candidate": "0x1.d845b833278b3p-1",
+   "hv_gpmobo": "0x1.d845b833278b3p-1",
+   "m": 2,
+   "n": 39
+  },
+  {
+   "abs_diff_botorch_candidate": "1.1102230246251565e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.c26fd3274855fp-1",
+   "hv_candidate": "0x1.c26fd3274855ep-1",
+   "hv_gpmobo": "0x1.c26fd3274855fp-1",
+   "m": 2,
+   "n": 40
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.35a49474d90d1p-1",
+   "hv_candidate": "0x1.35a49474d90d1p-1",
+   "hv_gpmobo": "0x1.35a49474d90d1p-1",
+   "m": 3,
+   "n": 1
+  },
+  {
+   "abs_diff_botorch_candidate": "1.3877787807814457e-17",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.8144ea5f93151p-4",
+   "hv_candidate": "0x1.8144ea5f93152p-4",
+   "hv_gpmobo": "0x1.8144ea5f93151p-4",
+   "m": 3,
+   "n": 2
+  },
+  {
+   "abs_diff_botorch_candidate": "2.7755575615628914e-17",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.7edb190481c7dp-3",
+   "hv_candidate": "0x1.7edb190481c7cp-3",
+   "hv_gpmobo": "0x1.7edb190481c7dp-3",
+   "m": 3,
+   "n": 3
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.945a0945cbbb2p-2",
+   "hv_candidate": "0x1.945a0945cbbb2p-2",
+   "hv_gpmobo": "0x1.945a0945cbbb2p-2",
+   "m": 3,
+   "n": 4
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.22b5b2d4ee784p-1",
+   "hv_candidate": "0x1.22b5b2d4ee784p-1",
+   "hv_gpmobo": "0x1.22b5b2d4ee784p-1",
+   "m": 3,
+   "n": 5
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.27f827c6fddb7p-2",
+   "hv_candidate": "0x1.27f827c6fddb7p-2",
+   "hv_gpmobo": "0x1.27f827c6fddb7p-2",
+   "m": 3,
+   "n": 6
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.dd6c081c55948p-2",
+   "hv_candidate": "0x1.dd6c081c55948p-2",
+   "hv_gpmobo": "0x1.dd6c081c55948p-2",
+   "m": 3,
+   "n": 7
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.b9240c313378ap-2",
+   "hv_candidate": "0x1.b9240c313378ap-2",
+   "hv_gpmobo": "0x1.b9240c313378ap-2",
+   "m": 3,
+   "n": 8
+  },
+  {
+   "abs_diff_botorch_candidate": "1.1102230246251565e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.2aa01514dcbd5p-1",
+   "hv_candidate": "0x1.2aa01514dcbd6p-1",
+   "hv_gpmobo": "0x1.2aa01514dcbd5p-1",
+   "m": 3,
+   "n": 9
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.58afef2045c20p-1",
+   "hv_candidate": "0x1.58afef2045c20p-1",
+   "hv_gpmobo": "0x1.58afef2045c20p-1",
+   "m": 3,
+   "n": 10
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.7b24cebbb7c22p-2",
+   "hv_candidate": "0x1.7b24cebbb7c22p-2",
+   "hv_gpmobo": "0x1.7b24cebbb7c22p-2",
+   "m": 3,
+   "n": 11
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.517cd166b1526p-1",
+   "hv_candidate": "0x1.517cd166b1526p-1",
+   "hv_gpmobo": "0x1.517cd166b1526p-1",
+   "m": 3,
+   "n": 12
+  },
+  {
+   "abs_diff_botorch_candidate": "5.551115123125783e-17",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.805e710b0c932p-2",
+   "hv_candidate": "0x1.805e710b0c933p-2",
+   "hv_gpmobo": "0x1.805e710b0c932p-2",
+   "m": 3,
+   "n": 13
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.19e9bed80b8bdp-1",
+   "hv_candidate": "0x1.19e9bed80b8bdp-1",
+   "hv_gpmobo": "0x1.19e9bed80b8bdp-1",
+   "m": 3,
+   "n": 14
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.e031df956d004p-2",
+   "hv_candidate": "0x1.e031df956d004p-2",
+   "hv_gpmobo": "0x1.e031df956d004p-2",
+   "m": 3,
+   "n": 15
+  },
+  {
+   "abs_diff_botorch_candidate": "1.1102230246251565e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.1fb8c36507181p-1",
+   "hv_candidate": "0x1.1fb8c36507180p-1",
+   "hv_gpmobo": "0x1.1fb8c36507181p-1",
+   "m": 3,
+   "n": 16
+  },
+  {
+   "abs_diff_botorch_candidate": "5.551115123125783e-17",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.fea12fa1e10c9p-2",
+   "hv_candidate": "0x1.fea12fa1e10cap-2",
+   "hv_gpmobo": "0x1.fea12fa1e10c9p-2",
+   "m": 3,
+   "n": 17
+  },
+  {
+   "abs_diff_botorch_candidate": "2.220446049250313e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.71b8492d44c77p-1",
+   "hv_candidate": "0x1.71b8492d44c75p-1",
+   "hv_gpmobo": "0x1.71b8492d44c77p-1",
+   "m": 3,
+   "n": 18
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.0460ce985ec27p-1",
+   "hv_candidate": "0x1.0460ce985ec27p-1",
+   "hv_gpmobo": "0x1.0460ce985ec27p-1",
+   "m": 3,
+   "n": 19
+  },
+  {
+   "abs_diff_botorch_candidate": "1.1102230246251565e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.00616b644d0d8p-1",
+   "hv_candidate": "0x1.00616b644d0d9p-1",
+   "hv_gpmobo": "0x1.00616b644d0d8p-1",
+   "m": 3,
+   "n": 20
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.5e0bea06c3354p-1",
+   "hv_candidate": "0x1.5e0bea06c3354p-1",
+   "hv_gpmobo": "0x1.5e0bea06c3354p-1",
+   "m": 3,
+   "n": 21
+  },
+  {
+   "abs_diff_botorch_candidate": "1.1102230246251565e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.23fa4ba365cf2p-1",
+   "hv_candidate": "0x1.23fa4ba365cf1p-1",
+   "hv_gpmobo": "0x1.23fa4ba365cf2p-1",
+   "m": 3,
+   "n": 22
+  },
+  {
+   "abs_diff_botorch_candidate": "1.1102230246251565e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.99cfcce447bdap-1",
+   "hv_candidate": "0x1.99cfcce447bdbp-1",
+   "hv_gpmobo": "0x1.99cfcce447bdap-1",
+   "m": 3,
+   "n": 23
+  },
+  {
+   "abs_diff_botorch_candidate": "1.1102230246251565e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.6d145135b60fdp-1",
+   "hv_candidate": "0x1.6d145135b60fep-1",
+   "hv_gpmobo": "0x1.6d145135b60fdp-1",
+   "m": 3,
+   "n": 24
+  },
+  {
+   "abs_diff_botorch_candidate": "1.1102230246251565e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.69e40fc900e5bp-1",
+   "hv_candidate": "0x1.69e40fc900e5ap-1",
+   "hv_gpmobo": "0x1.69e40fc900e5bp-1",
+   "m": 3,
+   "n": 25
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.5d2abbf9a9cacp-1",
+   "hv_candidate": "0x1.5d2abbf9a9cacp-1",
+   "hv_gpmobo": "0x1.5d2abbf9a9cacp-1",
+   "m": 3,
+   "n": 26
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.92274279ca4ecp-1",
+   "hv_candidate": "0x1.92274279ca4ecp-1",
+   "hv_gpmobo": "0x1.92274279ca4ecp-1",
+   "m": 3,
+   "n": 27
+  },
+  {
+   "abs_diff_botorch_candidate": "1.1102230246251565e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.1d1a6b2012b71p-1",
+   "hv_candidate": "0x1.1d1a6b2012b72p-1",
+   "hv_gpmobo": "0x1.1d1a6b2012b71p-1",
+   "m": 3,
+   "n": 28
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.7e461732a610ap-1",
+   "hv_candidate": "0x1.7e461732a610ap-1",
+   "hv_gpmobo": "0x1.7e461732a610ap-1",
+   "m": 3,
+   "n": 29
+  },
+  {
+   "abs_diff_botorch_candidate": "1.1102230246251565e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.333e974635570p-1",
+   "hv_candidate": "0x1.333e97463556fp-1",
+   "hv_gpmobo": "0x1.333e974635570p-1",
+   "m": 3,
+   "n": 30
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.25b27542f6fc2p-1",
+   "hv_candidate": "0x1.25b27542f6fc2p-1",
+   "hv_gpmobo": "0x1.25b27542f6fc2p-1",
+   "m": 3,
+   "n": 31
+  },
+  {
+   "abs_diff_botorch_candidate": "1.1102230246251565e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.5440267f8b8e2p-1",
+   "hv_candidate": "0x1.5440267f8b8e1p-1",
+   "hv_gpmobo": "0x1.5440267f8b8e2p-1",
+   "m": 3,
+   "n": 32
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.89b20e2e7635ep-1",
+   "hv_candidate": "0x1.89b20e2e7635ep-1",
+   "hv_gpmobo": "0x1.89b20e2e7635ep-1",
+   "m": 3,
+   "n": 33
+  },
+  {
+   "abs_diff_botorch_candidate": "1.1102230246251565e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.4ef2b5980f8a5p-1",
+   "hv_candidate": "0x1.4ef2b5980f8a6p-1",
+   "hv_gpmobo": "0x1.4ef2b5980f8a5p-1",
+   "m": 3,
+   "n": 34
+  },
+  {
+   "abs_diff_botorch_candidate": "1.1102230246251565e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.72617f73725d3p-1",
+   "hv_candidate": "0x1.72617f73725d2p-1",
+   "hv_gpmobo": "0x1.72617f73725d3p-1",
+   "m": 3,
+   "n": 35
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.a22e3d77c6c22p-1",
+   "hv_candidate": "0x1.a22e3d77c6c22p-1",
+   "hv_gpmobo": "0x1.a22e3d77c6c22p-1",
+   "m": 3,
+   "n": 36
+  },
+  {
+   "abs_diff_botorch_candidate": "1.1102230246251565e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.aa4bf888c3c1dp-1",
+   "hv_candidate": "0x1.aa4bf888c3c1ep-1",
+   "hv_gpmobo": "0x1.aa4bf888c3c1dp-1",
+   "m": 3,
+   "n": 37
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.706c9977793c2p-1",
+   "hv_candidate": "0x1.706c9977793c2p-1",
+   "hv_gpmobo": "0x1.706c9977793c2p-1",
+   "m": 3,
+   "n": 38
+  },
+  {
+   "abs_diff_botorch_candidate": "2.220446049250313e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.5bfa45b723920p-1",
+   "hv_candidate": "0x1.5bfa45b723922p-1",
+   "hv_gpmobo": "0x1.5bfa45b723920p-1",
+   "m": 3,
+   "n": 39
+  },
+  {
+   "abs_diff_botorch_candidate": "1.1102230246251565e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.730fc347e2330p-1",
+   "hv_candidate": "0x1.730fc347e2331p-1",
+   "hv_gpmobo": "0x1.730fc347e2330p-1",
+   "m": 3,
+   "n": 40
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.6331e29301acbp-11",
+   "hv_candidate": "0x1.6331e29301acbp-11",
+   "hv_gpmobo": "0x1.6331e29301acbp-11",
+   "m": 4,
+   "n": 1
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.1657f865c589ep-6",
+   "hv_candidate": "0x1.1657f865c589ep-6",
+   "hv_gpmobo": "0x1.1657f865c589ep-6",
+   "m": 4,
+   "n": 2
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.2ed281c0ba83ap-3",
+   "hv_candidate": "0x1.2ed281c0ba83ap-3",
+   "hv_gpmobo": "0x1.2ed281c0ba83ap-3",
+   "m": 4,
+   "n": 3
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.110d34f69e58ap-2",
+   "hv_candidate": "0x1.110d34f69e58ap-2",
+   "hv_gpmobo": "0x1.110d34f69e58ap-2",
+   "m": 4,
+   "n": 4
+  },
+  {
+   "abs_diff_botorch_candidate": "2.7755575615628914e-17",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.58165f6e9f214p-3",
+   "hv_candidate": "0x1.58165f6e9f213p-3",
+   "hv_gpmobo": "0x1.58165f6e9f214p-3",
+   "m": 4,
+   "n": 5
+  },
+  {
+   "abs_diff_botorch_candidate": "2.7755575615628914e-17",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.440dbdfcda4a9p-3",
+   "hv_candidate": "0x1.440dbdfcda4a8p-3",
+   "hv_gpmobo": "0x1.440dbdfcda4a9p-3",
+   "m": 4,
+   "n": 6
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.32411ed643c02p-3",
+   "hv_candidate": "0x1.32411ed643c02p-3",
+   "hv_gpmobo": "0x1.32411ed643c02p-3",
+   "m": 4,
+   "n": 7
+  },
+  {
+   "abs_diff_botorch_candidate": "2.7755575615628914e-17",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.c2aaee6ea3906p-3",
+   "hv_candidate": "0x1.c2aaee6ea3905p-3",
+   "hv_gpmobo": "0x1.c2aaee6ea3906p-3",
+   "m": 4,
+   "n": 8
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.53abe9551b028p-3",
+   "hv_candidate": "0x1.53abe9551b028p-3",
+   "hv_gpmobo": "0x1.53abe9551b028p-3",
+   "m": 4,
+   "n": 9
+  },
+  {
+   "abs_diff_botorch_candidate": "5.551115123125783e-17",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.c8b99bf9f78f1p-3",
+   "hv_candidate": "0x1.c8b99bf9f78efp-3",
+   "hv_gpmobo": "0x1.c8b99bf9f78f1p-3",
+   "m": 4,
+   "n": 10
+  },
+  {
+   "abs_diff_botorch_candidate": "1.1102230246251565e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.208a414451d73p-1",
+   "hv_candidate": "0x1.208a414451d74p-1",
+   "hv_gpmobo": "0x1.208a414451d73p-1",
+   "m": 4,
+   "n": 11
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.b5c5bb2861a74p-2",
+   "hv_candidate": "0x1.b5c5bb2861a74p-2",
+   "hv_gpmobo": "0x1.b5c5bb2861a74p-2",
+   "m": 4,
+   "n": 12
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.37c5190b16c1dp-2",
+   "hv_candidate": "0x1.37c5190b16c1dp-2",
+   "hv_gpmobo": "0x1.37c5190b16c1dp-2",
+   "m": 4,
+   "n": 13
+  },
+  {
+   "abs_diff_botorch_candidate": "5.551115123125783e-17",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.79aed53569575p-2",
+   "hv_candidate": "0x1.79aed53569574p-2",
+   "hv_gpmobo": "0x1.79aed53569575p-2",
+   "m": 4,
+   "n": 14
+  },
+  {
+   "abs_diff_botorch_candidate": "5.551115123125783e-17",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.97c174e82eab7p-2",
+   "hv_candidate": "0x1.97c174e82eab8p-2",
+   "hv_gpmobo": "0x1.97c174e82eab7p-2",
+   "m": 4,
+   "n": 15
+  },
+  {
+   "abs_diff_botorch_candidate": "5.551115123125783e-17",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.1f9d7180ce880p-2",
+   "hv_candidate": "0x1.1f9d7180ce881p-2",
+   "hv_gpmobo": "0x1.1f9d7180ce880p-2",
+   "m": 4,
+   "n": 16
+  },
+  {
+   "abs_diff_botorch_candidate": "5.551115123125783e-17",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.f0a9f5f3c3b4fp-2",
+   "hv_candidate": "0x1.f0a9f5f3c3b4ep-2",
+   "hv_gpmobo": "0x1.f0a9f5f3c3b4fp-2",
+   "m": 4,
+   "n": 17
+  },
+  {
+   "abs_diff_botorch_candidate": "5.551115123125783e-17",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.9a454e886882dp-2",
+   "hv_candidate": "0x1.9a454e886882cp-2",
+   "hv_gpmobo": "0x1.9a454e886882dp-2",
+   "m": 4,
+   "n": 18
+  },
+  {
+   "abs_diff_botorch_candidate": "1.1102230246251565e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.7868933369d7bp-1",
+   "hv_candidate": "0x1.7868933369d7cp-1",
+   "hv_gpmobo": "0x1.7868933369d7bp-1",
+   "m": 4,
+   "n": 19
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.a85254fafeac3p-2",
+   "hv_candidate": "0x1.a85254fafeac3p-2",
+   "hv_gpmobo": "0x1.a85254fafeac3p-2",
+   "m": 4,
+   "n": 20
+  },
+  {
+   "abs_diff_botorch_candidate": "1.1102230246251565e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.ea4b17ce4415dp-2",
+   "hv_candidate": "0x1.ea4b17ce4415fp-2",
+   "hv_gpmobo": "0x1.ea4b17ce4415dp-2",
+   "m": 4,
+   "n": 21
+  },
+  {
+   "abs_diff_botorch_candidate": "1.1102230246251565e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.423816357d160p-1",
+   "hv_candidate": "0x1.423816357d15fp-1",
+   "hv_gpmobo": "0x1.423816357d160p-1",
+   "m": 4,
+   "n": 22
+  },
+  {
+   "abs_diff_botorch_candidate": "5.551115123125783e-17",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.1bfae82f8826dp-2",
+   "hv_candidate": "0x1.1bfae82f8826ep-2",
+   "hv_gpmobo": "0x1.1bfae82f8826dp-2",
+   "m": 4,
+   "n": 23
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.d01a1ea523ba6p-2",
+   "hv_candidate": "0x1.d01a1ea523ba6p-2",
+   "hv_gpmobo": "0x1.d01a1ea523ba6p-2",
+   "m": 4,
+   "n": 24
+  },
+  {
+   "abs_diff_botorch_candidate": "1.1102230246251565e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.163be6c2ca898p-1",
+   "hv_candidate": "0x1.163be6c2ca899p-1",
+   "hv_gpmobo": "0x1.163be6c2ca898p-1",
+   "m": 4,
+   "n": 25
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.0663fb2634993p-1",
+   "hv_candidate": "0x1.0663fb2634993p-1",
+   "hv_gpmobo": "0x1.0663fb2634993p-1",
+   "m": 4,
+   "n": 26
+  },
+  {
+   "abs_diff_botorch_candidate": "5.551115123125783e-17",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.ea0d718a805dcp-2",
+   "hv_candidate": "0x1.ea0d718a805dbp-2",
+   "hv_gpmobo": "0x1.ea0d718a805dcp-2",
+   "m": 4,
+   "n": 27
+  },
+  {
+   "abs_diff_botorch_candidate": "1.1102230246251565e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.619eba5b39693p-1",
+   "hv_candidate": "0x1.619eba5b39692p-1",
+   "hv_gpmobo": "0x1.619eba5b39693p-1",
+   "m": 4,
+   "n": 28
+  },
+  {
+   "abs_diff_botorch_candidate": "1.1102230246251565e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.ee6a05e59b2f2p-2",
+   "hv_candidate": "0x1.ee6a05e59b2f4p-2",
+   "hv_gpmobo": "0x1.ee6a05e59b2f2p-2",
+   "m": 4,
+   "n": 29
+  },
+  {
+   "abs_diff_botorch_candidate": "1.1102230246251565e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.ccf64007c0bbep-2",
+   "hv_candidate": "0x1.ccf64007c0bc0p-2",
+   "hv_gpmobo": "0x1.ccf64007c0bbep-2",
+   "m": 4,
+   "n": 30
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.e8339bae73d6ap-2",
+   "hv_candidate": "0x1.e8339bae73d6ap-2",
+   "hv_gpmobo": "0x1.e8339bae73d6ap-2",
+   "m": 4,
+   "n": 31
+  },
+  {
+   "abs_diff_botorch_candidate": "5.551115123125783e-17",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.ecec0ba6f208ap-2",
+   "hv_candidate": "0x1.ecec0ba6f208bp-2",
+   "hv_gpmobo": "0x1.ecec0ba6f208ap-2",
+   "m": 4,
+   "n": 32
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.4fbee3467a67dp-1",
+   "hv_candidate": "0x1.4fbee3467a67dp-1",
+   "hv_gpmobo": "0x1.4fbee3467a67dp-1",
+   "m": 4,
+   "n": 33
+  },
+  {
+   "abs_diff_botorch_candidate": "1.1102230246251565e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.429e35c85574dp-1",
+   "hv_candidate": "0x1.429e35c85574ep-1",
+   "hv_gpmobo": "0x1.429e35c85574dp-1",
+   "m": 4,
+   "n": 34
+  },
+  {
+   "abs_diff_botorch_candidate": "1.1102230246251565e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.a992e86da4c23p-2",
+   "hv_candidate": "0x1.a992e86da4c25p-2",
+   "hv_gpmobo": "0x1.a992e86da4c23p-2",
+   "m": 4,
+   "n": 35
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.7e1fb0d9ae1a8p-1",
+   "hv_candidate": "0x1.7e1fb0d9ae1a8p-1",
+   "hv_gpmobo": "0x1.7e1fb0d9ae1a8p-1",
+   "m": 4,
+   "n": 36
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.ef8c3cb7d7685p-2",
+   "hv_candidate": "0x1.ef8c3cb7d7685p-2",
+   "hv_gpmobo": "0x1.ef8c3cb7d7685p-2",
+   "m": 4,
+   "n": 37
+  },
+  {
+   "abs_diff_botorch_candidate": "5.551115123125783e-17",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.e59affeb193cfp-2",
+   "hv_candidate": "0x1.e59affeb193d0p-2",
+   "hv_gpmobo": "0x1.e59affeb193cfp-2",
+   "m": 4,
+   "n": 38
+  },
+  {
+   "abs_diff_botorch_candidate": "1.1102230246251565e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.14e9957d18d1cp-1",
+   "hv_candidate": "0x1.14e9957d18d1dp-1",
+   "hv_gpmobo": "0x1.14e9957d18d1cp-1",
+   "m": 4,
+   "n": 39
+  },
+  {
+   "abs_diff_botorch_candidate": "1.1102230246251565e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.fafcfd6d8d4a2p-2",
+   "hv_candidate": "0x1.fafcfd6d8d4a0p-2",
+   "hv_gpmobo": "0x1.fafcfd6d8d4a2p-2",
+   "m": 4,
+   "n": 40
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.5869a4ad6548cp-8",
+   "hv_candidate": "0x1.5869a4ad6548cp-8",
+   "hv_gpmobo": "0x1.5869a4ad6548cp-8",
+   "m": 5,
+   "n": 1
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.1a500328189a9p-5",
+   "hv_candidate": "0x1.1a500328189a9p-5",
+   "hv_gpmobo": "0x1.1a500328189a9p-5",
+   "m": 5,
+   "n": 2
+  },
+  {
+   "abs_diff_botorch_candidate": "2.7755575615628914e-17",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.1aff85751a580p-3",
+   "hv_candidate": "0x1.1aff85751a581p-3",
+   "hv_gpmobo": "0x1.1aff85751a580p-3",
+   "m": 5,
+   "n": 3
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.3763b46a08401p-9",
+   "hv_candidate": "0x1.3763b46a08401p-9",
+   "hv_gpmobo": "0x1.3763b46a08401p-9",
+   "m": 5,
+   "n": 4
+  },
+  {
+   "abs_diff_botorch_candidate": "2.7755575615628914e-17",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.6ae649a30510ep-3",
+   "hv_candidate": "0x1.6ae649a30510dp-3",
+   "hv_gpmobo": "0x1.6ae649a30510ep-3",
+   "m": 5,
+   "n": 5
+  },
+  {
+   "abs_diff_botorch_candidate": "6.938893903907228e-18",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.c0043f37469d8p-5",
+   "hv_candidate": "0x1.c0043f37469d7p-5",
+   "hv_gpmobo": "0x1.c0043f37469d8p-5",
+   "m": 5,
+   "n": 6
+  },
+  {
+   "abs_diff_botorch_candidate": "1.1102230246251565e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.077735f67121fp-1",
+   "hv_candidate": "0x1.077735f67121ep-1",
+   "hv_gpmobo": "0x1.077735f67121fp-1",
+   "m": 5,
+   "n": 7
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.1030f93be381ap-4",
+   "hv_candidate": "0x1.1030f93be381ap-4",
+   "hv_gpmobo": "0x1.1030f93be381ap-4",
+   "m": 5,
+   "n": 8
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.844491bd5a375p-3",
+   "hv_candidate": "0x1.844491bd5a375p-3",
+   "hv_gpmobo": "0x1.844491bd5a375p-3",
+   "m": 5,
+   "n": 9
+  },
+  {
+   "abs_diff_botorch_candidate": "1.3877787807814457e-17",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.97f3bcf9920c9p-4",
+   "hv_candidate": "0x1.97f3bcf9920c8p-4",
+   "hv_gpmobo": "0x1.97f3bcf9920c9p-4",
+   "m": 5,
+   "n": 10
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.1f31ee804832dp-2",
+   "hv_candidate": "0x1.1f31ee804832dp-2",
+   "hv_gpmobo": "0x1.1f31ee804832dp-2",
+   "m": 5,
+   "n": 11
+  },
+  {
+   "abs_diff_botorch_candidate": "1.3877787807814457e-17",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.bcac4d2596672p-4",
+   "hv_candidate": "0x1.bcac4d2596673p-4",
+   "hv_gpmobo": "0x1.bcac4d2596672p-4",
+   "m": 5,
+   "n": 12
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.77de01d425772p-3",
+   "hv_candidate": "0x1.77de01d425772p-3",
+   "hv_gpmobo": "0x1.77de01d425772p-3",
+   "m": 5,
+   "n": 13
+  },
+  {
+   "abs_diff_botorch_candidate": "5.551115123125783e-17",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.3ee11b1116017p-2",
+   "hv_candidate": "0x1.3ee11b1116018p-2",
+   "hv_gpmobo": "0x1.3ee11b1116017p-2",
+   "m": 5,
+   "n": 14
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.71d3088ac5c00p-3",
+   "hv_candidate": "0x1.71d3088ac5c00p-3",
+   "hv_gpmobo": "0x1.71d3088ac5c00p-3",
+   "m": 5,
+   "n": 15
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.875a8b9b5bcecp-3",
+   "hv_candidate": "0x1.875a8b9b5bcecp-3",
+   "hv_gpmobo": "0x1.875a8b9b5bcecp-3",
+   "m": 5,
+   "n": 16
+  },
+  {
+   "abs_diff_botorch_candidate": "5.551115123125783e-17",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.ea85e6d8f0b4cp-3",
+   "hv_candidate": "0x1.ea85e6d8f0b4ap-3",
+   "hv_gpmobo": "0x1.ea85e6d8f0b4cp-3",
+   "m": 5,
+   "n": 17
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.22bf953d9d7d8p-2",
+   "hv_candidate": "0x1.22bf953d9d7d8p-2",
+   "hv_gpmobo": "0x1.22bf953d9d7d8p-2",
+   "m": 5,
+   "n": 18
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.03ba9bddd3584p-3",
+   "hv_candidate": "0x1.03ba9bddd3584p-3",
+   "hv_gpmobo": "0x1.03ba9bddd3584p-3",
+   "m": 5,
+   "n": 19
+  },
+  {
+   "abs_diff_botorch_candidate": "1.1102230246251565e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.0fe35dd5a4b9ep-1",
+   "hv_candidate": "0x1.0fe35dd5a4b9fp-1",
+   "hv_gpmobo": "0x1.0fe35dd5a4b9ep-1",
+   "m": 5,
+   "n": 20
+  },
+  {
+   "abs_diff_botorch_candidate": "1.3877787807814457e-17",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.d78c52a4276bep-4",
+   "hv_candidate": "0x1.d78c52a4276bdp-4",
+   "hv_gpmobo": "0x1.d78c52a4276bep-4",
+   "m": 5,
+   "n": 21
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.1978928f2fc9dp-2",
+   "hv_candidate": "0x1.1978928f2fc9dp-2",
+   "hv_gpmobo": "0x1.1978928f2fc9dp-2",
+   "m": 5,
+   "n": 22
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.14a5bcfa8f429p-2",
+   "hv_candidate": "0x1.14a5bcfa8f429p-2",
+   "hv_gpmobo": "0x1.14a5bcfa8f429p-2",
+   "m": 5,
+   "n": 23
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.3288e3ee83df3p-2",
+   "hv_candidate": "0x1.3288e3ee83df3p-2",
+   "hv_gpmobo": "0x1.3288e3ee83df3p-2",
+   "m": 5,
+   "n": 24
+  },
+  {
+   "abs_diff_botorch_candidate": "1.1102230246251565e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.5ea797ca4ae18p-2",
+   "hv_candidate": "0x1.5ea797ca4ae1ap-2",
+   "hv_gpmobo": "0x1.5ea797ca4ae18p-2",
+   "m": 5,
+   "n": 25
+  },
+  {
+   "abs_diff_botorch_candidate": "5.551115123125783e-17",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.976a6669bfc57p-2",
+   "hv_candidate": "0x1.976a6669bfc56p-2",
+   "hv_gpmobo": "0x1.976a6669bfc57p-2",
+   "m": 5,
+   "n": 26
+  },
+  {
+   "abs_diff_botorch_candidate": "5.551115123125783e-17",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.65b3765c5a3eap-2",
+   "hv_candidate": "0x1.65b3765c5a3e9p-2",
+   "hv_gpmobo": "0x1.65b3765c5a3eap-2",
+   "m": 5,
+   "n": 27
+  },
+  {
+   "abs_diff_botorch_candidate": "1.1102230246251565e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.6f879b791cb5bp-2",
+   "hv_candidate": "0x1.6f879b791cb59p-2",
+   "hv_gpmobo": "0x1.6f879b791cb5bp-2",
+   "m": 5,
+   "n": 28
+  },
+  {
+   "abs_diff_botorch_candidate": "1.1102230246251565e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.05f0115364d97p-1",
+   "hv_candidate": "0x1.05f0115364d98p-1",
+   "hv_gpmobo": "0x1.05f0115364d97p-1",
+   "m": 5,
+   "n": 29
+  },
+  {
+   "abs_diff_botorch_candidate": "5.551115123125783e-17",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.288aa7b1b228cp-2",
+   "hv_candidate": "0x1.288aa7b1b228dp-2",
+   "hv_gpmobo": "0x1.288aa7b1b228cp-2",
+   "m": 5,
+   "n": 30
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.0be138c58df80p-1",
+   "hv_candidate": "0x1.0be138c58df80p-1",
+   "hv_gpmobo": "0x1.0be138c58df80p-1",
+   "m": 5,
+   "n": 31
+  },
+  {
+   "abs_diff_botorch_candidate": "5.551115123125783e-17",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.7d9388d78b2b0p-2",
+   "hv_candidate": "0x1.7d9388d78b2b1p-2",
+   "hv_gpmobo": "0x1.7d9388d78b2b0p-2",
+   "m": 5,
+   "n": 32
+  },
+  {
+   "abs_diff_botorch_candidate": "5.551115123125783e-17",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.1efe5d4526458p-2",
+   "hv_candidate": "0x1.1efe5d4526457p-2",
+   "hv_gpmobo": "0x1.1efe5d4526458p-2",
+   "m": 5,
+   "n": 33
+  },
+  {
+   "abs_diff_botorch_candidate": "1.1102230246251565e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.e1a6fe51d6277p-2",
+   "hv_candidate": "0x1.e1a6fe51d6275p-2",
+   "hv_gpmobo": "0x1.e1a6fe51d6277p-2",
+   "m": 5,
+   "n": 34
+  },
+  {
+   "abs_diff_botorch_candidate": "0.0",
+   "bitwise_botorch_eq_candidate": true,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.67cea11caac4fp-2",
+   "hv_candidate": "0x1.67cea11caac4fp-2",
+   "hv_gpmobo": "0x1.67cea11caac4fp-2",
+   "m": 5,
+   "n": 35
+  },
+  {
+   "abs_diff_botorch_candidate": "1.1102230246251565e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.c20fdb8e0c784p-2",
+   "hv_candidate": "0x1.c20fdb8e0c786p-2",
+   "hv_gpmobo": "0x1.c20fdb8e0c784p-2",
+   "m": 5,
+   "n": 36
+  },
+  {
+   "abs_diff_botorch_candidate": "5.551115123125783e-17",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.e12a5ce869734p-2",
+   "hv_candidate": "0x1.e12a5ce869735p-2",
+   "hv_gpmobo": "0x1.e12a5ce869734p-2",
+   "m": 5,
+   "n": 37
+  },
+  {
+   "abs_diff_botorch_candidate": "5.551115123125783e-17",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.5f232d877043ep-2",
+   "hv_candidate": "0x1.5f232d877043fp-2",
+   "hv_gpmobo": "0x1.5f232d877043ep-2",
+   "m": 5,
+   "n": 38
+  },
+  {
+   "abs_diff_botorch_candidate": "1.1102230246251565e-16",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.29133a06add52p-1",
+   "hv_candidate": "0x1.29133a06add51p-1",
+   "hv_gpmobo": "0x1.29133a06add52p-1",
+   "m": 5,
+   "n": 39
+  },
+  {
+   "abs_diff_botorch_candidate": "5.551115123125783e-17",
+   "bitwise_botorch_eq_candidate": false,
+   "bitwise_botorch_eq_gpmobo": true,
+   "hv_botorch": "0x1.e6ee3c416fd5fp-2",
+   "hv_candidate": "0x1.e6ee3c416fd5ep-2",
+   "hv_gpmobo": "0x1.e6ee3c416fd5fp-2",
+   "m": 5,
+   "n": 40
+  }
+ ],
+ "protocol": "for m in 2..5: for n in 1..40: Y = numpy.random.default_rng(1000*m+n).random((n,m)); ref = 0",
+ "summary": {
+  "bitwise_botorch_eq_candidate": 71,
+  "bitwise_botorch_eq_gpmobo": 160,
+  "bitwise_gpmobo_eq_candidate": 71,
+  "n_fronts": 160,
+  "worst_abs_diff_botorch_candidate": "2.220446049250313e-16",
+  "worst_abs_diff_botorch_gpmobo": "0.0"
+ }
+}

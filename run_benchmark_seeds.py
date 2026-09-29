@@ -52,7 +52,15 @@ import argparse
 
 import numpy as np
 import pandas as pd
-from scipy import stats
+
+# Own-code statistics (mogp_core.stats) in place of scipy.stats. Same two tests,
+# same defaults, and — critically — the same BRANCH SELECTOR as scipy's
+# ``wilcoxon(method='auto')``: the ``n > 50`` asymptotic cutoff is tested on the
+# RAW paired length before ties are known, and the exhaustive sign-flip
+# enumeration is capped at n <= 13. At the seed counts this harness actually uses
+# (no ties, no zero differences) that selects the EXACT branch, so n=5 pins
+# p = 0.0625 and n=7 pins p = 0.015625. See mogp_core/stats.py.
+from mogp_core import stats as mogp_stats
 
 from loop import BOLoop
 from baseline_random import RandomSearchBaseline
@@ -325,16 +333,19 @@ def paired_significance(output_dir, seeds):
         # Wilcoxon signed-rank (primary). Zero differences are dropped by the
         # default 'wilcox' zero-method, so an effective n below can be < n.
         try:
-            w_stat, w_p = stats.wilcoxon(mogp_vals, base_vals)
-            rec["wilcoxon_stat"] = float(w_stat)
-            rec["wilcoxon_p"] = float(w_p)
+            # mogp_stats.wilcoxon returns (statistic, pvalue, branch,
+            # zstatistic); only the first two are recorded, exactly as before.
+            w_res = mogp_stats.wilcoxon(mogp_vals, base_vals)
+            rec["wilcoxon_stat"] = float(w_res.statistic)
+            rec["wilcoxon_p"] = float(w_res.pvalue)
         except ValueError as exc:
             rec["note"] = f"Wilcoxon skipped: {exc}"
 
-        # Paired t-test (secondary).
-        t_stat, t_p = stats.ttest_rel(mogp_vals, base_vals)
-        rec["ttest_stat"] = float(t_stat)
-        rec["ttest_p"] = float(t_p)
+        # Paired t-test (secondary). Returns (statistic, pvalue, df); df is not
+        # recorded, as it was not with scipy.
+        t_res = mogp_stats.ttest_rel(mogp_vals, base_vals)
+        rec["ttest_stat"] = float(t_res.statistic)
+        rec["ttest_p"] = float(t_res.pvalue)
 
         rec["significant"] = bool(rec["wilcoxon_p"] < 0.05)
         if n < MIN_SEEDS_FOR_POWER:

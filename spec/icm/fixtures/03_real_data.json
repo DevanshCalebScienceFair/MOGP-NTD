@@ -1,0 +1,25 @@
+{
+  "fingerprint_bits": 2048,
+  "n_test": 40,
+  "n_train": 40,
+  "objective": "ligand efficiency = raw_kcal / heavy_atom_count",
+  "pearson_r_le_train": 0.9312456745696731,
+  "selection_rule": "lexicographically first SMILES present in BOTH data/library/smiles.csv AND the docking cache with status='ok' for BOTH PfDHFR and hDHFR",
+  "smiles_sha256": "69fc02d6e6a3d13f6155dd763d6abbfa8274391b790db6ed99f6ad097d0648a0",
+  "task_order": [
+    "PfDHFR_Docking",
+    "hDHFR_Docking"
+  ],
+  "train_fp_row_sums_min_max": [
+    25,
+    65
+  ],
+  "y_mean": [
+    -0.37445569038391113,
+    -0.3777635097503662
+  ],
+  "y_std": [
+    0.06999506056308746,
+    0.07610870897769928
+  ]
+}

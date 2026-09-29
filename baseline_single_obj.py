@@ -36,14 +36,27 @@ Run ``python baseline_single_obj.py --help`` for the command-line options.
 """
 
 import os
+import math
 import time
 import argparse
 
 import numpy as np
-import torch
 import pandas as pd
-import gpytorch
-from scipy.stats import norm
+
+# Own-code numerical core (mogp_core) in place of torch / gpytorch / scipy.
+#   * ``mogp_core.stats``      -> the standard normal CDF/PDF inside closed-form EI
+#   * ``mogp_core.gp``         -> the Tanimoto Gram, the unjittered Cholesky and the
+#                                 triangular solves the single-output GP is built on
+#   * ``mogp_core.optim``      -> torch.optim.Adam's update, verbatim
+#   * ``mogp_core.transforms`` -> softplus / GreaterThan(1e-4) and their derivative
+#   * ``mogp_core.tanimoto``   -> diag(Tanimoto(X*, X*)) without the M x M Gram
+# Every one of these is a measured 1:1 behavioural mirror of the library call it
+# replaces; see mogp_core/GATE_REPORT.md and spec/*/SPEC.md.
+from mogp_core import gp as _core_gp
+from mogp_core import optim as _core_optim
+from mogp_core import stats as _core_stats
+from mogp_core import tanimoto as _core_tanimoto
+from mogp_core import transforms as _core_transforms
 
 from data import (
     load_library,
@@ -80,37 +93,176 @@ LIBRARY_TASKS, DOCKING_TASKS, DOCKING_TARGETS = resolve_objective_layout(
 POTENCY_COLUMN = TASK_NAMES.index("PfDHFR_Docking")
 
 
-class SingleTaskTanimotoGP(gpytorch.models.ExactGP):
+# --------------------------------------------------------------------------- #
+# The single-output GP, in this project's own code
+# --------------------------------------------------------------------------- #
+# The raw (unconstrained) hyperparameter vector, in the order ``model.parameters()``
+# used to yield them up to a permutation that Adam cannot see (Adam is elementwise
+# and every block is a scalar, so block order is numerically irrelevant):
+#
+#   theta[0] = covar_module.raw_outputscale   ScaleKernel      Positive()
+#   theta[1] = mean_module.raw_constant       ConstantMean     UNCONSTRAINED
+#   theta[2] = likelihood.raw_noise           GaussianLikelihood GreaterThan(1e-4)
+#
+# and the natural parameters they map to:
+#
+#   s   = softplus(theta[0])                       outputscale
+#   mu  = theta[1]                                 constant mean (identity!)
+#   tau = 1e-4 + softplus(theta[2])                observation noise
+#
+# THIS IS NOT ``mogp_core.gp`` WITH T = 1.  ``mogp.MOGPModel`` uses a
+# ``MultitaskGaussianLikelihood``, whose noise is ``tau_t = sigma2 + d_t`` from TWO
+# raw scalars (a shared global one and a per-task one), giving ``3T + 1`` = 4
+# parameters at T = 1 and ``tau = 2e-4 + softplus(w) + softplus(v) = 1.386494`` at
+# the all-zero initialization.  A single-output ``GaussianLikelihood`` has ONE raw
+# noise scalar, so there are 3 parameters and ``tau = 1e-4 + softplus(0) =
+# 0.693247`` — half of it.  Routing this baseline through
+# ``mogp_core.gp.train_mogp`` would
+# therefore fit a different model and change every number this baseline has
+# produced.  The primitives below (Gram, Cholesky, solves, softplus, Adam) all come
+# from ``mogp_core``; only the 3-parameter assembly is local, which is exactly what
+# the single-output likelihood requires.
+N_RAW_PARAMS = 3
+IDX_RAW_OUTPUTSCALE = 0
+IDX_RAW_CONSTANT = 1
+IDX_RAW_NOISE = 2
+
+
+def _natural_params(theta):
+    """``theta -> (s, mu, tau)``: outputscale, constant mean, observation noise.
+
+    ``Positive()`` is a bare softplus; ``GreaterThan(1e-4)`` adds its lower bound
+    AFTER the softplus (not ``softplus(z + lb)``, not ``max(softplus(z), lb)``);
+    ``ConstantMean``'s constant is the raw value itself, with no transform at all —
+    the target is standardized to zero mean, so the constant must be free to go
+    either side of 0.
+    """
+    theta = np.asarray(theta)
+    s = float(_core_transforms.positive(theta[IDX_RAW_OUTPUTSCALE]))
+    mu = float(theta[IDX_RAW_CONSTANT])
+    tau = float(_core_transforms.greater_than(
+        theta[IDX_RAW_NOISE], lower=_core_gp.NOISE_LOWER_BOUND))
+    return s, mu, tau
+
+
+def _nmll_and_grad(theta, S, y):
+    """``loss = -log p(y | theta) / N`` and ``dloss/dtheta`` in RAW space.
+
+    The single-output counterpart of ``mogp_core.gp.nmll_and_grad``.  Rasmussen &
+    Williams eq. 2.30 / Alg. 2.1 for the likelihood and eq. 5.9 for the
+    derivatives::
+
+        K   = s S + tau I              r = y - mu
+        ell = -1/2 r^T K^-1 r - 1/2 log|K| - N/2 log 2pi
+        dell/ds   = 1/2 ( a^T S a - tr(K^-1 S) )      a = K^-1 r
+        dell/dtau = 1/2 ( a^T a     - tr(K^-1)   )
+        dell/dmu  = sum(a)         <-- no trace term: mu is not in the covariance
+
+    then into raw space through the constraint derivatives, with the divisor
+    ``N``.  ``ExactMarginalLogLikelihood`` divides ``log_prob`` by the event
+    shape's element count, which for a single output of length ``N`` is ``N`` — the
+    one case where it coincides with the number of observations, and the reason
+    the multitask ``N*T`` divisor is so easy to get wrong.
+    """
+    theta = np.asarray(theta, dtype=np.float64)
+    y = np.asarray(y, dtype=np.float64).ravel()
+    N = y.size
+    S = np.asarray(S, dtype=np.float64)
+    s, mu, tau = _natural_params(theta)
+
+    I = np.eye(N, dtype=np.float64)
+    K = s * S + tau * I
+    L = _core_gp.cholesky(K)                       # unjittered: tau IS the jitter
+    r = y - mu
+    beta = np.linalg.solve(L, r)
+    alpha = np.linalg.solve(L.T, beta)             # K^-1 r
+    log_det = 2.0 * np.log(np.diag(L)).sum()
+    log_p = (-0.5 * float(r @ alpha) - 0.5 * log_det
+             - 0.5 * N * math.log(2.0 * math.pi))
+    loss = -log_p / N
+
+    Kinv = np.linalg.solve(L.T, np.linalg.solve(L, I))
+    g_s = 0.5 * (float(alpha @ (S @ alpha)) - float(np.sum(Kinv * S)))
+    g_tau = 0.5 * (float(alpha @ alpha) - float(np.trace(Kinv)))
+    g_mu = float(alpha.sum())
+
+    grad = np.empty(N_RAW_PARAMS, dtype=np.float64)
+    grad[IDX_RAW_OUTPUTSCALE] = -(g_s * float(_core_transforms.softplus_grad(
+        theta[IDX_RAW_OUTPUTSCALE]))) / N
+    grad[IDX_RAW_CONSTANT] = -g_mu / N             # identity transform
+    grad[IDX_RAW_NOISE] = -(g_tau * float(_core_transforms.softplus_grad(
+        theta[IDX_RAW_NOISE]))) / N
+    return float(loss), grad
+
+
+class SingleTaskTanimotoGP:
     """Single-output exact GP with a scaled Tanimoto kernel over fingerprints.
 
     The single-objective counterpart to ``mogp.MOGPModel``: same constant mean
     and ``ScaleKernel(TanimotoKernel())`` covariance, but with no task batch
-    dimension and an ordinary ``MultivariateNormal`` output, so it models one
-    scalar target (the docking score).
+    dimension and an ordinary (single-output) Gaussian likelihood, so it models
+    one scalar target (the docking score).
+
+    Formerly a ``gpytorch.models.ExactGP`` subclass; now pure numpy, holding the
+    three raw hyperparameters in :attr:`theta` where the gpytorch module held them
+    in ``named_parameters()``.  The class name, the ``(train_x, train_y,
+    likelihood)`` constructor signature and the ``forward(x)`` method are
+    unchanged.  Two interface details did change and are documented rather than
+    hidden:
+
+    * ``likelihood`` is accepted and IGNORED — there is no likelihood object any
+      more, the noise is ``theta[2]``.  ``train_docking_gp`` passes ``None``,
+      mirroring ``mogp_core.gp.train_mogp``, which returns ``None`` in that slot
+      for the same reason.
+    * ``forward(x)`` returns the prior as a plain ``(mean, covariance)`` pair of
+      numpy arrays instead of a ``gpytorch.distributions.MultivariateNormal``.
+      Nothing in the repo calls it; it is kept because it is part of the class's
+      published surface.
 
     Args:
-        train_x: Fingerprint tensor of shape ``(N, 2048)``, float32.
-        train_y: Target tensor of shape ``(N,)``, float32 (normalized docking).
-        likelihood: A ``GaussianLikelihood`` (single-output, not multitask).
+        train_x: Fingerprint matrix of shape ``(N, 2048)``, float32/int8.
+        train_y: Target vector of shape ``(N,)``, float32 (normalized docking).
+        likelihood: Ignored (see above); pass ``None``.
     """
 
     def __init__(self, train_x, train_y, likelihood):
-        super().__init__(train_x, train_y, likelihood)
-        self.mean_module = gpytorch.means.ConstantMean()
-        self.covar_module = gpytorch.kernels.ScaleKernel(TanimotoKernel())
+        del likelihood                             # no likelihood object exists
+        self.train_x = np.asarray(train_x)
+        self.train_y = np.asarray(train_y, dtype=np.float64).ravel()
+        # All three raw parameters start at EXACTLY zero, as every gpytorch raw
+        # parameter does: s = log 2 = 0.693147, mu = 0, tau = 1e-4 + log 2 =
+        # 0.693247. No random initialization anywhere, so the fit uses no RNG.
+        self.theta = np.zeros(N_RAW_PARAMS, dtype=np.float64)
+        self.losses = None
+        # The Tanimoto Gram does not depend on any hyperparameter, so it is
+        # computed once here and reused by every Adam step and by prediction.
+        self.S = _core_gp.gram(self.train_x, self.train_x, dtype=np.float64)
+
+    @property
+    def natural(self):
+        """``(outputscale, constant_mean, noise)`` at the current ``theta``."""
+        return _natural_params(self.theta)
 
     def forward(self, x):
-        mean_x = self.mean_module(x)
-        covar_x = self.covar_module(x)
-        return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
+        """The PRIOR at ``x``: ``(constant mean vector, s * Tanimoto(x, x))``.
+
+        The numpy analogue of the old
+        ``MultivariateNormal(self.mean_module(x), self.covar_module(x))``.
+        """
+        s, mu, _tau = self.natural
+        x = np.asarray(x)
+        mean_x = np.full(x.shape[0], mu, dtype=np.float64)
+        covar_x = s * _core_gp.gram(x, x, dtype=np.float64)
+        return mean_x, covar_x
 
 
 def train_docking_gp(train_x, train_y, n_iterations=200, lr=0.1):
     """Train the single-output GP on fingerprints and (normalized) docking scores.
 
     Mirrors ``mogp.train_mogp`` but for one output: standardizes the target,
-    fits a ``SingleTaskTanimotoGP`` with a ``GaussianLikelihood`` by Adam on the
-    exact marginal log-likelihood, and returns the de-normalization stats.
+    fits a ``SingleTaskTanimotoGP`` with a single-output Gaussian noise term by
+    Adam on the exact marginal log-likelihood, and returns the de-normalization
+    stats.
 
     Args:
         train_x: Fingerprint matrix of shape ``(N, 2048)``, int8/float.
@@ -121,48 +273,54 @@ def train_docking_gp(train_x, train_y, n_iterations=200, lr=0.1):
     Returns:
         A tuple ``(model, likelihood, y_mean, y_std)`` where ``y_mean`` and
         ``y_std`` reverse the target standardization at prediction time.
+        ``likelihood`` is ``None``: the noise is a raw parameter inside ``model``,
+        exactly as in ``mogp_core.gp.train_mogp``, whose 4-tuple return this
+        mirrors so no call site changes.
     """
-    train_x_t = torch.from_numpy(np.asarray(train_x)).to(torch.float32)
+    train_x = np.asarray(train_x)
     train_y = np.asarray(train_y, dtype=np.float32)
 
     # Standardize the target (constant -> std 0 guarded to 1 so it maps to 0
-    # and reverses to its mean).
+    # and reverses to its mean). float32 statistics and a population std
+    # (ddof=0) — both load-bearing, both unchanged.
     y_mean = float(train_y.mean())
     y_std = float(train_y.std())
     if y_std == 0.0:
         y_std = 1.0
     train_y_norm = (train_y - y_mean) / y_std
-    train_y_t = torch.from_numpy(train_y_norm).to(torch.float32)
 
-    likelihood = gpytorch.likelihoods.GaussianLikelihood()
-    model = SingleTaskTanimotoGP(train_x_t, train_y_t, likelihood)
+    model = SingleTaskTanimotoGP(train_x, train_y_norm, None)
 
-    model.train()
-    likelihood.train()
-
-    # model.parameters() includes the likelihood's parameters because ExactGP
-    # registers the likelihood as a submodule.
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-    mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model)
-
+    # torch.optim.Adam(model.parameters(), lr=lr) — lr from the caller, every
+    # other setting torch's default (betas=(0.9, 0.999), eps=1e-8, no weight
+    # decay, no amsgrad, no schedule, no early stop). ``n_iterations`` steps are
+    # always run to completion.
+    optimizer = _core_optim.Adam(model.theta, lr=lr, dtype=np.float64)
+    losses = []
     for i in range(n_iterations):
-        optimizer.zero_grad()
-        output = model(train_x_t)
-        loss = -mll(output, train_y_t)
-        loss.backward()
-        optimizer.step()
+        # The loss is evaluated at the CURRENT iterate and printed BEFORE the
+        # step that follows it, as `loss.backward(); optimizer.step()` did.
+        loss, grad = _nmll_and_grad(optimizer.get(), model.S, model.train_y)
+        losses.append(loss)
+        optimizer.step(grad)
         if (i + 1) % 20 == 0:
-            print(f"Iter {i + 1:>4}/{n_iterations} - loss: {loss.item():.4f}")
+            print(f"Iter {i + 1:>4}/{n_iterations} - loss: {loss:.4f}")
 
-    return model, likelihood, y_mean, y_std
+    model.theta = np.asarray(optimizer.get(), dtype=np.float64)
+    model.losses = np.asarray(losses, dtype=np.float64)
+    return model, None, y_mean, y_std
 
 
 def predict_docking(model, likelihood, y_mean, y_std, X_new):
     """Predict docking mean and variance for new molecules (original units).
 
+    The variance is the NOISE-INCLUSIVE marginal variance ``var_f + tau``, which
+    is what ``likelihood(model(X_new))`` returned; EI is scored on it, unchanged.
+
     Args:
         model: A trained ``SingleTaskTanimotoGP``.
-        likelihood: The matching ``GaussianLikelihood``.
+        likelihood: Ignored (there is no likelihood object); kept so the
+            5-positional call signature is untouched.
         y_mean, y_std: Normalization stats from ``train_docking_gp``.
         X_new: Fingerprint matrix of shape ``(M, 2048)``.
 
@@ -170,15 +328,26 @@ def predict_docking(model, likelihood, y_mean, y_std, X_new):
         A tuple ``(mean, variance)`` of numpy arrays, each shape ``(M,)``, on the
         original (de-normalized) docking scale.
     """
-    X_new_t = torch.from_numpy(np.asarray(X_new)).to(torch.float32)
+    del likelihood
+    X_new = np.asarray(X_new)
+    s, mu, tau = model.natural
 
-    model.eval()
-    likelihood.eval()
+    N = model.train_y.size
+    K = s * model.S + tau * np.eye(N, dtype=np.float64)
+    L = _core_gp.cholesky(K)
+    alpha = np.linalg.solve(L.T, np.linalg.solve(L, model.train_y - mu))
 
-    with torch.no_grad(), gpytorch.settings.fast_pred_var():
-        posterior = likelihood(model(X_new_t))
-        mean = posterior.mean.cpu().numpy()
-        variance = posterior.variance.cpu().numpy()
+    # R&W eq. 2.25-2.26. ``k_**`` is the Tanimoto self-similarity diagonal (all
+    # ones for any fingerprint with an on-bit), computed WITHOUT the M x M Gram —
+    # at library scale that matrix would be several GB.
+    Ksx = _core_gp.gram(X_new, model.train_x, dtype=np.float64)
+    k_self = _core_tanimoto.tanimoto_diag(X_new, X_new, dtype=np.float64)
+    Kst = s * Ksx
+    mean = mu + Kst @ alpha
+    V = np.linalg.solve(L, Kst.T)
+    var_f = s * k_self - (V * V).sum(axis=0)
+    var_f = np.maximum(var_f, 0.0)                 # cancellation guard
+    variance = var_f + tau                         # observation noise included
 
     mean = mean * y_std + y_mean
     variance = variance * (y_std ** 2)
@@ -214,9 +383,14 @@ def expected_improvement(mean, variance, best_so_far):
     ei = np.zeros_like(mean)
     positive_std = std > 0
     z = improvement[positive_std] / std[positive_std]
+    # scipy.stats.norm.cdf / .pdf -> mogp_core.stats.norm_cdf / .norm_pdf. Same
+    # MINIMISATION convention (``improvement = best_so_far - mean``), same strict
+    # ``std > 0`` test, same ``clip`` before the ``sqrt``, and no xi/jitter term —
+    # this function has never had one and adding one (even defaulting to 0.0)
+    # would widen a frozen public signature.
     ei[positive_std] = (
-        improvement[positive_std] * norm.cdf(z)
-        + std[positive_std] * norm.pdf(z)
+        improvement[positive_std] * _core_stats.norm_cdf(z)
+        + std[positive_std] * _core_stats.norm_pdf(z)
     )
     # Degenerate (zero-variance) candidates: only the certain improvement counts.
     ei[~positive_std] = np.maximum(improvement[~positive_std], 0.0)
@@ -246,7 +420,10 @@ def select_batch_ei(X_candidates, ei, batch_size, diversity_threshold):
     ranked = np.argsort(-ei)
 
     kernel = TanimotoKernel()
-    X_t = torch.from_numpy(X_candidates).to(torch.float32)
+    # ``kernel.TanimotoKernel`` is now pure numpy and returns a float32 ndarray;
+    # the explicit float32 cast that ``torch.from_numpy(...).to(torch.float32)``
+    # performed is preserved, so the similarities are bitwise what they were.
+    X_t = X_candidates.astype(np.float32)
 
     selected = []
     for idx in ranked:
@@ -280,9 +457,16 @@ class SingleObjectiveBOLoop:
                  gp_train_iters=200, gp_lr=0.1,
                  diversity_threshold=0.7):
         # --- Reproducibility ---
+        # ``torch.manual_seed(seed)`` is gone with torch. It never fed anything:
+        # this baseline's only RNG consumer is ``np.random.choice`` in
+        # ``initialize()``, and the GP fit is fully deterministic (all-zero raw
+        # initialization, fixed-step Adam, no sampling). Nor did it feed another
+        # arm: in both drivers (run_all.py, run_benchmark_seeds.py) every arm that
+        # touches the torch RNG — loop.BOLoop via acquisition.select_batch — seeds
+        # it in its own constructor, and the only arm that runs AFTER this one
+        # (baseline_greedy.GreedyFilterThenDock) imports no torch at all.
         self.seed = seed
         np.random.seed(seed)
-        torch.manual_seed(seed)
 
         # --- Library (cheap precomputed features) ---
         library = load_library(library_dir)

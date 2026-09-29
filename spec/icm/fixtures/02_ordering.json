@@ -1,0 +1,27 @@
+{
+  "MultitaskMultivariateNormal_interleaved": true,
+  "MultitaskMultivariateNormal_variance_from_diag_100_600": [
+    [
+      100.0,
+      200.00000000000003
+    ],
+    [
+      300.00000000000006,
+      400.0
+    ],
+    [
+      500.00000000000006,
+      600.0
+    ]
+  ],
+  "answer": "data-major: K_XX (x) B, flat index = i*num_tasks + t",
+  "max_abs_diff_vs_kron_B_task_K_data": 3.0,
+  "max_abs_diff_vs_kron_K_data_B_task": 4.440892098500626e-16,
+  "probe_entry_0_1": {
+    "assembled": 0.1,
+    "kron_data_major": 0.1,
+    "kron_task_major": 0.5
+  },
+  "question": "gpytorch MultitaskKernel docstring says K_TT (x) K_XX. Which order does the assembled covariance actually have?",
+  "variance_reshape_rule": "variance[i, t] = diag(covar)[i*num_tasks + t]"
+}

@@ -1,0 +1,16 @@
+{
+  "K": 2,
+  "K_xx_cond_after_clamp": 19.28272701611761,
+  "K_xx_min_eigenvalue": 0.2991143993677163,
+  "N": 40,
+  "eigen_clamp_negatives_seen": 0,
+  "logdet_abs_diff": 1.4210854715202004e-14,
+  "logdet_cholesky": 101.84913282521947,
+  "logdet_kron": 101.84913282521946,
+  "logdet_rel_diff": 1.395284802236742e-16,
+  "residual_inf_cholesky": 1.1102230246251565e-15,
+  "residual_inf_kron": 4.218847493575595e-15,
+  "solve_max_abs_diff": 1.1102230246251565e-15,
+  "solve_max_rel_diff": 1.4595052054184676e-15,
+  "timings_live_in": "10_scaling.json (wall-clock is not byte-comparable)"
+}

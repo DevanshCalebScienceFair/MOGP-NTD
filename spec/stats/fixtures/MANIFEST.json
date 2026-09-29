@@ -1,0 +1,39 @@
+{
+ "_agreement_criterion": "re-running capture_stats.py in a fresh interpreter in the same env must reproduce every sha256 here. environment.json is excluded by design.",
+ "_deterministic": "bitwise-reproducible",
+ "_what": "sha256 of every byte-comparable fixture in this directory",
+ "excluded_from_byte_compare": [
+  "environment.json",
+  "MANIFEST.json"
+ ],
+ "files": {
+  "ei.json": {
+   "bytes": 227998,
+   "sha256": "5e81971e75125b94e7e335b0a8831950b5c7785450b3c122b17f7d9c45ab13ad"
+  },
+  "measurements.json": {
+   "bytes": 14523,
+   "sha256": "59360b35b710905d5e69375b08f1acde0d1192c72c0331a1abaaceb2d0934b21"
+  },
+  "normal.json": {
+   "bytes": 62914,
+   "sha256": "f440a716cbe3ce623114118c7ee43a8ae93587aadc2f8dd5d50d1b803e87894e"
+  },
+  "properties.json": {
+   "bytes": 1303,
+   "sha256": "26f1cf7a0442413aa9940f0f94ef79d40051d3c6946ac7e6e894e25de0667f5d"
+  },
+  "spearman.json": {
+   "bytes": 186451,
+   "sha256": "171789d3c0167c7ae871d2eab138cf861947c89c83a1206960b3d305c422e9ec"
+  },
+  "ttest.json": {
+   "bytes": 598409,
+   "sha256": "6e5bc1a974ef980ee93d5bfff79cf14e3ddc3caf1d01b22bee9cd21047ae7723"
+  },
+  "wilcoxon.json": {
+   "bytes": 51341,
+   "sha256": "aebd7ff5e054d1cb41c616491fe6bc6b35318eb44651f9e9dafcd079848422ca"
+  }
+ }
+}

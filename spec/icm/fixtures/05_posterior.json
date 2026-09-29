@@ -1,0 +1,22 @@
+{
+  "K": 2,
+  "M_test": 40,
+  "N_train": 40,
+  "cov_latent_abs_scale": 4.428783209208605,
+  "cov_latent_max_abs_diff": 3.8680170177940454e-13,
+  "mean_abs_scale": 0.4813426316104311,
+  "mean_max_abs_diff": 6.116218642659987e-13,
+  "mll_normalized_gpytorch": -1.6805565313007946,
+  "mll_plus_nll_abs_diff": 6.203926261605375e-13,
+  "nll_normalized_reference": 1.680556531301415,
+  "var_latent_abs_scale": 4.428783209208605,
+  "var_latent_max_abs_diff": 3.8680170177940454e-13,
+  "var_observed_max_abs_diff": 5.439204642243567e-12,
+  "within_point_cross_task_correlation": {
+    "max": 0.3977499846141293,
+    "mean": 0.3936597892454387,
+    "median": 0.3945640265288508,
+    "min": 0.3845819588719935,
+    "note": "acquisition.py:323 replaces every one of these with 0.0."
+  }
+}

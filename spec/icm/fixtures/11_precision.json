@@ -1,0 +1,21 @@
+{
+  "fast_pred_var_effect": {
+    "mean_max_abs_diff": 0.0,
+    "variance_max_abs_diff": 5.960464477539062e-07,
+    "variance_max_rel_diff": 6.453976766351843e-07,
+    "verdict": "negligible -- the reimplementation does not need to model it"
+  },
+  "float64_reference_vs_shipped_float32_predict": {
+    "mean_max_abs_diff": 5.201897812501244e-08,
+    "mean_max_rel_diff": 1.2627526586887493e-07,
+    "note": "SAME fitted parameters on both sides; the only difference is float32 vs float64 linear algebra. This is the tolerance a numpy port should be held to on the posterior.",
+    "variance_max_abs_diff": 7.590737014645521e-10,
+    "variance_max_rel_diff": 1.4189350077514087e-07
+  },
+  "mogp_predict_vs_predict_coregionalized": {
+    "mean_max_abs_diff": 0.0,
+    "variance_max_abs_diff": 0.0,
+    "verdict": "bit-identical -- predict_coregionalized is dead duplicate code; the BO loop decodes the ICM through mogp.predict."
+  },
+  "tanimoto_gram_float32_vs_float64_max_abs_diff": 2.2924863340989532e-08
+}

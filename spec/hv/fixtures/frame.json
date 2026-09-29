@@ -1,0 +1,62 @@
+{
+ "_doc": "The canonical normalized objective frame (SPEC 4). lo/hi/signs in TASK_NAMES order; reference point is zeros(m).",
+ "bounds_payload_sha256": "03bd72e40053b6a9343e44d35b9f55e2101f1f0579f1d37aa0a9742e1b1e707f",
+ "bounds_payload_sha256_matches_frozen_artifact": true,
+ "frozen_artifact_relpath": "spec/bounds/objective_bounds.frozen.json",
+ "hi": [
+  "-0x1.4000000000000p+2",
+  "-0x1.4000000000000p+2",
+  "0x1.ffeb420000000p-1",
+  "-0x1.e9b7fe0000000p+1",
+  "0x1.0365c40000000p+6"
+ ],
+ "hi_repr": [
+  "-5.0",
+  "-5.0",
+  "0.9998417496681213",
+  "-3.825927495956421",
+  "64.84938049316406"
+ ],
+ "lo": [
+  "-0x1.6000000000000p+3",
+  "-0x1.6000000000000p+3",
+  "0x1.060f820000000p-9",
+  "-0x1.d0aba40000000p+2",
+  "0x1.8154de0000000p-2"
+ ],
+ "lo_repr": [
+  "-11.0",
+  "-11.0",
+  "0.001999363536015153",
+  "-7.260476112365723",
+  "0.37630030512809753"
+ ],
+ "reference_point": [
+  "0x0.0p+0",
+  "0x0.0p+0",
+  "0x0.0p+0",
+  "0x0.0p+0",
+  "0x0.0p+0"
+ ],
+ "signs": [
+  -1,
+  1,
+  -1,
+  1,
+  1
+ ],
+ "span": [
+  "0x1.8000000000000p+2",
+  "0x1.8000000000000p+2",
+  "0x1.fee5327e00000p-1",
+  "0x1.b79f4a0000000p+1",
+  "0x1.01e46f2200000p+6"
+ ],
+ "task_names": [
+  "PfDHFR_Docking",
+  "hDHFR_Docking",
+  "hERG_Toxicity_Prob",
+  "Caco2_logPapp",
+  "Half_Life_hours"
+ ]
+}

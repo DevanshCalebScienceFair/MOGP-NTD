@@ -1,0 +1,9 @@
+{
+ "_agreement_criterion": "none; provenance only",
+ "_deterministic": "unknown -- THIS FILE IS EXCLUDED FROM BYTE-COMPARE; it changes when the environment changes",
+ "_what": "the oracle environment these reference values came from",
+ "numpy": "2.4.6",
+ "pandas": "2.3.3",
+ "python": "3.11.15",
+ "scipy": "1.17.1"
+}

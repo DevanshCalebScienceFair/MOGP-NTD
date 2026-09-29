@@ -1,0 +1,67 @@
+{
+  "finite_difference_eps": 1e-06,
+  "grad_max_abs_diff_analytic_vs_autograd": 6.245004513516506e-17,
+  "grad_max_abs_diff_analytic_vs_finite_difference": 1.8918060173955809e-10,
+  "grad_max_rel_diff_analytic_vs_autograd": 4.744033231767708e-16,
+  "layout": [
+    "W (K*R)",
+    "raw_var (K)",
+    "raw_task_noises (K)",
+    "raw_noise (1)",
+    "mean_constant (K)"
+  ],
+  "nll_abs_diff": 0.0,
+  "nll_autograd_dense": 1.680556531301415,
+  "nll_reference": 1.680556531301415,
+  "objective": "nll = -log p(y | theta) / (N*K)",
+  "per_group": {
+    "W": {
+      "analytic": [
+        -0.1316391392812716,
+        0.026719104229576393
+      ],
+      "autograd": [
+        -0.13163913928127163,
+        0.02671910422957633
+      ]
+    },
+    "mean_constant": {
+      "analytic": [
+        -0.015759399566657537,
+        0.028759888975110066
+      ],
+      "autograd": [
+        -0.01575939956665754,
+        0.028759888975110087
+      ]
+    },
+    "raw_noise": {
+      "analytic": [
+        0.07052858815830756
+      ],
+      "autograd": [
+        0.07052858815830756
+      ]
+    },
+    "raw_task_noises": {
+      "analytic": [
+        0.01983526290640679,
+        0.030226211605317313
+      ],
+      "autograd": [
+        0.01983526290640679,
+        0.03022621160531732
+      ]
+    },
+    "raw_var": {
+      "analytic": [
+        0.014500645851630257,
+        0.03776886669638782
+      ],
+      "autograd": [
+        0.014500645851630259,
+        0.03776886669638784
+      ]
+    }
+  }
+}

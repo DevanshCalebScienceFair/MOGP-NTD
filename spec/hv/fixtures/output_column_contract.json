@@ -1,0 +1,84 @@
+{
+ "_doc": "Exact archived output column contract. The rewrite must emit these headers, in this order, for these files. Derived-column identities were re-derived from the base columns and measured.",
+ "derived_column_identities": {
+  "PfDHFR_Docking_LE": "PfDHFR_Docking / heavy_atom_count(SMILES)",
+  "Selectivity_Index": "hDHFR_Docking - PfDHFR_Docking",
+  "Selectivity_Index_LE": "hDHFR_Docking_LE - PfDHFR_Docking_LE",
+  "hDHFR_Docking_LE": "hDHFR_Docking / heavy_atom_count(SMILES)"
+ },
+ "headers": [
+  {
+   "columns": [
+    "SMILES",
+    "PfDHFR_Docking",
+    "hDHFR_Docking",
+    "hERG_Toxicity_Prob",
+    "Caco2_logPapp",
+    "Half_Life_hours",
+    "PfDHFR_Docking_LE",
+    "hDHFR_Docking_LE",
+    "Selectivity_Index",
+    "Selectivity_Index_LE"
+   ],
+   "example": "benchmark_5way_densify_seed0_2026-08-19/gpmobo/seed_0/evaluated.csv",
+   "file": "evaluated.csv",
+   "n_archived_files": 53
+  },
+  {
+   "columns": [
+    "iteration",
+    "n_evaluated",
+    "pareto_size",
+    "hypervolume",
+    "pareto_median_heavy",
+    "pareto_min_heavy"
+   ],
+   "example": "benchmark_5way_densify_seed0_2026-08-19/greedy/seed_0/history.csv",
+   "file": "history.csv",
+   "n_archived_files": 52
+  },
+  {
+   "columns": [
+    "iteration",
+    "n_evaluated",
+    "pareto_size",
+    "hypervolume",
+    "pareto_median_heavy",
+    "pareto_min_heavy",
+    "mean_ehvi"
+   ],
+   "example": "benchmark_5way_densify_seed0_2026-08-19/gpmobo/seed_0/history.csv",
+   "file": "history.csv",
+   "n_archived_files": 1
+  },
+  {
+   "columns": [
+    "SMILES",
+    "PfDHFR_Docking",
+    "hDHFR_Docking",
+    "hERG_Toxicity_Prob",
+    "Caco2_logPapp",
+    "Half_Life_hours",
+    "PfDHFR_Docking_LE",
+    "hDHFR_Docking_LE",
+    "Selectivity_Index",
+    "Selectivity_Index_LE"
+   ],
+   "example": "benchmark_5way_densify_seed0_2026-08-19/gpmobo/seed_0/pareto_front.csv",
+   "file": "pareto_front.csv",
+   "n_archived_files": 53
+  }
+ ],
+ "verification": {
+  "implied_heavy_atoms_max_deviation_from_integer_PfDHFR": "3.552713678800501e-15",
+  "implied_heavy_atoms_max_deviation_from_integer_hDHFR": "7.105427357601002e-15",
+  "rows_where_both_targets_imply_the_same_heavy_atom_count": "89/89",
+  "selectivity_index_le_max_abs_diff": "0.0",
+  "selectivity_index_le_rows_bitwise_exact": 89,
+  "selectivity_index_le_rows_checked": 89,
+  "selectivity_index_max_abs_diff": "0.0",
+  "selectivity_index_rows_bitwise_exact": 89,
+  "selectivity_index_rows_checked": 89
+ },
+ "verification_run": "benchmark_thicccc_2026-08-16/mogp/seed_0"
+}

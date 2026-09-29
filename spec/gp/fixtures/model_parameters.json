@@ -1,0 +1,334 @@
+{
+  "_doc": "Trainable scalars of MOGPModel + MultitaskGaussianLikelihood, enumerated from a constructed model. 3T + 1 per task count T: T outputscales, T constant means, T per-task noises, 1 SHARED global noise. The Tanimoto kernel has no lengthscale.",
+  "by_task_count": {
+    "T1": {
+      "equals_3T_plus_1": true,
+      "kernel_has_lengthscale": false,
+      "likelihood_has_global_noise": true,
+      "likelihood_has_task_noise": true,
+      "likelihood_rank": 0,
+      "named_parameters": [
+        {
+          "init_value": [
+            0.0
+          ],
+          "name": "likelihood.raw_task_noises",
+          "numel": 1,
+          "shape": [
+            1
+          ]
+        },
+        {
+          "init_value": [
+            0.0
+          ],
+          "name": "likelihood.raw_noise",
+          "numel": 1,
+          "shape": [
+            1
+          ]
+        },
+        {
+          "init_value": [
+            0.0
+          ],
+          "name": "mean_module.raw_constant",
+          "numel": 1,
+          "shape": [
+            1
+          ]
+        },
+        {
+          "init_value": [
+            0.0
+          ],
+          "name": "covar_module.raw_outputscale",
+          "numel": 1,
+          "shape": [
+            1
+          ]
+        }
+      ],
+      "priors_registered": [],
+      "total_trainable_scalars": 4
+    },
+    "T2": {
+      "equals_3T_plus_1": true,
+      "kernel_has_lengthscale": false,
+      "likelihood_has_global_noise": true,
+      "likelihood_has_task_noise": true,
+      "likelihood_rank": 0,
+      "named_parameters": [
+        {
+          "init_value": [
+            0.0,
+            0.0
+          ],
+          "name": "likelihood.raw_task_noises",
+          "numel": 2,
+          "shape": [
+            2
+          ]
+        },
+        {
+          "init_value": [
+            0.0
+          ],
+          "name": "likelihood.raw_noise",
+          "numel": 1,
+          "shape": [
+            1
+          ]
+        },
+        {
+          "init_value": [
+            0.0,
+            0.0
+          ],
+          "name": "mean_module.raw_constant",
+          "numel": 2,
+          "shape": [
+            2
+          ]
+        },
+        {
+          "init_value": [
+            0.0,
+            0.0
+          ],
+          "name": "covar_module.raw_outputscale",
+          "numel": 2,
+          "shape": [
+            2
+          ]
+        }
+      ],
+      "priors_registered": [],
+      "total_trainable_scalars": 7
+    },
+    "T3": {
+      "equals_3T_plus_1": true,
+      "kernel_has_lengthscale": false,
+      "likelihood_has_global_noise": true,
+      "likelihood_has_task_noise": true,
+      "likelihood_rank": 0,
+      "named_parameters": [
+        {
+          "init_value": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "name": "likelihood.raw_task_noises",
+          "numel": 3,
+          "shape": [
+            3
+          ]
+        },
+        {
+          "init_value": [
+            0.0
+          ],
+          "name": "likelihood.raw_noise",
+          "numel": 1,
+          "shape": [
+            1
+          ]
+        },
+        {
+          "init_value": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "name": "mean_module.raw_constant",
+          "numel": 3,
+          "shape": [
+            3
+          ]
+        },
+        {
+          "init_value": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "name": "covar_module.raw_outputscale",
+          "numel": 3,
+          "shape": [
+            3
+          ]
+        }
+      ],
+      "priors_registered": [],
+      "total_trainable_scalars": 10
+    },
+    "T5": {
+      "equals_3T_plus_1": true,
+      "kernel_has_lengthscale": false,
+      "likelihood_has_global_noise": true,
+      "likelihood_has_task_noise": true,
+      "likelihood_rank": 0,
+      "named_parameters": [
+        {
+          "init_value": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "name": "likelihood.raw_task_noises",
+          "numel": 5,
+          "shape": [
+            5
+          ]
+        },
+        {
+          "init_value": [
+            0.0
+          ],
+          "name": "likelihood.raw_noise",
+          "numel": 1,
+          "shape": [
+            1
+          ]
+        },
+        {
+          "init_value": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "name": "mean_module.raw_constant",
+          "numel": 5,
+          "shape": [
+            5
+          ]
+        },
+        {
+          "init_value": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "name": "covar_module.raw_outputscale",
+          "numel": 5,
+          "shape": [
+            5
+          ]
+        }
+      ],
+      "priors_registered": [],
+      "total_trainable_scalars": 16
+    }
+  },
+  "constraint_transforms": {
+    "_doc": "Positive() is softplus; GreaterThan(lb) is lb + softplus. Measured against numpy in float32.",
+    "rows": [
+      {
+        "abs_diff": 0.0,
+        "gpytorch_GreaterThan_1e-4_minus_Positive": 9.999999738021129e-05,
+        "gpytorch_Positive": 9.357622912219837e-14,
+        "numpy_softplus_float32": 9.357622912219837e-14,
+        "raw": -30.0
+      },
+      {
+        "abs_diff": 0.0,
+        "gpytorch_GreaterThan_1e-4_minus_Positive": 9.999983012676239e-05,
+        "gpytorch_Positive": 0.006715348456054926,
+        "numpy_softplus_float32": 0.006715348456054926,
+        "raw": -5.0
+      },
+      {
+        "abs_diff": 0.0,
+        "gpytorch_GreaterThan_1e-4_minus_Positive": 9.998679161071777e-05,
+        "gpytorch_Positive": 0.3132616877555847,
+        "numpy_softplus_float32": 0.3132616877555847,
+        "raw": -1.0
+      },
+      {
+        "abs_diff": 0.0,
+        "gpytorch_GreaterThan_1e-4_minus_Positive": 0.00010001659393310547,
+        "gpytorch_Positive": 0.6931471824645996,
+        "numpy_softplus_float32": 0.6931471824645996,
+        "raw": 0.0
+      },
+      {
+        "abs_diff": 1.1920928955078125e-07,
+        "gpytorch_GreaterThan_1e-4_minus_Positive": 0.00010001659393310547,
+        "gpytorch_Positive": 1.31326162815094,
+        "numpy_softplus_float32": 1.3132617473602295,
+        "raw": 1.0
+      },
+      {
+        "abs_diff": 0.0,
+        "gpytorch_GreaterThan_1e-4_minus_Positive": 0.00010013580322265625,
+        "gpytorch_Positive": 5.006715297698975,
+        "numpy_softplus_float32": 5.006715297698975,
+        "raw": 5.0
+      },
+      {
+        "abs_diff": 0.0,
+        "gpytorch_GreaterThan_1e-4_minus_Positive": 9.918212890625e-05,
+        "gpytorch_Positive": 19.899999618530273,
+        "numpy_softplus_float32": 19.899999618530273,
+        "raw": 19.9
+      },
+      {
+        "abs_diff": 0.0,
+        "gpytorch_GreaterThan_1e-4_minus_Positive": 9.918212890625e-05,
+        "gpytorch_Positive": 20.0,
+        "numpy_softplus_float32": 20.0,
+        "raw": 20.0
+      },
+      {
+        "abs_diff": 0.0,
+        "gpytorch_GreaterThan_1e-4_minus_Positive": 9.918212890625e-05,
+        "gpytorch_Positive": 20.100000381469727,
+        "numpy_softplus_float32": 20.100000381469727,
+        "raw": 20.1
+      },
+      {
+        "abs_diff": 0.0,
+        "gpytorch_GreaterThan_1e-4_minus_Positive": 9.918212890625e-05,
+        "gpytorch_Positive": 30.0,
+        "numpy_softplus_float32": 30.0,
+        "raw": 30.0
+      },
+      {
+        "abs_diff": 0.0,
+        "gpytorch_GreaterThan_1e-4_minus_Positive": 9.918212890625e-05,
+        "gpytorch_Positive": 100.0,
+        "numpy_softplus_float32": 100.0,
+        "raw": 100.0
+      }
+    ]
+  },
+  "flat_direction": {
+    "_doc": "Shifting sig2 by +eps and every d_t by -eps holds tau_t = sig2 + d_t fixed, so the likelihood is EXACTLY unchanged: sig2 and d_t are not separately identifiable.",
+    "base_loss": 1.4621200510270957,
+    "shifts": [
+      {
+        "eps": 0.001,
+        "loss_change": 0.0
+      },
+      {
+        "eps": 0.01,
+        "loss_change": 0.0
+      },
+      {
+        "eps": 0.05,
+        "loss_change": 0.0
+      },
+      {
+        "eps": 0.1,
+        "loss_change": 0.0
+      }
+    ]
+  }
+}

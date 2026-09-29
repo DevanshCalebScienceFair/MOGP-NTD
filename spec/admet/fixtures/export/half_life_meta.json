@@ -1,0 +1,50 @@
+{
+  "ad_comparison": "max_tanimoto < threshold  (STRICT)",
+  "ad_threshold": 0.2,
+  "ad_threshold_rational_p_q": [
+    1,
+    5
+  ],
+  "arrays": {
+    "baseline_prediction": "float64 (1,1)",
+    "count/depth/gain/bin_threshold/is_categorical/bitset_idx": "audit only; NOT used at predict time",
+    "feature_idx": "int32 (total_nodes,) column of X; meaningless on leaves",
+    "is_leaf": "uint8 (total_nodes,)",
+    "left": "int32 (total_nodes,) GLOBAL child index",
+    "missing_go_to_left": "uint8 (total_nodes,) NaN routing only",
+    "node_offset": "int64 (n_trees+1,) tree t occupies nodes [off[t], off[t+1])",
+    "num_threshold": "float64 (total_nodes,) go left iff x <= thr",
+    "right": "int32 (total_nodes,) GLOBAL child index",
+    "train_features": "uint8 (n_train, 2048) applicability-domain reference",
+    "value": "float64 (total_nodes,) leaf value INCLUDING shrinkage"
+  },
+  "baseline_prediction": 0.6607382182223014,
+  "baseline_prediction_hex": "0x1.524c479cf6d54p-1",
+  "classes": null,
+  "estimator_class": "sklearn.ensemble._hist_gradient_boosting.gradient_boosting.HistGradientBoostingRegressor",
+  "estimator_kind": "regressor",
+  "format": "MOGP-NTD ADMET numpy export v1",
+  "inverse_link": "identity",
+  "key": "half_life",
+  "learning_rate": 0.1,
+  "n_features_in": 2048,
+  "n_trees": 100,
+  "n_trees_per_iteration": 1,
+  "npz": "half_life_trees.npz",
+  "npz_bytes": 108378,
+  "npz_sha256": "638c2b66eba422814db041ffa8494aede8f6165fcb11a1915849dc8bdffe6726",
+  "num_threshold_unique_hex": [
+    "0x1.0000000000000p-1"
+  ],
+  "shrinkage_baked_into_leaf_values": true,
+  "source_artifact": "half_life.joblib",
+  "source_artifact_sha256": "dfde2b4e456f454a3e5f12b297204395e42380c74cd52188e62e702fa13cd1ef",
+  "target_transform_applied_by_oracle": "pow10",
+  "total_nodes": 4060,
+  "train_features_shape": [
+    533,
+    2048
+  ],
+  "uses_categorical_splits": false,
+  "uses_monotonic_constraints": false
+}

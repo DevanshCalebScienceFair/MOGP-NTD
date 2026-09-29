@@ -1,0 +1,9 @@
+{
+  "botorch": "0.18.1",
+  "gpytorch": "1.15.2",
+  "note": "Informational only. This is the ONE fixture allowed to change between runs; nothing else records a version, path or time.",
+  "numpy": "2.4.6",
+  "platform": "darwin",
+  "python": "3.11.15",
+  "torch": "2.13.0"
+}

@@ -1,0 +1,280 @@
+{
+  "_doc": "mogp.train_mogp's standardization semantics. y_mean/y_std are plain numpy mean/std (ddof=0) over ALL rows, so any NaN row poisons the column's statistics; the zero-variance guard compares y_std == 0.0, which is False for NaN, so NaN survives to the observed mask and the column is dropped from the GP entirely.",
+  "cases": [
+    {
+      "case": "all_docking_observed",
+      "matches_reference": true,
+      "n_nan_rows_per_column": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "n_tasks_trained": 2,
+      "observed_mask": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "train_mogp_raises": null,
+      "train_mogp_y_mean": [
+        -8.000000953674316,
+        -7.0,
+        "NaN",
+        "NaN",
+        "NaN"
+      ],
+      "train_mogp_y_std": [
+        1.2000000476837158,
+        1.0,
+        "NaN",
+        "NaN",
+        "NaN"
+      ],
+      "y_mean": [
+        -8.000000953674316,
+        -7.0,
+        "NaN",
+        "NaN",
+        "NaN"
+      ],
+      "y_std": [
+        1.2000000476837158,
+        1.0,
+        "NaN",
+        "NaN",
+        "NaN"
+      ]
+    },
+    {
+      "case": "one_nan_row_in_PfDHFR",
+      "matches_reference": true,
+      "n_nan_rows_per_column": [
+        1,
+        0,
+        0,
+        0,
+        0
+      ],
+      "n_tasks_trained": 1,
+      "observed_mask": [
+        false,
+        true,
+        false,
+        false,
+        false
+      ],
+      "train_mogp_raises": null,
+      "train_mogp_y_mean": [
+        "NaN",
+        -7.0,
+        "NaN",
+        "NaN",
+        "NaN"
+      ],
+      "train_mogp_y_std": [
+        "NaN",
+        1.0,
+        "NaN",
+        "NaN",
+        "NaN"
+      ],
+      "y_mean": [
+        "NaN",
+        -7.0,
+        "NaN",
+        "NaN",
+        "NaN"
+      ],
+      "y_std": [
+        "NaN",
+        1.0,
+        "NaN",
+        "NaN",
+        "NaN"
+      ]
+    },
+    {
+      "case": "half_nan_rows_in_PfDHFR",
+      "matches_reference": true,
+      "n_nan_rows_per_column": [
+        15,
+        0,
+        0,
+        0,
+        0
+      ],
+      "n_tasks_trained": 1,
+      "observed_mask": [
+        false,
+        true,
+        false,
+        false,
+        false
+      ],
+      "train_mogp_raises": null,
+      "train_mogp_y_mean": [
+        "NaN",
+        -7.0,
+        "NaN",
+        "NaN",
+        "NaN"
+      ],
+      "train_mogp_y_std": [
+        "NaN",
+        1.0,
+        "NaN",
+        "NaN",
+        "NaN"
+      ],
+      "y_mean": [
+        "NaN",
+        -7.0,
+        "NaN",
+        "NaN",
+        "NaN"
+      ],
+      "y_std": [
+        "NaN",
+        1.0,
+        "NaN",
+        "NaN",
+        "NaN"
+      ]
+    },
+    {
+      "case": "all_nan_PfDHFR",
+      "matches_reference": true,
+      "n_nan_rows_per_column": [
+        30,
+        0,
+        0,
+        0,
+        0
+      ],
+      "n_tasks_trained": 1,
+      "observed_mask": [
+        false,
+        true,
+        false,
+        false,
+        false
+      ],
+      "train_mogp_raises": null,
+      "train_mogp_y_mean": [
+        "NaN",
+        -7.0,
+        "NaN",
+        "NaN",
+        "NaN"
+      ],
+      "train_mogp_y_std": [
+        "NaN",
+        1.0,
+        "NaN",
+        "NaN",
+        "NaN"
+      ],
+      "y_mean": [
+        "NaN",
+        -7.0,
+        "NaN",
+        "NaN",
+        "NaN"
+      ],
+      "y_std": [
+        "NaN",
+        1.0,
+        "NaN",
+        "NaN",
+        "NaN"
+      ]
+    },
+    {
+      "case": "all_nan_both_docking",
+      "matches_reference": true,
+      "n_nan_rows_per_column": [
+        30,
+        30,
+        0,
+        0,
+        0
+      ],
+      "n_tasks_trained": 0,
+      "observed_mask": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "train_mogp_raises": "ValueError: train_mogp: no observed docking target columns to train on (the grey-box GP models only the docking objectives).",
+      "y_mean": [
+        "NaN",
+        "NaN",
+        "NaN",
+        "NaN",
+        "NaN"
+      ],
+      "y_std": [
+        "NaN",
+        "NaN",
+        "NaN",
+        "NaN",
+        "NaN"
+      ]
+    },
+    {
+      "case": "constant_PfDHFR_column",
+      "matches_reference": true,
+      "n_nan_rows_per_column": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "n_tasks_trained": 2,
+      "observed_mask": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "train_mogp_raises": null,
+      "train_mogp_y_mean": [
+        -8.0,
+        -7.0,
+        "NaN",
+        "NaN",
+        "NaN"
+      ],
+      "train_mogp_y_std": [
+        1.0,
+        1.0,
+        "NaN",
+        "NaN",
+        "NaN"
+      ],
+      "y_mean": [
+        -8.0,
+        -7.0,
+        "NaN",
+        "NaN",
+        "NaN"
+      ],
+      "y_std": [
+        1.0,
+        1.0,
+        "NaN",
+        "NaN",
+        "NaN"
+      ]
+    }
+  ],
+  "std_ddof": 0
+}

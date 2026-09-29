@@ -1,0 +1,53 @@
+{
+  "ad_comparison": "max_tanimoto < threshold  (STRICT)",
+  "ad_threshold": 0.2,
+  "ad_threshold_rational_p_q": [
+    1,
+    5
+  ],
+  "arrays": {
+    "baseline_prediction": "float64 (1,1)",
+    "count/depth/gain/bin_threshold/is_categorical/bitset_idx": "audit only; NOT used at predict time",
+    "feature_idx": "int32 (total_nodes,) column of X; meaningless on leaves",
+    "is_leaf": "uint8 (total_nodes,)",
+    "left": "int32 (total_nodes,) GLOBAL child index",
+    "missing_go_to_left": "uint8 (total_nodes,) NaN routing only",
+    "node_offset": "int64 (n_trees+1,) tree t occupies nodes [off[t], off[t+1])",
+    "num_threshold": "float64 (total_nodes,) go left iff x <= thr",
+    "right": "int32 (total_nodes,) GLOBAL child index",
+    "train_features": "uint8 (n_train, 2048) applicability-domain reference",
+    "value": "float64 (total_nodes,) leaf value INCLUDING shrinkage"
+  },
+  "baseline_prediction": 0.7951277575261186,
+  "baseline_prediction_hex": "0x1.971afc456ed8cp-1",
+  "classes": [
+    0.0,
+    1.0
+  ],
+  "estimator_class": "sklearn.ensemble._hist_gradient_boosting.gradient_boosting.HistGradientBoostingClassifier",
+  "estimator_kind": "classifier",
+  "format": "MOGP-NTD ADMET numpy export v1",
+  "inverse_link": "logistic",
+  "key": "herg",
+  "learning_rate": 0.1,
+  "n_features_in": 2048,
+  "n_trees": 100,
+  "n_trees_per_iteration": 1,
+  "npz": "herg_trees.npz",
+  "npz_bytes": 105996,
+  "npz_sha256": "743d074ce4a3ba82190b169857b2046d734e2ef9ee9b25f173a1babe6d25208e",
+  "num_threshold_unique_hex": [
+    "0x1.0000000000000p-1"
+  ],
+  "shrinkage_baked_into_leaf_values": true,
+  "source_artifact": "herg.joblib",
+  "source_artifact_sha256": "755f81c94edc5edd6cb084d0a7b16012c0ad934918fef0b0f50d0fe7d50bd8b6",
+  "target_transform_applied_by_oracle": null,
+  "total_nodes": 3898,
+  "train_features_shape": [
+    524,
+    2048
+  ],
+  "uses_categorical_splits": false,
+  "uses_monotonic_constraints": false
+}

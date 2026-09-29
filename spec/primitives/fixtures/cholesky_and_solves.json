@@ -1,0 +1,1089 @@
+{
+  "fixture": "cholesky_and_solves",
+  "title": "Cholesky with the escalating jitter ladder, and triangular forward/back substitution",
+  "spec": "spec/primitives/SPEC.md",
+  "generated_by": "spec/primitives/capture_primitives.py",
+  "environment": {
+    "python": "3.11.15",
+    "platform": "macOS-26.5.1-arm64-arm-64bit",
+    "machine": "arm64",
+    "numpy": "2.4.6",
+    "oracles_available": true,
+    "oracle_versions": {
+      "torch": "2.13.0",
+      "gpytorch": "1.15.2",
+      "scipy": "1.17.1"
+    }
+  },
+  "notes": [
+    "Ladder (float32): attempt 0 unjittered, then TOTAL diagonal additions 1e-6, 1e-5, 1e-4 -- the rungs REPLACE each other, they do not accumulate. max_tries = 3, so 4 factorization attempts. Final failure raises.",
+    "MEASURED DIVERGENCE: torch.linalg.cholesky_ex and np.linalg.cholesky do NOT agree on which exactly-rank-deficient float32 matrices are PD, so which rung a given matrix lands on is NOT portable. Compare the ladder RULE, not the rung. See SPEC.md 3.6.",
+    "Normative triangular solve: the row loop in forward_substitution / back_substitution_LT with use_blas=False (np.sum of the elementwise product: no BLAS, no threads, deterministic)."
+  ],
+  "arrays": {
+    "batched_cholesky_one_bad_slice_raises": {
+      "dtype": "<i8",
+      "shape": [
+        1
+      ],
+      "sha256": "6e5fe855a431ec85b8cf1c99d8babf4090d985fa265f0ee1ec1c7a36edaac6ed",
+      "description": "1 iff np.linalg.cholesky on a stack raises when ANY slice fails. gpytorch jitters ONLY the failing batch elements, so a numpy reimplementation MUST loop over tasks, not factorize the stack.",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "must be 1"
+    },
+    "chol_L_diag_f32_n10": {
+      "dtype": "<f4",
+      "shape": [
+        10
+      ],
+      "sha256": "a525269a86e8d83b94d91763089795364481b484d8a2b452097fa0238a643c8a",
+      "description": "diagonal of that factor (its minimum bounds the amplification 1/min(diag) of the triangular solve)",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "min(diag) > 0; compare with rtol 1e-4"
+    },
+    "chol_L_diag_f32_n20": {
+      "dtype": "<f4",
+      "shape": [
+        20
+      ],
+      "sha256": "86cb7d6d6ea85f34d6096c089ad9ad9b16ce3ac12b478b1102db052ad5527444",
+      "description": "diagonal of that factor (its minimum bounds the amplification 1/min(diag) of the triangular solve)",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "min(diag) > 0; compare with rtol 1e-4"
+    },
+    "chol_L_diag_f32_n40": {
+      "dtype": "<f4",
+      "shape": [
+        40
+      ],
+      "sha256": "bf3ef89f05860b96f8eb537820afb93a600097b8d374ef7b103706f779beac3c",
+      "description": "diagonal of that factor (its minimum bounds the amplification 1/min(diag) of the triangular solve)",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "min(diag) > 0; compare with rtol 1e-4"
+    },
+    "chol_L_diag_f32_n64": {
+      "dtype": "<f4",
+      "shape": [
+        64
+      ],
+      "sha256": "dbe1a0444b91900e392e85bc91a8e9e35ae9734f9f2e26428bb8a34e5f78fcf8",
+      "description": "diagonal of that factor (its minimum bounds the amplification 1/min(diag) of the triangular solve)",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "min(diag) > 0; compare with rtol 1e-4"
+    },
+    "chol_L_f32_n10": {
+      "dtype": "<f4",
+      "shape": [
+        10,
+        10
+      ],
+      "sha256": "1724d0afc20ee2197e4a8451017f7baa91b90bc764cd3c826b588426852e087b",
+      "description": "lower-triangular Cholesky factor of the n=10 case AFTER the ladder picked its jitter",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "compare L @ L.T against gram + chosen_jitter*I with rtol 1e-5 in float32; do NOT byte-compare L"
+    },
+    "chol_L_f32_n20": {
+      "dtype": "<f4",
+      "shape": [
+        20,
+        20
+      ],
+      "sha256": "15a2e9ebb703ea7df488688e27ea1454a82b28bebd2def63f9f3ae74447bfe45",
+      "description": "lower-triangular Cholesky factor of the n=20 case AFTER the ladder picked its jitter",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "compare L @ L.T against gram + chosen_jitter*I with rtol 1e-5 in float32; do NOT byte-compare L"
+    },
+    "chol_L_f32_n40": {
+      "dtype": "<f4",
+      "shape": [
+        40,
+        40
+      ],
+      "sha256": "24130a680a432e415bf765a226577721308c74e2065e617dd09fe09924900713",
+      "description": "lower-triangular Cholesky factor of the n=40 case AFTER the ladder picked its jitter",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "compare L @ L.T against gram + chosen_jitter*I with rtol 1e-5 in float32; do NOT byte-compare L"
+    },
+    "chol_L_f32_n64": {
+      "dtype": "<f4",
+      "shape": [
+        64,
+        64
+      ],
+      "sha256": "6842ba77f7b05f8cd9280c186d120ac07c766913b2e69f926b219ac0d8cd9a27",
+      "description": "lower-triangular Cholesky factor of the n=64 case AFTER the ladder picked its jitter",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "compare L @ L.T against gram + chosen_jitter*I with rtol 1e-5 in float32; do NOT byte-compare L"
+    },
+    "chol_recon_max_abs_err_n10": {
+      "dtype": "<f8",
+      "shape": [
+        1
+      ],
+      "sha256": "bdc00088040eede8a1223e29ab4ae1b68db47c70c21c52fc5798dbd8bd7798d7",
+      "description": "max |L L^T - (K + jitter I)| in float32",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "must be < 1e-5"
+    },
+    "chol_recon_max_abs_err_n20": {
+      "dtype": "<f8",
+      "shape": [
+        1
+      ],
+      "sha256": "45b77feec2bc84625f7c506db4ba44117de48361c7f8b83b97ec216323c986e8",
+      "description": "max |L L^T - (K + jitter I)| in float32",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "must be < 1e-5"
+    },
+    "chol_recon_max_abs_err_n40": {
+      "dtype": "<f8",
+      "shape": [
+        1
+      ],
+      "sha256": "c9cd543ba823b75c1e7a3ead628f37867b0cd3fa81f15a7e509d9bb71ccf4b56",
+      "description": "max |L L^T - (K + jitter I)| in float32",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "must be < 1e-5"
+    },
+    "chol_recon_max_abs_err_n64": {
+      "dtype": "<f8",
+      "shape": [
+        1
+      ],
+      "sha256": "cebcb14011c9c657e8afbede4b28f12a2be1218d2804fdf5f969f9729a13e31e",
+      "description": "max |L L^T - (K + jitter I)| in float32",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "must be < 1e-5"
+    },
+    "gram_f32_singular_n10": {
+      "dtype": "<f4",
+      "shape": [
+        10,
+        10
+      ],
+      "sha256": "4c8d48b5c54dbad9dcb36fc6603f83a9d787d709204bb1cb72a5571bb92939cc",
+      "description": "float32 Tanimoto Gram, 10 x 10, with 1 exactly duplicated fingerprint rows -> exactly rank deficient",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "gram_f32_singular_n20": {
+      "dtype": "<f4",
+      "shape": [
+        20,
+        20
+      ],
+      "sha256": "65c5d134e89b1f019b677c9cdfc3b1bb5bccdfeb4e4f405e7ab3447b78835f55",
+      "description": "float32 Tanimoto Gram, 20 x 20, with 1 exactly duplicated fingerprint rows -> exactly rank deficient",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "gram_f32_singular_n40": {
+      "dtype": "<f4",
+      "shape": [
+        40,
+        40
+      ],
+      "sha256": "0f8a863ff3dc02ebca681006705a5de2f902f112d3f34109723d379cc0f8beb0",
+      "description": "float32 Tanimoto Gram, 40 x 40, with 3 exactly duplicated fingerprint rows -> exactly rank deficient",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "gram_f32_singular_n64": {
+      "dtype": "<f4",
+      "shape": [
+        64,
+        64
+      ],
+      "sha256": "9d2b0f31524672c20d5e28fa80ab5f74f6d1966ea6326b31fc5e50ab9d06db8a",
+      "description": "float32 Tanimoto Gram, 64 x 64, with 2 exactly duplicated fingerprint rows -> exactly rank deficient",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "illcond_cond2": {
+      "dtype": "<f8",
+      "shape": [
+        3
+      ],
+      "sha256": "0d26dba3c30c2eba9411a86787d6a6f8794c10211c891ea201df16f06b670528",
+      "description": "2-norm condition number of the jittered matrix",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "rtol 1e-6"
+    },
+    "illcond_gram_f32": {
+      "dtype": "<f4",
+      "shape": [
+        40,
+        40
+      ],
+      "sha256": "c5ea4fc11f310668079dbf925391ef40d5a89301ab87e6e39b5d03cf68c48efc",
+      "description": "the rank-deficient 40x40 Gram",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "illcond_jitter": {
+      "dtype": "<f8",
+      "shape": [
+        3
+      ],
+      "sha256": "634839ac3cc64c89b350bcd81a5f9c4699c6163684df08e81896ac1fade27269",
+      "description": "jitter applied",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "illcond_min_diag_L": {
+      "dtype": "<f8",
+      "shape": [
+        3
+      ],
+      "sha256": "c463f93bd9c9f927b111b0144c1af83df60e21665490e82e8f55caca6ea2684e",
+      "description": "smallest diagonal entry of the float32 factor",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "rtol 1e-4"
+    },
+    "illcond_relerr_npsolve": {
+      "dtype": "<f8",
+      "shape": [
+        3
+      ],
+      "sha256": "724a202f8fee14b0b20813748b44fd1bd3b9db352e11f09fd0ce77e1c715da31",
+      "description": "relative error of np.linalg.solve(L,b) vs the same float64 answer. MEASURED: comparable to substitution, so accuracy is NOT the reason to avoid np.linalg.solve -- cost and determinism are.",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "each < 1e-6"
+    },
+    "illcond_relerr_substitution": {
+      "dtype": "<f8",
+      "shape": [
+        3
+      ],
+      "sha256": "75e19d4c55efd70546c87a774d11bc489b97f7f636b7d66ccdd16b3bff321d04",
+      "description": "relative error of the float32 substitution vs the float64 answer",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "each < 1e-6"
+    },
+    "illcond_rhs_f32": {
+      "dtype": "<f4",
+      "shape": [
+        40
+      ],
+      "sha256": "f510db248ec9735e731f605d979b73aaca4eaa42f68f80900374e25ef08e10d2",
+      "description": "right-hand side",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "ladder_chosen_jitter_f32": {
+      "dtype": "<f8",
+      "shape": [
+        4
+      ],
+      "sha256": "694a84ab335211513cede3d9b00c918d715e1f4256694c0d0cd0e7b4563dc3a8",
+      "description": "total diagonal jitter the numpy ladder settled on per case",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "must be one of {0, 1e-6, 1e-5, 1e-4}; the exact choice is not portable"
+    },
+    "ladder_n_attempts": {
+      "dtype": "<i8",
+      "shape": [
+        4
+      ],
+      "sha256": "c095ee540945d35be5a4568f1412865f2fb8a5681ba15a48e8523e8bc0ff4ac7",
+      "description": "number of factorization attempts consumed per case (1 = unjittered success)",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "must be in [1, 4]"
+    },
+    "ladder_raises_on_unrescuable": {
+      "dtype": "<i8",
+      "shape": [
+        1
+      ],
+      "sha256": "6e5fe855a431ec85b8cf1c99d8babf4090d985fa265f0ee1ec1c7a36edaac6ed",
+      "description": "1 iff the ladder exhausts all 3 rungs and RAISES (gpytorch raises NotPSDError with the message 'Matrix not positive definite after repeatedly adding jitter up to 1.0e-04.'). It must NOT return a garbage factor or silently fall back.",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "must be 1"
+    },
+    "ladder_rung_python_float_vs_literal": {
+      "dtype": "<f8",
+      "shape": [
+        4
+      ],
+      "sha256": "e8978e01fd161bb2ea5753e260a335a0c3c0bef6ef2bf7a5d88d5ba481b2a81a",
+      "description": "base*10**i evaluated in float64: 1e-6*10 = 9.999999999999999e-06 and 1e-6*100 = 9.999999999999999e-05, i.e. NOT the literals 1e-5 / 1e-4. Both round to the same float32, so it is immaterial at float32; it matters if anyone ever runs the ladder in float64.",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "ladder_rungs_f32": {
+      "dtype": "<f4",
+      "shape": [
+        3
+      ],
+      "sha256": "8969664543ab2b340e948030c07411e08959bd9068d18755b042becf302ae140",
+      "description": "the float32 ladder: 1e-6, 1e-5, 1e-4 (base * 10**i, TOTAL not cumulative)",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "ladder_rungs_f64": {
+      "dtype": "<f8",
+      "shape": [
+        3
+      ],
+      "sha256": "d8bb3c49413933fcc977cd24f0a3187a70e99592fbdcef8e88af9e84351da70e",
+      "description": "the float64 ladder: 1e-8, 1e-7, 1e-6",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "ladder_unrescuable_matrix": {
+      "dtype": "<f4",
+      "shape": [
+        4,
+        4
+      ],
+      "sha256": "ac9402a129e63bc9cf70a6b097dfdd580533e02d4ebd12d93fe21781e6439d15",
+      "description": "diag(-1,1,1,1): indefinite by a margin far larger than any rung",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "nan_in_lower_triangle_factor": {
+      "dtype": "<f4",
+      "shape": [
+        3,
+        3
+      ],
+      "sha256": "f37acb2c6e7d5bed2b0aa81c4ae46c80c30de5ad26f9b9615b9665f9124d1948",
+      "description": "np.linalg.cholesky SUCCEEDS and returns NaNs -- no exception. An explicit isfinite() guard before factorizing is mandatory.",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "np.isnan(result).any() must be True"
+    },
+    "nan_in_lower_triangle_input": {
+      "dtype": "<f4",
+      "shape": [
+        3,
+        3
+      ],
+      "sha256": "dd38dc8f89d583ded6da8fc4a11fa6f4fe6423f5e64ad64825db3a0207104e02",
+      "description": "identity with NaN at [1,0]",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "nan_in_upper_triangle_is_ignored": {
+      "dtype": "<i8",
+      "shape": [
+        1
+      ],
+      "sha256": "6e5fe855a431ec85b8cf1c99d8babf4090d985fa265f0ee1ec1c7a36edaac6ed",
+      "description": "1 iff a NaN in the UPPER triangle is ignored (potrf reads only the lower triangle). Consequence: a NaN screen must check the WHOLE matrix, and symmetry must never be assumed.",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "must be 1"
+    },
+    "npsolve_on_L_f32_n256": {
+      "dtype": "<f4",
+      "shape": [
+        256
+      ],
+      "sha256": "2bf95948016803374c1e3adcc0cedfcca12a8ffa434e646dcae65ec3154c14f2",
+      "description": "np.linalg.solve(L, b): LU with partial pivoting on an already-triangular matrix. Discards the triangular structure (O(n^3/3) instead of O(n^2/2)) and the rounding sequence is whatever LAPACK's gesv chooses.",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "rtol 1e-05"
+    },
+    "npsolve_on_L_f32_n64": {
+      "dtype": "<f4",
+      "shape": [
+        64
+      ],
+      "sha256": "5e61100bd608f43ff6ff818cd03cbb961f735c386f94948051313cf53b3a3e80",
+      "description": "np.linalg.solve(L, b): LU with partial pivoting on an already-triangular matrix. Discards the triangular structure (O(n^3/3) instead of O(n^2/2)) and the rounding sequence is whatever LAPACK's gesv chooses.",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "rtol 1e-05"
+    },
+    "npsolve_on_L_f32_n8": {
+      "dtype": "<f4",
+      "shape": [
+        8
+      ],
+      "sha256": "3ec57cb37c69b03e61a0b0e2b03bb818d9842c6ca026dafa5f1865762589006a",
+      "description": "np.linalg.solve(L, b): LU with partial pivoting on an already-triangular matrix. Discards the triangular structure (O(n^3/3) instead of O(n^2/2)) and the rounding sequence is whatever LAPACK's gesv chooses.",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "rtol 1e-05"
+    },
+    "npsolve_on_L_f64_n256": {
+      "dtype": "<f8",
+      "shape": [
+        256
+      ],
+      "sha256": "8b61f0faaeac70cf5ffc00cb75d1a3fcb27751777d3e1bc59e9a89a47e9a160a",
+      "description": "np.linalg.solve(L, b): LU with partial pivoting on an already-triangular matrix. Discards the triangular structure (O(n^3/3) instead of O(n^2/2)) and the rounding sequence is whatever LAPACK's gesv chooses.",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "rtol 1e-13"
+    },
+    "npsolve_on_L_f64_n64": {
+      "dtype": "<f8",
+      "shape": [
+        64
+      ],
+      "sha256": "7a200746641d42632c74902827554aaf2827561e611a78b512a3583b5f4dc7bd",
+      "description": "np.linalg.solve(L, b): LU with partial pivoting on an already-triangular matrix. Discards the triangular structure (O(n^3/3) instead of O(n^2/2)) and the rounding sequence is whatever LAPACK's gesv chooses.",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "rtol 1e-13"
+    },
+    "npsolve_on_L_f64_n8": {
+      "dtype": "<f8",
+      "shape": [
+        8
+      ],
+      "sha256": "74c5b4868b7bc83ac1379de60b0e5612ca4d8d3ab08ef81bf11816a0d299a63e",
+      "description": "np.linalg.solve(L, b): LU with partial pivoting on an already-triangular matrix. Discards the triangular structure (O(n^3/3) instead of O(n^2/2)) and the rounding sequence is whatever LAPACK's gesv chooses.",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "rtol 1e-13"
+    },
+    "npsolve_vs_substitution_rel_f32_n256": {
+      "dtype": "<f8",
+      "shape": [
+        1
+      ],
+      "sha256": "3afd0eb651c623018fc7bf07ccf359218d0221df705a64a7a1bc7f766dec6dc0",
+      "description": "relative gap between np.linalg.solve and substitution",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "informational"
+    },
+    "npsolve_vs_substitution_rel_f32_n64": {
+      "dtype": "<f8",
+      "shape": [
+        1
+      ],
+      "sha256": "ebb4ce80e659081bbf5e0d7e6a9d7a761eccbbc6b38a37f85dded881155eee11",
+      "description": "relative gap between np.linalg.solve and substitution",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "informational"
+    },
+    "npsolve_vs_substitution_rel_f32_n8": {
+      "dtype": "<f8",
+      "shape": [
+        1
+      ],
+      "sha256": "e65f05b4a0dfddd4143887ab151b994686596337ef287ba355389e82c38422cc",
+      "description": "relative gap between np.linalg.solve and substitution",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "informational"
+    },
+    "npsolve_vs_substitution_rel_f64_n256": {
+      "dtype": "<f8",
+      "shape": [
+        1
+      ],
+      "sha256": "2f125a4d70c21ab5d11040889bf2d74e0244bbb952e3747149ac225088a5324a",
+      "description": "relative gap between np.linalg.solve and substitution",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "informational"
+    },
+    "npsolve_vs_substitution_rel_f64_n64": {
+      "dtype": "<f8",
+      "shape": [
+        1
+      ],
+      "sha256": "73fa247c7522f2205e0322e59e54ea837433e9291a4f4a858150a9b3e13e88c2",
+      "description": "relative gap between np.linalg.solve and substitution",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "informational"
+    },
+    "npsolve_vs_substitution_rel_f64_n8": {
+      "dtype": "<f8",
+      "shape": [
+        1
+      ],
+      "sha256": "385a3f02b015e70bb9b7de9343cd16b952e36e1c1c096c4cbc0fd6a473dc61a5",
+      "description": "relative gap between np.linalg.solve and substitution",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "informational"
+    },
+    "numpy_cholesky_succeeds_unjittered": {
+      "dtype": "<i8",
+      "shape": [
+        4
+      ],
+      "sha256": "6bfde89a0d541cb4a327a8c50388b2861b37a3462cd6241bca30282af331e083",
+      "description": "1 iff np.linalg.cholesky succeeds with NO jitter on that case",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "informational only -- this is the non-portable quantity"
+    },
+    "oracle_scipy_trsv_f32_n256": {
+      "dtype": "<f4",
+      "shape": [
+        256
+      ],
+      "sha256": "cde909053f4bedf55f4de30b1525ad2b9bb538499a58910e51abb04de6e1d4c8",
+      "description": "scipy.linalg.solve_triangular on the same system",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "must match tri_fwd_f32_n256 to rtol 1e-05"
+    },
+    "oracle_scipy_trsv_f32_n64": {
+      "dtype": "<f4",
+      "shape": [
+        64
+      ],
+      "sha256": "0c8ebb794d3b919bf5e7165b6b16bb17cfbc08000f3b28e9424e15755913b639",
+      "description": "scipy.linalg.solve_triangular on the same system",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "must match tri_fwd_f32_n64 to rtol 1e-05"
+    },
+    "oracle_scipy_trsv_f32_n8": {
+      "dtype": "<f4",
+      "shape": [
+        8
+      ],
+      "sha256": "9d7576329556bb807fda592581a2b738e7098093a987b571b8b08edbea67da15",
+      "description": "scipy.linalg.solve_triangular on the same system",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "must match tri_fwd_f32_n8 to rtol 1e-05"
+    },
+    "oracle_scipy_trsv_f64_n256": {
+      "dtype": "<f8",
+      "shape": [
+        256
+      ],
+      "sha256": "fbc47d1db423ef1285f741e0f2e1396d5cc48f64bfc28775243427af173bd600",
+      "description": "scipy.linalg.solve_triangular on the same system",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "must match tri_fwd_f64_n256 to rtol 1e-13"
+    },
+    "oracle_scipy_trsv_f64_n64": {
+      "dtype": "<f8",
+      "shape": [
+        64
+      ],
+      "sha256": "c609fc9d55c0d408811da91391215bad555f853427927ea474fbae217129c633",
+      "description": "scipy.linalg.solve_triangular on the same system",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "must match tri_fwd_f64_n64 to rtol 1e-13"
+    },
+    "oracle_scipy_trsv_f64_n8": {
+      "dtype": "<f8",
+      "shape": [
+        8
+      ],
+      "sha256": "7ea2b5a337bce669182f27824184e6ae231b4b521b7ba0dc4284f9052ab24c3f",
+      "description": "scipy.linalg.solve_triangular on the same system",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "must match tri_fwd_f64_n8 to rtol 1e-13"
+    },
+    "singular_case_min_eig_f64": {
+      "dtype": "<f8",
+      "shape": [
+        4
+      ],
+      "sha256": "9900a29ed13fccfeb35113db94eff22d55a43918a8969eda42181a1dd61a4756",
+      "description": "minimum float64 eigenvalue of each case (all ~0 => exactly singular)",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "each |value| < 1e-12"
+    },
+    "singular_case_sizes": {
+      "dtype": "<i8",
+      "shape": [
+        4
+      ],
+      "sha256": "1fbc110373f28cdb2fe95a03697fd21512389a7b650c0fdb0f577aba402975d9",
+      "description": "n for each near-singular case",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "torch_cholesky_ex_info": {
+      "dtype": "<i8",
+      "shape": [
+        4
+      ],
+      "sha256": "35ef218ff74311a3868726b445e5bb660d65ab581ac7e746bdbc71ea82be4f57",
+      "description": "torch.linalg.cholesky_ex info for the same matrices (0 = torch declared it PD). Where this is 0 and numpy_cholesky_succeeds_unjittered is 0, the two LAPACK builds DISAGREE and the ladder entry point is not portable.",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "informational only"
+    },
+    "tri_A_f32_n256": {
+      "dtype": "<f4",
+      "shape": [
+        256,
+        256
+      ],
+      "sha256": "36810ab035f3ed9b92fe275a84d13e461b2ca53a576495bca115aca299d191b4",
+      "description": "the SPD matrix",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "tri_A_f32_n64": {
+      "dtype": "<f4",
+      "shape": [
+        64,
+        64
+      ],
+      "sha256": "b772f8ae21e40d8516cda2cabc3c62fce9c829156a45945442d7ea9c08f33da3",
+      "description": "the SPD matrix",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "tri_A_f32_n8": {
+      "dtype": "<f4",
+      "shape": [
+        8,
+        8
+      ],
+      "sha256": "cddbefc6177f12a3e950369b1cba2bbf67129115225f69568f1526b8644760fe",
+      "description": "the SPD matrix",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "tri_A_f64_n256": {
+      "dtype": "<f8",
+      "shape": [
+        256,
+        256
+      ],
+      "sha256": "f868c40d53e7355e6661aae4300160983e2ac5e44a37c05259b10fc864b6260e",
+      "description": "the SPD matrix",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "tri_A_f64_n64": {
+      "dtype": "<f8",
+      "shape": [
+        64,
+        64
+      ],
+      "sha256": "fe9b5d18b82ce3ff1f73d81d845e11ccca44a48566efdae5981815880f5bcd97",
+      "description": "the SPD matrix",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "tri_A_f64_n8": {
+      "dtype": "<f8",
+      "shape": [
+        8,
+        8
+      ],
+      "sha256": "61179d5ffcf4dc86673b2f66ca7b25899c2445c671e9192e0a319a1fdff52dbb",
+      "description": "the SPD matrix",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "tri_L_f32_n256": {
+      "dtype": "<f4",
+      "shape": [
+        256,
+        256
+      ],
+      "sha256": "f7fe9ffb3ad30facd8d96fb92ec8fb1c0cf3e791c61c39fe1d01782a3ce873b7",
+      "description": "f32 lower-triangular Cholesky factor of a well-conditioned SPD matrix (n=256)",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "compare L@L.T to tri_A_f32_n256 with rtol 1e-05"
+    },
+    "tri_L_f32_n64": {
+      "dtype": "<f4",
+      "shape": [
+        64,
+        64
+      ],
+      "sha256": "f3101c48adf0a57828d36713cee50e261245eaf8d3ac953d32f6eecbe86d3a0a",
+      "description": "f32 lower-triangular Cholesky factor of a well-conditioned SPD matrix (n=64)",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "compare L@L.T to tri_A_f32_n64 with rtol 1e-05"
+    },
+    "tri_L_f32_n8": {
+      "dtype": "<f4",
+      "shape": [
+        8,
+        8
+      ],
+      "sha256": "a0441b17d5bbb6b5669aa2e5ab4ac7536c3d429b93e73cfda7c0fa8832b73c19",
+      "description": "f32 lower-triangular Cholesky factor of a well-conditioned SPD matrix (n=8)",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "compare L@L.T to tri_A_f32_n8 with rtol 1e-05"
+    },
+    "tri_L_f64_n256": {
+      "dtype": "<f8",
+      "shape": [
+        256,
+        256
+      ],
+      "sha256": "9c86164b0957c05e118e209dcb947b3c15959a2b0b29b587c71b92cf5e63cd4e",
+      "description": "f64 lower-triangular Cholesky factor of a well-conditioned SPD matrix (n=256)",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "compare L@L.T to tri_A_f64_n256 with rtol 1e-13"
+    },
+    "tri_L_f64_n64": {
+      "dtype": "<f8",
+      "shape": [
+        64,
+        64
+      ],
+      "sha256": "29809dc18f35f1a0e178c75028b67cebe6ec7a926280bf8a6dc2197b29fcf556",
+      "description": "f64 lower-triangular Cholesky factor of a well-conditioned SPD matrix (n=64)",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "compare L@L.T to tri_A_f64_n64 with rtol 1e-13"
+    },
+    "tri_L_f64_n8": {
+      "dtype": "<f8",
+      "shape": [
+        8,
+        8
+      ],
+      "sha256": "ca3a9de947011c2caedfe772bd6972bc3f51cfdb84ec7618eca4048b5edcde08",
+      "description": "f64 lower-triangular Cholesky factor of a well-conditioned SPD matrix (n=8)",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "compare L@L.T to tri_A_f64_n8 with rtol 1e-13"
+    },
+    "tri_b_f32_n256": {
+      "dtype": "<f4",
+      "shape": [
+        256
+      ],
+      "sha256": "08b075a48605697868c4029cae3f285633d691c32b401e9289278746ec918fe4",
+      "description": "the right-hand side",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "tri_b_f32_n64": {
+      "dtype": "<f4",
+      "shape": [
+        64
+      ],
+      "sha256": "e4c89e949e363ea299d23a388877cc9ff061f315a4e429771f7b47d4f894638f",
+      "description": "the right-hand side",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "tri_b_f32_n8": {
+      "dtype": "<f4",
+      "shape": [
+        8
+      ],
+      "sha256": "8e30b45a1c4170ba4b69d480d0688c39efc47a8bf702be7cbd2f794007818701",
+      "description": "the right-hand side",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "tri_b_f64_n256": {
+      "dtype": "<f8",
+      "shape": [
+        256
+      ],
+      "sha256": "f8a1f624f59a8081ca3eaca360be8b99d14f818adc44f98575c0f00059ed7729",
+      "description": "the right-hand side",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "tri_b_f64_n64": {
+      "dtype": "<f8",
+      "shape": [
+        64
+      ],
+      "sha256": "292dfc971444e6d0d7cf10d977f992cdae3ccedc63dc05d0528439a6b3a1c524",
+      "description": "the right-hand side",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "tri_b_f64_n8": {
+      "dtype": "<f8",
+      "shape": [
+        8
+      ],
+      "sha256": "da3da56bd3fc04471a2301ddbe56b1790422619e010a2873d7f2b9f2782f17cd",
+      "description": "the right-hand side",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "tri_back_f32_n256": {
+      "dtype": "<f4",
+      "shape": [
+        256
+      ],
+      "sha256": "08bc7c6f7541147d748f508d5832f3acee64ac6727c89cdcfe6076b9880ab629",
+      "description": "L^T x = y, i.e. x = A^{-1} b via the two substitutions",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "rtol 1e-05"
+    },
+    "tri_back_f32_n64": {
+      "dtype": "<f4",
+      "shape": [
+        64
+      ],
+      "sha256": "10e73abd613aa2d2d8da184934060b9dc7d51e0907bce5a9bae9de965bbbf411",
+      "description": "L^T x = y, i.e. x = A^{-1} b via the two substitutions",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "rtol 1e-05"
+    },
+    "tri_back_f32_n8": {
+      "dtype": "<f4",
+      "shape": [
+        8
+      ],
+      "sha256": "59c226f47f6d86ebc03a3809d7e072b6a326ad97fb68e2a65de6d882b87e2638",
+      "description": "L^T x = y, i.e. x = A^{-1} b via the two substitutions",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "rtol 1e-05"
+    },
+    "tri_back_f64_n256": {
+      "dtype": "<f8",
+      "shape": [
+        256
+      ],
+      "sha256": "0fca7888eb004c0bf8af3078ab321680f9a037bd5e0b4d7c47ae54b8039198ba",
+      "description": "L^T x = y, i.e. x = A^{-1} b via the two substitutions",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "rtol 1e-13"
+    },
+    "tri_back_f64_n64": {
+      "dtype": "<f8",
+      "shape": [
+        64
+      ],
+      "sha256": "f59c06ddeda89bb6fad6a1856401ab28ceb48feca415e71bc083c2a89d7b015a",
+      "description": "L^T x = y, i.e. x = A^{-1} b via the two substitutions",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "rtol 1e-13"
+    },
+    "tri_back_f64_n8": {
+      "dtype": "<f8",
+      "shape": [
+        8
+      ],
+      "sha256": "3b2f987a5ed851a861aaf6feb18fb8be7e25e7ab888aed185e7dadf4d278baea",
+      "description": "L^T x = y, i.e. x = A^{-1} b via the two substitutions",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "rtol 1e-13"
+    },
+    "tri_fwd_blas_f32_n256": {
+      "dtype": "<f4",
+      "shape": [
+        256
+      ],
+      "sha256": "24823c3913722849a913e22b85a68c8c7daf934d0f029182d68cf94ca1a185f5",
+      "description": "the same solve accumulated with a BLAS dot product; differs from the normative answer in the last bits",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "rtol 1e-05"
+    },
+    "tri_fwd_blas_f32_n64": {
+      "dtype": "<f4",
+      "shape": [
+        64
+      ],
+      "sha256": "25570d052f6cbd0594def796aa44bf078e86798628391ee937f95499f58a29e7",
+      "description": "the same solve accumulated with a BLAS dot product; differs from the normative answer in the last bits",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "rtol 1e-05"
+    },
+    "tri_fwd_blas_f32_n8": {
+      "dtype": "<f4",
+      "shape": [
+        8
+      ],
+      "sha256": "a059efe0bdedb75ed78f37d73ff6c27c71de03636d7b1259f211c7b81a6394bd",
+      "description": "the same solve accumulated with a BLAS dot product; differs from the normative answer in the last bits",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "rtol 1e-05"
+    },
+    "tri_fwd_blas_f64_n256": {
+      "dtype": "<f8",
+      "shape": [
+        256
+      ],
+      "sha256": "39b3802752944093461a72a09cb21f0697e1b2b0d1ba61f8e2bccabb98cf9785",
+      "description": "the same solve accumulated with a BLAS dot product; differs from the normative answer in the last bits",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "rtol 1e-13"
+    },
+    "tri_fwd_blas_f64_n64": {
+      "dtype": "<f8",
+      "shape": [
+        64
+      ],
+      "sha256": "f8c0b6254aae2f6893fedf163e3a8ffa1dca52699597b602fb499d174a6d9094",
+      "description": "the same solve accumulated with a BLAS dot product; differs from the normative answer in the last bits",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "rtol 1e-13"
+    },
+    "tri_fwd_blas_f64_n8": {
+      "dtype": "<f8",
+      "shape": [
+        8
+      ],
+      "sha256": "9bd8ab600c5ab95d63dde6ddd75cad8186c3e0b5dca710eccda60c69f3f215a4",
+      "description": "the same solve accumulated with a BLAS dot product; differs from the normative answer in the last bits",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "rtol 1e-13"
+    },
+    "tri_fwd_f32_n256": {
+      "dtype": "<f4",
+      "shape": [
+        256
+      ],
+      "sha256": "86dff1840c361861e94cc2cb2e800dce6f7774e474451890f09946a39b971344",
+      "description": "L y = b, normative row loop (np.sum accumulation)",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "rtol 1e-05"
+    },
+    "tri_fwd_f32_n64": {
+      "dtype": "<f4",
+      "shape": [
+        64
+      ],
+      "sha256": "251f62ff5452428bcc01cce63e9b675483e49933453da8147aa990ebd66f6e46",
+      "description": "L y = b, normative row loop (np.sum accumulation)",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "rtol 1e-05"
+    },
+    "tri_fwd_f32_n8": {
+      "dtype": "<f4",
+      "shape": [
+        8
+      ],
+      "sha256": "a059efe0bdedb75ed78f37d73ff6c27c71de03636d7b1259f211c7b81a6394bd",
+      "description": "L y = b, normative row loop (np.sum accumulation)",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "rtol 1e-05"
+    },
+    "tri_fwd_f64_n256": {
+      "dtype": "<f8",
+      "shape": [
+        256
+      ],
+      "sha256": "81d2a5b65c21cc064fccf0829063f1ed4cb076cd7dc4e9d61d62e285a82252a7",
+      "description": "L y = b, normative row loop (np.sum accumulation)",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "rtol 1e-13"
+    },
+    "tri_fwd_f64_n64": {
+      "dtype": "<f8",
+      "shape": [
+        64
+      ],
+      "sha256": "da37b0b8facd9148dd7e43f41aa58cfe1271e60fdd284361e1feb6ceffdd6f86",
+      "description": "L y = b, normative row loop (np.sum accumulation)",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "rtol 1e-13"
+    },
+    "tri_fwd_f64_n8": {
+      "dtype": "<f8",
+      "shape": [
+        8
+      ],
+      "sha256": "1ae3bca6c51a38772cf8184357f036f0753a0f0fbd883bcd4c17f1548212370b",
+      "description": "L y = b, normative row loop (np.sum accumulation)",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "rtol 1e-13"
+    },
+    "tri_fwd_sum_vs_blas_rel_f32_n256": {
+      "dtype": "<f8",
+      "shape": [
+        1
+      ],
+      "sha256": "8e47426a8abbb8f64f1adfd96f88814fc8a3e13fec3534f22fa84e8ead033aea",
+      "description": "relative gap between the two accumulation orders -- this sets the floor on any agreement tolerance",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "informational; must be < 1e-14 (f64) / 1e-6 (f32)"
+    },
+    "tri_fwd_sum_vs_blas_rel_f32_n64": {
+      "dtype": "<f8",
+      "shape": [
+        1
+      ],
+      "sha256": "ebb4ce80e659081bbf5e0d7e6a9d7a761eccbbc6b38a37f85dded881155eee11",
+      "description": "relative gap between the two accumulation orders -- this sets the floor on any agreement tolerance",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "informational; must be < 1e-14 (f64) / 1e-6 (f32)"
+    },
+    "tri_fwd_sum_vs_blas_rel_f32_n8": {
+      "dtype": "<f8",
+      "shape": [
+        1
+      ],
+      "sha256": "7f772bdf682f6906072ec7863baeaa10b6816c258e6d9e6596fda954913a379a",
+      "description": "relative gap between the two accumulation orders -- this sets the floor on any agreement tolerance",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "informational; must be < 1e-14 (f64) / 1e-6 (f32)"
+    },
+    "tri_fwd_sum_vs_blas_rel_f64_n256": {
+      "dtype": "<f8",
+      "shape": [
+        1
+      ],
+      "sha256": "716603feb2915e69be979a699f449f5e802ab1317ea6682b1ca2b3834ef78b2a",
+      "description": "relative gap between the two accumulation orders -- this sets the floor on any agreement tolerance",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "informational; must be < 1e-14 (f64) / 1e-6 (f32)"
+    },
+    "tri_fwd_sum_vs_blas_rel_f64_n64": {
+      "dtype": "<f8",
+      "shape": [
+        1
+      ],
+      "sha256": "9f10cd2887a2629ab40a4d34df9a9de11f6d6fdc9eab58fac4516ce59cc7c657",
+      "description": "relative gap between the two accumulation orders -- this sets the floor on any agreement tolerance",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "informational; must be < 1e-14 (f64) / 1e-6 (f32)"
+    },
+    "tri_fwd_sum_vs_blas_rel_f64_n8": {
+      "dtype": "<f8",
+      "shape": [
+        1
+      ],
+      "sha256": "97d7c3bed19b3ad358e496f7d1dc24d60873c92061c6011fa108d53c24368033",
+      "description": "relative gap between the two accumulation orders -- this sets the floor on any agreement tolerance",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "informational; must be < 1e-14 (f64) / 1e-6 (f32)"
+    },
+    "tri_residual_f32_n256": {
+      "dtype": "<f8",
+      "shape": [
+        1
+      ],
+      "sha256": "eba27e9259d18790e5ba472abf825a6d78f33eb648bcf03fc04bfa3ffae81022",
+      "description": "max |A x - b| for the two-stage solve",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "must be < 1e-11 (f64) / 1e-4 (f32)"
+    },
+    "tri_residual_f32_n64": {
+      "dtype": "<f8",
+      "shape": [
+        1
+      ],
+      "sha256": "d4e4feb68251260cca4fe03d571c846f53c641a53d4b45e28c9d25062b7d1324",
+      "description": "max |A x - b| for the two-stage solve",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "must be < 1e-11 (f64) / 1e-4 (f32)"
+    },
+    "tri_residual_f32_n8": {
+      "dtype": "<f8",
+      "shape": [
+        1
+      ],
+      "sha256": "694edefa3f89d5e7b5a055c2846b4bfb1e0a821079dc708fc714b21c62384b46",
+      "description": "max |A x - b| for the two-stage solve",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "must be < 1e-11 (f64) / 1e-4 (f32)"
+    },
+    "tri_residual_f64_n256": {
+      "dtype": "<f8",
+      "shape": [
+        1
+      ],
+      "sha256": "2e518c7817e2a45ec376add3e447659af64dd8d9f6f7120fdc959b1a06b3b339",
+      "description": "max |A x - b| for the two-stage solve",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "must be < 1e-11 (f64) / 1e-4 (f32)"
+    },
+    "tri_residual_f64_n64": {
+      "dtype": "<f8",
+      "shape": [
+        1
+      ],
+      "sha256": "e0f1fa88a5b45df9481b100a45f52c2fdbbda215fb70f32b94d70a1cce38174d",
+      "description": "max |A x - b| for the two-stage solve",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "must be < 1e-11 (f64) / 1e-4 (f32)"
+    },
+    "tri_residual_f64_n8": {
+      "dtype": "<f8",
+      "shape": [
+        1
+      ],
+      "sha256": "3badc191d6313c2b2b85bf82e8f38501b3355dd8bf951f00e3fc17f312d7391e",
+      "description": "max |A x - b| for the two-stage solve",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "must be < 1e-11 (f64) / 1e-4 (f32)"
+    }
+  }
+}

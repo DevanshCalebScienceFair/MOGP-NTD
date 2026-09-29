@@ -1,0 +1,150 @@
+{
+ "_doc": "Measurement behind SPEC 3. The strict filter (Y > ref).all(-1) and the weak filter (Y >= ref).all(-1) give the same VALUE (a boundary box has Lebesgue measure zero); they differ in how many rows are retained, so any front CARDINALITY derived from the filter changes. sum_of_UNCLAMPED_box_volumes shows the failure mode the filter actually protects against.",
+ "cases": [
+  {
+   "abs_diff": "0.0",
+   "bitwise_equal": true,
+   "extra_rows_admitted_by_weak": 2,
+   "hv_strict": "0x1.6cc102c71c12ep-2",
+   "hv_weak": "0x1.6cc102c71c12ep-2",
+   "rows_passing_strict": 87,
+   "rows_passing_weak": 89,
+   "source": "benchmark_thicccc_2026-08-16/mogp/seed_0"
+  },
+  {
+   "abs_diff": "0.0",
+   "bitwise_equal": true,
+   "extra_rows_admitted_by_weak": 1,
+   "hv_strict": "0x1.783d4f8474132p-3",
+   "hv_weak": "0x1.783d4f8474132p-3",
+   "rows_passing_strict": 88,
+   "rows_passing_weak": 89,
+   "source": "benchmark_thicccc_2026-08-16/greedy/seed_3"
+  },
+  {
+   "abs_diff": "0.0",
+   "bitwise_equal": true,
+   "extra_rows_admitted_by_weak": 0,
+   "hv_strict": "0x1.87178d4c0f311p-3",
+   "hv_weak": "0x1.87178d4c0f311p-3",
+   "rows_passing_strict": 68,
+   "rows_passing_weak": 68,
+   "source": "benchmark_5way_densify_seed0_2026-08-19/gpmobo/seed_0"
+  },
+  {
+   "abs_diff": "0.0",
+   "bitwise_equal": true,
+   "extra_rows_admitted_by_weak": 0,
+   "hv_strict": "0x1.5bb7d7357bdffp-4",
+   "hv_weak": "0x1.5bb7d7357bdffp-4",
+   "rows_passing_strict": 60,
+   "rows_passing_weak": 60,
+   "source": "benchmark_thicc_2026-08-14/random/seed_0"
+  },
+  {
+   "Y": {
+    "b64": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "sha256": "9d908ecfb6b256def8b49a7c504e6c889c4b0e41fe6ce3e01863dd7b61a20aa0",
+    "shape": [
+     1,
+     3
+    ]
+   },
+   "abs_diff": "0.0",
+   "bitwise_equal": true,
+   "extra_rows_admitted_by_weak": 1,
+   "hv_strict": "0x0.0p+0",
+   "hv_weak": "0x0.0p+0",
+   "rows_passing_strict": 0,
+   "rows_passing_weak": 1,
+   "source": "constructed/one_point_entirely_on_ref",
+   "sum_of_UNCLAMPED_box_volumes": "0.0",
+   "sum_of_clamped_box_volumes": "0.0"
+  },
+  {
+   "Y": {
+    "b64": "AAAAAAAAAABmZmZmZmbmP2ZmZmZmZuY/",
+    "sha256": "89ef476b6e985bc98c4eeddf93671355647561ab74ba33e66bea1b3e26f72728",
+    "shape": [
+     1,
+     3
+    ]
+   },
+   "abs_diff": "0.0",
+   "bitwise_equal": true,
+   "extra_rows_admitted_by_weak": 1,
+   "hv_strict": "0x0.0p+0",
+   "hv_weak": "0x0.0p+0",
+   "rows_passing_strict": 0,
+   "rows_passing_weak": 1,
+   "source": "constructed/one_coord_on_ref",
+   "sum_of_UNCLAMPED_box_volumes": "0.0",
+   "sum_of_clamped_box_volumes": "0.0"
+  },
+  {
+   "Y": {
+    "b64": "AAAAAAAAAAAAAAAAAADwPwAAAAAAAPA/AAAAAAAA4D8AAAAAAADgPwAAAAAAAOA/",
+    "sha256": "706a353f839a07fb4be08a736a3f4534155854489fa04445de92237bf97f57c6",
+    "shape": [
+     2,
+     3
+    ]
+   },
+   "abs_diff": "0.0",
+   "bitwise_equal": true,
+   "extra_rows_admitted_by_weak": 1,
+   "hv_strict": "0x1.0000000000000p-3",
+   "hv_weak": "0x1.0000000000000p-3",
+   "rows_passing_strict": 1,
+   "rows_passing_weak": 2,
+   "source": "constructed/boundary_plus_interior",
+   "sum_of_UNCLAMPED_box_volumes": "0.125",
+   "sum_of_clamped_box_volumes": "0.125"
+  },
+  {
+   "Y": {
+    "b64": "AAAAAAAA8L8AAAAAAADwvwAAAAAAAABA",
+    "sha256": "a40861c04ebd8f1cdba4bc84d0b14784e291e9d7c279b91ff36b39d517c5f12d",
+    "shape": [
+     1,
+     3
+    ]
+   },
+   "abs_diff": "0.0",
+   "bitwise_equal": true,
+   "extra_rows_admitted_by_weak": 0,
+   "hv_strict": "0x0.0p+0",
+   "hv_weak": "0x0.0p+0",
+   "rows_passing_strict": 0,
+   "rows_passing_weak": 0,
+   "source": "constructed/two_coords_below_ref_product_positive",
+   "sum_of_UNCLAMPED_box_volumes": "2.0",
+   "sum_of_clamped_box_volumes": "0.0"
+  },
+  {
+   "Y": {
+    "b64": "AAAAAAAA8D8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8D8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8D8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8D8AAAAAAAAAAA==",
+    "sha256": "7c65128e119d67d93c58750ee962fa8ff53ee13628baccfb367d6e30172f32f3",
+    "shape": [
+     4,
+     5
+    ]
+   },
+   "abs_diff": "0.0",
+   "bitwise_equal": true,
+   "extra_rows_admitted_by_weak": 4,
+   "hv_strict": "0x0.0p+0",
+   "hv_weak": "0x0.0p+0",
+   "rows_passing_strict": 0,
+   "rows_passing_weak": 4,
+   "source": "constructed/all_boundary_m5",
+   "sum_of_UNCLAMPED_box_volumes": "0.0",
+   "sum_of_clamped_box_volumes": "0.0"
+  }
+ ],
+ "summary": {
+  "cases_where_value_differed": 0,
+  "extra_rows_admitted_by_weak_pooled": 10,
+  "worst_abs_value_difference": "0.0"
+ }
+}

@@ -1,0 +1,65 @@
+{
+ "deterministic": false,
+ "machine": {
+  "platform": "macOS-26.5.1-arm64-arm-64bit",
+  "processor": "arm"
+ },
+ "rows": [
+  {
+   "cells": 43,
+   "n_front": 5,
+   "numpy_reference_peak_traced_MB": 0.18345,
+   "numpy_reference_seconds": 0.007272165967151523,
+   "oracle_seconds": 0.019876042031683028,
+   "projected_cellbound_storage_MB_512_samples_float32": 0.88064,
+   "projected_seconds_for_512_mc_samples_numpy": 3.7233489751815796
+  },
+  {
+   "cells": 181,
+   "n_front": 10,
+   "numpy_reference_peak_traced_MB": 0.924574,
+   "numpy_reference_seconds": 0.0179888749262318,
+   "oracle_seconds": 0.0693314999807626,
+   "projected_cellbound_storage_MB_512_samples_float32": 3.70688,
+   "projected_seconds_for_512_mc_samples_numpy": 9.210303962230682
+  },
+  {
+   "cells": 577,
+   "n_front": 20,
+   "numpy_reference_peak_traced_MB": 2.610978,
+   "numpy_reference_seconds": 0.051509917015209794,
+   "oracle_seconds": 0.18670079193543643,
+   "projected_cellbound_storage_MB_512_samples_float32": 11.81696,
+   "projected_seconds_for_512_mc_samples_numpy": 26.373077511787415
+  },
+  {
+   "cells": 1649,
+   "n_front": 40,
+   "numpy_reference_peak_traced_MB": 8.185428,
+   "numpy_reference_seconds": 0.25795258302241564,
+   "oracle_seconds": 0.6760981669649482,
+   "projected_cellbound_storage_MB_512_samples_float32": 33.77152,
+   "projected_seconds_for_512_mc_samples_numpy": 132.0717225074768
+  },
+  {
+   "cells": 2861,
+   "n_front": 60,
+   "numpy_reference_peak_traced_MB": 14.360271,
+   "numpy_reference_seconds": 0.6634744590846822,
+   "oracle_seconds": 1.4081899169832468,
+   "projected_cellbound_storage_MB_512_samples_float32": 58.59328,
+   "projected_seconds_for_512_mc_samples_numpy": 339.69892305135727
+  },
+  {
+   "cells": 3936,
+   "n_front": 80,
+   "numpy_reference_peak_traced_MB": 19.290428,
+   "numpy_reference_seconds": 1.1435873330337927,
+   "oracle_seconds": 2.088659750064835,
+   "projected_cellbound_storage_MB_512_samples_float32": 80.60928,
+   "projected_seconds_for_512_mc_samples_numpy": 585.5167145133018
+  }
+ ],
+ "schema": "mogp-ntd/boxdecomp/timings/1",
+ "warning": "STOCHASTIC. Wall-clock and peak-memory figures depend on the machine and its load. Do NOT byte-compare this file; the cell COUNTS in it are deterministic, the seconds are not."
+}

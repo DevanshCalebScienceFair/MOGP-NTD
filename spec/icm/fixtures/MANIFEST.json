@@ -1,0 +1,260 @@
+{
+  "byte_compare_instructions": "Re-run this script in a fresh interpreter in the mogp-drug env and byte-compare every entry flagged 'bitwise-reproducible'. Entries flagged 'stochastic' hold optimizer traces or env metadata; compare their SPREADS as stated in each entry's agreement_criterion.",
+  "fixtures": [
+    {
+      "agreement_criterion": "Not compared. Records which oracle produced the other fixtures.",
+      "bytes": 273,
+      "deterministic": "stochastic",
+      "path": "00_environment.json",
+      "sha256": "3f969bc1640b53958b546303653546f6b87b187a61056131ad400a171f2fb471"
+    },
+    {
+      "agreement_criterion": "Exact equality of the structural fields; max_abs_diff <= 1e-12.",
+      "bytes": 2133,
+      "deterministic": "bitwise-reproducible",
+      "path": "01_parameterization.json",
+      "sha256": "9747eb88c90c690a146157975720ff983b46473922468ecbbf6dd04f0ffef82e"
+    },
+    {
+      "agreement_criterion": "Exact string equality of 'answer'; the two max_abs_diff numbers must reproduce to <=1e-12 and 1e-12 respectively.",
+      "bytes": 759,
+      "deterministic": "bitwise-reproducible",
+      "path": "02_ordering.json",
+      "sha256": "f614c2b278667708b595bbc74836e7e349da2017758ff52f49d534705948fb05"
+    },
+    {
+      "agreement_criterion": "exact equality (hand-written constants)",
+      "bytes": 160,
+      "deterministic": "bitwise-reproducible",
+      "path": "02_ordering/B_task.npy",
+      "sha256": "768d8ccb4618713cde42ad511633a9905a4a50e5df4f0556f3d86788c9d207f7"
+    },
+    {
+      "agreement_criterion": "exact equality (hand-written constants)",
+      "bytes": 200,
+      "deterministic": "bitwise-reproducible",
+      "path": "02_ordering/K_data.npy",
+      "sha256": "9f3bd5a41bd74caab9a6b8de5e7a341e563cc5ac7ee1b1baf5290de92b0c4e7b"
+    },
+    {
+      "agreement_criterion": "reimplementation must reproduce to <=1e-12 absolute",
+      "bytes": 416,
+      "deterministic": "bitwise-reproducible",
+      "path": "02_ordering/assembled_dense.npy",
+      "sha256": "747160ebdc7f6faf5f33746bc9d0dd7263699501edfff6584b52a096a6be98cd"
+    },
+    {
+      "agreement_criterion": "np.kron(K_data, B_task) -- must equal assembled_dense to <=1e-12",
+      "bytes": 416,
+      "deterministic": "bitwise-reproducible",
+      "path": "02_ordering/kron_data_major.npy",
+      "sha256": "1fcd0cb7dbcf7a1587ddfede0bba8d22c7cd5bc360814ca4af630a342b794f6f"
+    },
+    {
+      "agreement_criterion": "np.kron(B_task, K_data) -- the DOCSTRING order; must NOT match",
+      "bytes": 416,
+      "deterministic": "bitwise-reproducible",
+      "path": "02_ordering/kron_task_major.npy",
+      "sha256": "2e13e39b4353440afd683f732e2c1257d738f3a9f6278827cf4ae21c1284bd1d"
+    },
+    {
+      "agreement_criterion": "Exact equality of every field.",
+      "bytes": 674,
+      "deterministic": "bitwise-reproducible",
+      "path": "03_real_data.json",
+      "sha256": "22cf519e05b74fea1cd7ac3219d158a69bcfa3b4a8efd1401748594bf7e38fd7"
+    },
+    {
+      "agreement_criterion": "exact equality (int8)",
+      "bytes": 82048,
+      "deterministic": "bitwise-reproducible",
+      "path": "03_real_data/fingerprints_test.npy",
+      "sha256": "8f461a9e9d354ac78996cce7c98d0ce04e93c9bf7ef9d47a0724b0f191a055e3"
+    },
+    {
+      "agreement_criterion": "exact equality (int8, straight from data/library/fingerprints.npy)",
+      "bytes": 82048,
+      "deterministic": "bitwise-reproducible",
+      "path": "03_real_data/fingerprints_train.npy",
+      "sha256": "b29c9f530492543091ff531de378a65a8c12f12a59cd35acab9a4b4b5d1b394c"
+    },
+    {
+      "agreement_criterion": "exact equality (float32 ligand efficiencies)",
+      "bytes": 448,
+      "deterministic": "bitwise-reproducible",
+      "path": "03_real_data/le_train.npy",
+      "sha256": "aba82779f3006a679751bb424273996b04b1017b3e0885f365b465ddd452dae9"
+    },
+    {
+      "agreement_criterion": "exact equality",
+      "bytes": 3585,
+      "deterministic": "bitwise-reproducible",
+      "path": "03_real_data/smiles.txt",
+      "sha256": "ff27ee73a4712914836f0c02132dc489dc19c4d74da3eb312fdba164b83c74b5"
+    },
+    {
+      "agreement_criterion": "reproduce to <=1e-6 relative (float32 -> float64 standardization)",
+      "bytes": 768,
+      "deterministic": "bitwise-reproducible",
+      "path": "03_real_data/y_normalized_train.npy",
+      "sha256": "a88c4185f4c3af057b26a05427ab284156b7d4fc2e50298def57bacd84c29662"
+    },
+    {
+      "agreement_criterion": "logdet_abs_diff <= 1e-9, solve_max_abs_diff <= 1e-10, residuals <= 1e-9. Every field in this file is bitwise-reproducible.",
+      "bytes": 586,
+      "deterministic": "bitwise-reproducible",
+      "path": "04_kron.json",
+      "sha256": "615de79e67d030483c0ac570048930eddcf110fcbef6b932d8f19d61340198f9"
+    },
+    {
+      "agreement_criterion": "reproduce to <=1e-12",
+      "bytes": 160,
+      "deterministic": "bitwise-reproducible",
+      "path": "04_kron/B.npy",
+      "sha256": "e6bf2ca1cb8e396830bc5a91ab77140e97403377e9d637f03a6aad9dd6cfc5eb"
+    },
+    {
+      "agreement_criterion": "reproduce to <=1e-12 absolute (Tanimoto of the real fingerprints)",
+      "bytes": 12928,
+      "deterministic": "bitwise-reproducible",
+      "path": "04_kron/K_xx.npy",
+      "sha256": "720aac9ad5d6887ac105bb85e1e0dea0dec4ccfb4c66e5ae1591c1072ca268f3"
+    },
+    {
+      "agreement_criterion": "reproduce to <=1e-12",
+      "bytes": 51328,
+      "deterministic": "bitwise-reproducible",
+      "path": "04_kron/Sigma_dense.npy",
+      "sha256": "0f750e49b70fa7227d2c16a525d51a24c2688615a670459da9487babbedf293e"
+    },
+    {
+      "agreement_criterion": "reproduce to <=1e-10 absolute",
+      "bytes": 768,
+      "deterministic": "bitwise-reproducible",
+      "path": "04_kron/alpha_chol.npy",
+      "sha256": "a0cfcfc93634a590e3aa92d056885058c2ac7eb19ba5ab0cfd73fb81296ecb22"
+    },
+    {
+      "agreement_criterion": "reproduce to <=1e-10 absolute; must match alpha_chol to <=1e-12",
+      "bytes": 768,
+      "deterministic": "bitwise-reproducible",
+      "path": "04_kron/alpha_kron.npy",
+      "sha256": "5128da294fe30e921c6c1ddcfaa06a52996abfd96c29670a18203ddc66d369ac"
+    },
+    {
+      "agreement_criterion": "exact equality (numpy default_rng(20260927) stream)",
+      "bytes": 200,
+      "deterministic": "bitwise-reproducible",
+      "path": "04_kron/raw_params.npy",
+      "sha256": "2f01024b977bfe628ad8c283a0be759a50e48cd0556ca3d01962a22d2677d16d"
+    },
+    {
+      "agreement_criterion": "Every *_max_abs_diff <= 1e-9; mll_plus_nll_abs_diff <= 1e-9. gpytorch uses iterative linear algebra, so its side of the comparison is the looser one; the reference arrays are the byte-compared target.",
+      "bytes": 778,
+      "deterministic": "bitwise-reproducible",
+      "path": "05_posterior.json",
+      "sha256": "25bfddbc5954aaec9bbf0696fe1f2e18d95ff035e91c7c3ecd4c612a26cee150"
+    },
+    {
+      "agreement_criterion": "reproduce to <=1e-10",
+      "bytes": 51328,
+      "deterministic": "bitwise-reproducible",
+      "path": "05_posterior/cov_latent_reference.npy",
+      "sha256": "64d5c99244c9a61eb16542a4140aba269da9ffe83a9fbe5f97cf43972dd08977"
+    },
+    {
+      "agreement_criterion": "reproduce to <=1e-10",
+      "bytes": 768,
+      "deterministic": "bitwise-reproducible",
+      "path": "05_posterior/mean_reference.npy",
+      "sha256": "9ee8087cee1b685a22fd8b4b70ef3b9a09e1665626d708649d74682ea552b7b0"
+    },
+    {
+      "agreement_criterion": "reproduce to <=1e-10",
+      "bytes": 768,
+      "deterministic": "bitwise-reproducible",
+      "path": "05_posterior/var_latent_reference.npy",
+      "sha256": "30d212de3259c3152eb9538da911a84005f3339164855a593f32c7232e7aa366"
+    },
+    {
+      "agreement_criterion": "reproduce to <=1e-10",
+      "bytes": 768,
+      "deterministic": "bitwise-reproducible",
+      "path": "05_posterior/var_observed_reference.npy",
+      "sha256": "d9150025bfe26f69cc8b7b7284e3e14e3b62da31b7e6c0c6f1c4e7003baf915c"
+    },
+    {
+      "agreement_criterion": "nll_abs_diff <= 1e-12; grad_max_abs_diff_analytic_vs_autograd <= 1e-13; grad_max_abs_diff_analytic_vs_finite_difference <= 1e-8.",
+      "bytes": 1485,
+      "deterministic": "bitwise-reproducible",
+      "path": "06_gradients.json",
+      "sha256": "049bcaed284a747cd0335de62fa599e9e0a0362b6c0f8cbc26457ffb60ecfdfb"
+    },
+    {
+      "agreement_criterion": "reproduce to <=1e-12 absolute",
+      "bytes": 200,
+      "deterministic": "bitwise-reproducible",
+      "path": "06_gradients/grad_analytic.npy",
+      "sha256": "8629e8927bb7ba1cc0e4e364a8a504c4e1545a5afa20e8a643139d88cf315334"
+    },
+    {
+      "agreement_criterion": "reference; analytic must match to <=1e-14 absolute",
+      "bytes": 200,
+      "deterministic": "bitwise-reproducible",
+      "path": "06_gradients/grad_autograd.npy",
+      "sha256": "1819224a5d588b64f56a57175a9dd53d04035d2e9f763fdff2b53176a981978e"
+    },
+    {
+      "agreement_criterion": "reference; analytic must match to <=1e-8 absolute (eps=1e-6)",
+      "bytes": 200,
+      "deterministic": "bitwise-reproducible",
+      "path": "06_gradients/grad_finite_difference.npy",
+      "sha256": "261cf3c8dc0fe06b80eda3437ec60137b452b0ff86a8d9b96363949f0944c918"
+    },
+    {
+      "agreement_criterion": "exact equality",
+      "bytes": 200,
+      "deterministic": "bitwise-reproducible",
+      "path": "06_gradients/theta_raw.npy",
+      "sha256": "2f01024b977bfe628ad8c283a0be759a50e48cd0556ca3d01962a22d2677d16d"
+    },
+    {
+      "agreement_criterion": "The invariance_proof numbers are bitwise-reproducible. The two fitted blocks are platform-dependent float32/float64 optimizer traces: compare the SPREADS to within a factor of 3, not the individual values.",
+      "bytes": 24641,
+      "deterministic": "stochastic",
+      "path": "07_identifiability.json",
+      "sha256": "fef60b8e607990e48d2f05ff7387a4fc2a1e851706b4e689821b31f8e842e74d"
+    },
+    {
+      "agreement_criterion": "correlation_01_spread reproducible to within a factor of 3; reference_mle correlation reproducible to <=1e-5.",
+      "bytes": 1154,
+      "deterministic": "stochastic",
+      "path": "08_task_correlation.json",
+      "sha256": "22501277a5331b8805066b169a84ad069e61da9313613561fa85faa7a963fe24"
+    },
+    {
+      "agreement_criterion": "diag_embed_lines must be exactly the same line numbers and the source window must match byte for byte. The measured_on_fitted_icm block is a float32 optimizer trace: reproduce the correlations to +/-0.02.",
+      "bytes": 2847,
+      "deterministic": "stochastic",
+      "path": "09_acquisition_gap.json",
+      "sha256": "e4fa79427808968280f2741b99794fc976fb3fd2e3625888bea54492638a08e3"
+    },
+    {
+      "agreement_criterion": "Informational timings; compare only the order of magnitude of per_step_speedup and end_to_end_speedup_200_steps.",
+      "bytes": 3287,
+      "deterministic": "stochastic",
+      "path": "10_scaling.json",
+      "sha256": "553b32d8c83b1c9cf474403ae2c51c58000ea067fce30825e534e5737df291d9"
+    },
+    {
+      "agreement_criterion": "Reproduce each *_rel_diff to within a factor of 10; the verdict strings must not change.",
+      "bytes": 1009,
+      "deterministic": "stochastic",
+      "path": "11_precision.json",
+      "sha256": "784d5bc3413a2392d3e304b22437af0d732b5cda2e68f06aa5e6d9f18c78af6c"
+    }
+  ],
+  "generator": "spec/icm/capture_icm.py",
+  "n_bitwise_reproducible": 30,
+  "n_fixtures": 36
+}

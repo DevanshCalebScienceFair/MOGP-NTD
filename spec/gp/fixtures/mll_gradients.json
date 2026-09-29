@@ -1,0 +1,1190 @@
+{
+  "_doc": "loss = -log p(Y|theta) / (N*T)  (gpytorch's ExactMarginalLogLikelihood divides by event_shape.numel() = N*T, verified below). Gradients are in RAW parameter space. Three independent computations: torch autograd (oracle), the analytic derivation in SPEC.md, and central finite differences on the analytic loss.",
+  "cases": {
+    "edge_n400_t2": {
+      "N": 400,
+      "N_times_T": 800,
+      "T": 2,
+      "below_or_at_max_cholesky_size": true,
+      "settings": {
+        "asymmetric": {
+          "agreement": {
+            "all_params_max_abs_analytic_vs_fd": 2.708199046963511e-10,
+            "all_params_max_rel_analytic_vs_fd": 4.238267081314976e-08,
+            "covar_module.raw_outputscale": {
+              "max_abs_autograd_vs_analytic": 1.0238991578204182e-08,
+              "max_rel_autograd_vs_analytic": 1.0574819117578636e-06
+            },
+            "likelihood.raw_noise": {
+              "max_abs_autograd_vs_analytic": 3.4467010842642587e-09,
+              "max_rel_autograd_vs_analytic": 7.350710919288316e-08
+            },
+            "likelihood.raw_task_noises": {
+              "max_abs_autograd_vs_analytic": 9.47729165978739e-09,
+              "max_rel_autograd_vs_analytic": 3.066348853302268e-07
+            },
+            "mean_module.raw_constant": {
+              "max_abs_autograd_vs_analytic": 1.831612127592419e-09,
+              "max_rel_autograd_vs_analytic": 5.26955030148723e-07
+            }
+          },
+          "grad_central_fd_h1e-6": [
+            0.027039122385552616,
+            0.009682427304369412,
+            0.002354245576263736,
+            -0.007913717015028965,
+            0.05054403284798781,
+            0.030907414960701374,
+            0.04688935695273955
+          ],
+          "grad_gpytorch_autograd": {
+            "covar_module.raw_outputscale": [
+              0.027039116248488426,
+              0.009682416915893555
+            ],
+            "likelihood.raw_noise": [
+              0.046889353543519974
+            ],
+            "likelihood.raw_task_noises": [
+              0.050544027239084244,
+              0.0309074055403471
+            ],
+            "mean_module.raw_constant": [
+              0.0023542442359030247,
+              -0.007913715206086636
+            ]
+          },
+          "grad_numpy_analytic": {
+            "covar_module.raw_outputscale": [
+              0.02703912211473271,
+              0.009682427154885133
+            ],
+            "likelihood.raw_noise": [
+              0.04688935699022106
+            ],
+            "likelihood.raw_task_noises": [
+              0.05054403279740101,
+              0.03090741501763876
+            ],
+            "mean_module.raw_constant": [
+              0.0023542454764845207,
+              -0.007913717037698763
+            ]
+          },
+          "loss_abs_diff": 1.0235877190289955e-07,
+          "loss_gpytorch": 1.4004759788513184,
+          "loss_numpy_analytic_float64": 1.4004758764925465,
+          "natural": {
+            "constant_mean": [
+              0.1,
+              -0.2
+            ],
+            "outputscale": [
+              0.8543552444685272,
+              0.5130152523999526
+            ],
+            "shared_sigma2": 0.31336168751822285,
+            "task_noise_d": [
+              0.9741769841801067,
+              0.4032860488854579
+            ],
+            "tau_effective": [
+              1.2875386716983295,
+              0.7166477364036807
+            ]
+          },
+          "theta_raw": [
+            0.3,
+            -0.4,
+            0.1,
+            -0.2,
+            0.5,
+            -0.7,
+            -1.0
+          ]
+        },
+        "init_zeros": {
+          "agreement": {
+            "all_params_max_abs_analytic_vs_fd": 1.7370401644845046e-10,
+            "all_params_max_rel_analytic_vs_fd": 6.652285055336708e-08,
+            "covar_module.raw_outputscale": {
+              "max_abs_autograd_vs_analytic": 2.391713226773673e-09,
+              "max_rel_autograd_vs_analytic": 1.0747973233147409e-07
+            },
+            "likelihood.raw_noise": {
+              "max_abs_autograd_vs_analytic": 1.1675833355706544e-08,
+              "max_rel_autograd_vs_analytic": 1.430978612585225e-07
+            },
+            "likelihood.raw_task_noises": {
+              "max_abs_autograd_vs_analytic": 6.6296468037574385e-09,
+              "max_rel_autograd_vs_analytic": 1.582950817045836e-07
+            },
+            "mean_module.raw_constant": {
+              "max_abs_autograd_vs_analytic": 3.191544057029941e-09,
+              "max_rel_autograd_vs_analytic": 3.0983399461010463e-06
+            }
+          },
+          "grad_central_fd_h1e-6": [
+            0.022252690579094292,
+            0.0232281481826746,
+            0.0010300820196817995,
+            -0.0020194720340427352,
+            0.03971177464645592,
+            0.04188157165518902,
+            0.08159334630164494
+          ],
+          "grad_gpytorch_autograd": {
+            "covar_module.raw_outputscale": [
+              0.02225268818438053,
+              0.023228146135807037
+            ],
+            "likelihood.raw_noise": [
+              0.0815933346748352
+            ],
+            "likelihood.raw_task_noises": [
+              0.03971177339553833,
+              0.04188156500458717
+            ],
+            "mean_module.raw_constant": [
+              0.0010300851427018642,
+              -0.0020194710232317448
+            ]
+          },
+          "grad_numpy_analytic": {
+            "covar_module.raw_outputscale": [
+              0.022252690576093758,
+              0.023228148356378618
+            ],
+            "likelihood.raw_noise": [
+              0.08159334635066856
+            ],
+            "likelihood.raw_task_noises": [
+              0.03971177471643457,
+              0.04188157163423398
+            ],
+            "mean_module.raw_constant": [
+              0.0010300819511578072,
+              -0.0020194719898252445
+            ]
+          },
+          "loss_abs_diff": 8.580378962896873e-08,
+          "loss_gpytorch": 1.4681463241577148,
+          "loss_numpy_analytic_float64": 1.4681462383539252,
+          "natural": {
+            "constant_mean": [
+              0.0,
+              0.0
+            ],
+            "outputscale": [
+              0.6931471805599453,
+              0.6931471805599453
+            ],
+            "shared_sigma2": 0.6932471805599453,
+            "task_noise_d": [
+              0.6932471805599453,
+              0.6932471805599453
+            ],
+            "tau_effective": [
+              1.3864943611198906,
+              1.3864943611198906
+            ]
+          },
+          "theta_raw": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      }
+    },
+    "large_n200_t2": {
+      "N": 200,
+      "N_times_T": 400,
+      "T": 2,
+      "below_or_at_max_cholesky_size": true,
+      "settings": {
+        "asymmetric": {
+          "agreement": {
+            "all_params_max_abs_analytic_vs_fd": 1.7725546551383697e-10,
+            "all_params_max_rel_analytic_vs_fd": 2.2076289859270947e-08,
+            "covar_module.raw_outputscale": {
+              "max_abs_autograd_vs_analytic": 4.657338688318635e-09,
+              "max_rel_autograd_vs_analytic": 1.6288960136110071e-07
+            },
+            "likelihood.raw_noise": {
+              "max_abs_autograd_vs_analytic": 2.386666440867824e-09,
+              "max_rel_autograd_vs_analytic": 6.34695167190693e-08
+            },
+            "likelihood.raw_task_noises": {
+              "max_abs_autograd_vs_analytic": 5.250180928895176e-09,
+              "max_rel_autograd_vs_analytic": 1.6488330886519274e-07
+            },
+            "mean_module.raw_constant": {
+              "max_abs_autograd_vs_analytic": 5.438572387578278e-10,
+              "max_rel_autograd_vs_analytic": 7.64899358236575e-08
+            }
+          },
+          "grad_central_fd_h1e-6": [
+            0.028591994993831804,
+            0.008029223508287942,
+            0.004410288689804531,
+            -0.011491151918896492,
+            0.045708203444405626,
+            0.022028423973807776,
+            0.03760334976732338
+          ],
+          "grad_gpytorch_autograd": {
+            "covar_module.raw_outputscale": [
+              0.028591999784111977,
+              0.00802922435104847
+            ],
+            "likelihood.raw_noise": [
+              0.03760335221886635
+            ],
+            "likelihood.raw_task_noises": [
+              0.045708198100328445,
+              0.022028427571058273
+            ],
+            "mean_module.raw_constant": [
+              0.004410288296639919,
+              -0.011491152457892895
+            ]
+          },
+          "grad_numpy_analytic": {
+            "covar_module.raw_outputscale": [
+              0.02859199512677329,
+              0.008029223685543407
+            ],
+            "likelihood.raw_noise": [
+              0.03760334983219991
+            ],
+            "likelihood.raw_task_noises": [
+              0.045708203350509374,
+              0.022028423938938845
+            ],
+            "mean_module.raw_constant": [
+              0.004410288633982614,
+              -0.011491151914035656
+            ]
+          },
+          "loss_abs_diff": 1.8284518121802762e-08,
+          "loss_gpytorch": 1.4376037120819092,
+          "loss_numpy_analytic_float64": 1.437603693797391,
+          "natural": {
+            "constant_mean": [
+              0.1,
+              -0.2
+            ],
+            "outputscale": [
+              0.8543552444685272,
+              0.5130152523999526
+            ],
+            "shared_sigma2": 0.31336168751822285,
+            "task_noise_d": [
+              0.9741769841801067,
+              0.4032860488854579
+            ],
+            "tau_effective": [
+              1.2875386716983295,
+              0.7166477364036807
+            ]
+          },
+          "theta_raw": [
+            0.3,
+            -0.4,
+            0.1,
+            -0.2,
+            0.5,
+            -0.7,
+            -1.0
+          ]
+        },
+        "init_zeros": {
+          "agreement": {
+            "all_params_max_abs_analytic_vs_fd": 1.651532452462412e-10,
+            "all_params_max_rel_analytic_vs_fd": 3.3743469379251565e-08,
+            "covar_module.raw_outputscale": {
+              "max_abs_autograd_vs_analytic": 5.0021081200724016e-09,
+              "max_rel_autograd_vs_analytic": 2.0524113168469189e-07
+            },
+            "likelihood.raw_noise": {
+              "max_abs_autograd_vs_analytic": 5.733961638831886e-10,
+              "max_rel_autograd_vs_analytic": 7.823207048373375e-09
+            },
+            "likelihood.raw_task_noises": {
+              "max_abs_autograd_vs_analytic": 1.6027541238639031e-09,
+              "max_rel_autograd_vs_analytic": 4.4350208762127275e-08
+            },
+            "mean_module.raw_constant": {
+              "max_abs_autograd_vs_analytic": 3.9373311455821736e-09,
+              "max_rel_autograd_vs_analytic": 1.9332182060575336e-06
+            }
+          },
+          "grad_central_fd_h1e-6": [
+            0.024270441656426556,
+            0.02437185997461455,
+            0.0020366719422071355,
+            -0.0020288867252915566,
+            0.036138592562906524,
+            0.037155666321453396,
+            0.07329425910640452
+          ],
+          "grad_gpytorch_autograd": {
+            "covar_module.raw_outputscale": [
+              0.024270443245768547,
+              0.024371854960918427
+            ],
+            "likelihood.raw_noise": [
+              0.0732942596077919
+            ],
+            "likelihood.raw_task_noises": [
+              0.03613859415054321,
+              0.03715566545724869
+            ],
+            "mean_module.raw_constant": [
+              0.002036675810813904,
+              -0.002028885530307889
+            ]
+          },
+          "grad_numpy_analytic": {
+            "covar_module.raw_outputscale": [
+              0.024270441632702987,
+              0.024371859963026547
+            ],
+            "likelihood.raw_noise": [
+              0.07329425903439574
+            ],
+            "likelihood.raw_task_noises": [
+              0.03613859254778909,
+              0.03715566648660664
+            ],
+            "mean_module.raw_constant": [
+              0.0020366718734827582,
+              -0.0020288867288587053
+            ]
+          },
+          "loss_abs_diff": 2.932393394772248e-08,
+          "loss_gpytorch": 1.4929662942886353,
+          "loss_numpy_analytic_float64": 1.4929662649647013,
+          "natural": {
+            "constant_mean": [
+              0.0,
+              0.0
+            ],
+            "outputscale": [
+              0.6931471805599453,
+              0.6931471805599453
+            ],
+            "shared_sigma2": 0.6932471805599453,
+            "task_noise_d": [
+              0.6932471805599453,
+              0.6932471805599453
+            ],
+            "tau_effective": [
+              1.3864943611198906,
+              1.3864943611198906
+            ]
+          },
+          "theta_raw": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      }
+    },
+    "mid_n100_t2": {
+      "N": 100,
+      "N_times_T": 200,
+      "T": 2,
+      "below_or_at_max_cholesky_size": true,
+      "settings": {
+        "asymmetric": {
+          "agreement": {
+            "all_params_max_abs_analytic_vs_fd": 1.6057543142378172e-10,
+            "all_params_max_rel_analytic_vs_fd": 9.916717328946909e-09,
+            "covar_module.raw_outputscale": {
+              "max_abs_autograd_vs_analytic": 6.26914724646821e-09,
+              "max_rel_autograd_vs_analytic": 2.0736202423628898e-07
+            },
+            "likelihood.raw_noise": {
+              "max_abs_autograd_vs_analytic": 2.6917445737628665e-09,
+              "max_rel_autograd_vs_analytic": 8.797377900024229e-08
+            },
+            "likelihood.raw_task_noises": {
+              "max_abs_autograd_vs_analytic": 1.6187671099399115e-09,
+              "max_rel_autograd_vs_analytic": 1.0162427936797004e-07
+            },
+            "mean_module.raw_constant": {
+              "max_abs_autograd_vs_analytic": 1.048818042831412e-09,
+              "max_rel_autograd_vs_analytic": 6.477224980742563e-08
+            }
+          },
+          "grad_central_fd_h1e-6": [
+            0.030232860992462918,
+            0.008737622736454398,
+            0.006912972749795188,
+            -0.01619239775596526,
+            0.040934693634753216,
+            0.015928940610976383,
+            0.030597123390485592
+          ],
+          "grad_gpytorch_autograd": {
+            "covar_module.raw_outputscale": [
+              0.0302328672260046,
+              0.008737623691558838
+            ],
+            "likelihood.raw_noise": [
+              0.030597126111388206
+            ],
+            "likelihood.raw_task_noises": [
+              0.040934693068265915,
+              0.01592893898487091
+            ],
+            "mean_module.raw_constant": [
+              0.006912972778081894,
+              -0.016192398965358734
+            ]
+          },
+          "grad_numpy_analytic": {
+            "covar_module.raw_outputscale": [
+              0.030232860956857354,
+              0.008737622779499753
+            ],
+            "likelihood.raw_noise": [
+              0.030597123419643633
+            ],
+            "likelihood.raw_task_noises": [
+              0.04093469349336438,
+              0.01592894060363802
+            ],
+            "mean_module.raw_constant": [
+              0.006912972741678871,
+              -0.01619239791654069
+            ]
+          },
+          "loss_abs_diff": 1.0270941208645468e-08,
+          "loss_gpytorch": 1.4632447957992554,
+          "loss_numpy_analytic_float64": 1.4632447855283142,
+          "natural": {
+            "constant_mean": [
+              0.1,
+              -0.2
+            ],
+            "outputscale": [
+              0.8543552444685272,
+              0.5130152523999526
+            ],
+            "shared_sigma2": 0.31336168751822285,
+            "task_noise_d": [
+              0.9741769841801067,
+              0.4032860488854579
+            ],
+            "tau_effective": [
+              1.2875386716983295,
+              0.7166477364036807
+            ]
+          },
+          "theta_raw": [
+            0.3,
+            -0.4,
+            0.1,
+            -0.2,
+            0.5,
+            -0.7,
+            -1.0
+          ]
+        },
+        "init_zeros": {
+          "agreement": {
+            "all_params_max_abs_analytic_vs_fd": 1.5479301174181614e-10,
+            "all_params_max_rel_analytic_vs_fd": 5.277917511584687e-08,
+            "covar_module.raw_outputscale": {
+              "max_abs_autograd_vs_analytic": 2.459628136580738e-09,
+              "max_rel_autograd_vs_analytic": 9.298623131113507e-08
+            },
+            "likelihood.raw_noise": {
+              "max_abs_autograd_vs_analytic": 1.6528206026045211e-09,
+              "max_rel_autograd_vs_analytic": 2.4765177899799454e-08
+            },
+            "likelihood.raw_task_noises": {
+              "max_abs_autograd_vs_analytic": 3.766819543782329e-09,
+              "max_rel_autograd_vs_analytic": 1.1524722505335582e-07
+            },
+            "mean_module.raw_constant": {
+              "max_abs_autograd_vs_analytic": 7.90937744530977e-09,
+              "max_rel_autograd_vs_analytic": 5.796215477077853e-06
+            }
+          },
+          "grad_central_fd_h1e-6": [
+            0.026451530632520814,
+            0.026136080522043414,
+            0.002734242499080608,
+            -0.0013645762297898045,
+            0.03268468762307464,
+            0.034055014808132,
+            0.06673970254222894
+          ],
+          "grad_gpytorch_autograd": {
+            "covar_module.raw_outputscale": [
+              0.026451528072357178,
+              0.026136081665754318
+            ],
+            "likelihood.raw_noise": [
+              0.06673970073461533
+            ],
+            "likelihood.raw_task_noises": [
+              0.03268468379974365,
+              0.034055016934871674
+            ],
+            "mean_module.raw_constant": [
+              0.002734239213168621,
+              -0.0013645682483911514
+            ]
+          },
+          "grad_numpy_analytic": {
+            "covar_module.raw_outputscale": [
+              0.026451530531985314,
+              0.026136080552213364
+            ],
+            "likelihood.raw_noise": [
+              0.06673970238743593
+            ],
+            "likelihood.raw_task_noises": [
+              0.032684687566563196,
+              0.034055014820872725
+            ],
+            "mean_module.raw_constant": [
+              0.0027342425425432486,
+              -0.0013645761577685967
+            ]
+          },
+          "loss_abs_diff": 4.0233469444928005e-08,
+          "loss_gpytorch": 1.5102659463882446,
+          "loss_numpy_analytic_float64": 1.510265986621714,
+          "natural": {
+            "constant_mean": [
+              0.0,
+              0.0
+            ],
+            "outputscale": [
+              0.6931471805599453,
+              0.6931471805599453
+            ],
+            "shared_sigma2": 0.6932471805599453,
+            "task_noise_d": [
+              0.6932471805599453,
+              0.6932471805599453
+            ],
+            "tau_effective": [
+              1.3864943611198906,
+              1.3864943611198906
+            ]
+          },
+          "theta_raw": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      }
+    },
+    "single_task_n60_t1": {
+      "N": 60,
+      "N_times_T": 60,
+      "T": 1,
+      "below_or_at_max_cholesky_size": true,
+      "settings": {
+        "asymmetric": {
+          "agreement": {
+            "all_params_max_abs_analytic_vs_fd": 9.860608683742722e-11,
+            "all_params_max_rel_analytic_vs_fd": 6.938430308198788e-09,
+            "covar_module.raw_outputscale": {
+              "max_abs_autograd_vs_analytic": 6.326444271231857e-09,
+              "max_rel_autograd_vs_analytic": 1.0070276259953312e-07
+            },
+            "likelihood.raw_noise": {
+              "max_abs_autograd_vs_analytic": 1.1196241850308652e-09,
+              "max_rel_autograd_vs_analytic": 3.412941913228459e-08
+            },
+            "likelihood.raw_task_noises": {
+              "max_abs_autograd_vs_analytic": 2.0999840477653464e-09,
+              "max_rel_autograd_vs_analytic": 2.7657908496490403e-08
+            },
+            "mean_module.raw_constant": {
+              "max_abs_autograd_vs_analytic": 4.587873050215796e-10,
+              "max_rel_autograd_vs_analytic": 3.2282629015995664e-08
+            }
+          },
+          "grad_central_fd_h1e-6": [
+            0.06282294651160925,
+            0.014211584242751485,
+            0.07592707329528992,
+            0.03280525162629999
+          ],
+          "grad_gpytorch_autograd": {
+            "covar_module.raw_outputscale": [
+              0.06282295286655426
+            ],
+            "likelihood.raw_noise": [
+              0.03280525282025337
+            ],
+            "likelihood.raw_task_noises": [
+              0.07592707127332687
+            ],
+            "mean_module.raw_constant": [
+              0.014211583882570267
+            ]
+          },
+          "grad_numpy_analytic": {
+            "covar_module.raw_outputscale": [
+              0.06282294654010999
+            ],
+            "likelihood.raw_noise": [
+              0.03280525170062919
+            ],
+            "likelihood.raw_task_noises": [
+              0.07592707337331092
+            ],
+            "mean_module.raw_constant": [
+              0.014211584341357572
+            ]
+          },
+          "loss_abs_diff": 1.0101036229670513e-08,
+          "loss_gpytorch": 1.5306609869003296,
+          "loss_numpy_analytic_float64": 1.5306609767992934,
+          "natural": {
+            "constant_mean": [
+              0.1
+            ],
+            "outputscale": [
+              0.8543552444685272
+            ],
+            "shared_sigma2": 0.31336168751822285,
+            "task_noise_d": [
+              0.9741769841801067
+            ],
+            "tau_effective": [
+              1.2875386716983295
+            ]
+          },
+          "theta_raw": [
+            0.3,
+            0.1,
+            0.5,
+            -1.0
+          ]
+        },
+        "init_zeros": {
+          "agreement": {
+            "all_params_max_abs_analytic_vs_fd": 9.798512695669004e-11,
+            "all_params_max_rel_analytic_vs_fd": 5.405921750410172e-09,
+            "covar_module.raw_outputscale": {
+              "max_abs_autograd_vs_analytic": 4.289121453837641e-09,
+              "max_rel_autograd_vs_analytic": 7.674556809411116e-08
+            },
+            "likelihood.raw_noise": {
+              "max_abs_autograd_vs_analytic": 1.2809962118831564e-10,
+              "max_rel_autograd_vs_analytic": 2.097840400247796e-09
+            },
+            "likelihood.raw_task_noises": {
+              "max_abs_autograd_vs_analytic": 1.2809962118831564e-10,
+              "max_rel_autograd_vs_analytic": 2.097840400247796e-09
+            },
+            "mean_module.raw_constant": {
+              "max_abs_autograd_vs_analytic": 7.941328687092325e-09,
+              "max_rel_autograd_vs_analytic": 3.4128285767945335e-06
+            }
+          },
+          "grad_central_fd_h1e-6": [
+            0.055887545924449,
+            0.002326905224059317,
+            0.06106261518645795,
+            0.06106261518645795
+          ],
+          "grad_gpytorch_autograd": {
+            "covar_module.raw_outputscale": [
+              0.05588755011558533
+            ],
+            "likelihood.raw_noise": [
+              0.06106261536478996
+            ],
+            "likelihood.raw_task_noises": [
+              0.06106261536478996
+            ],
+            "mean_module.raw_constant": [
+              0.0023269131779670715
+            ]
+          },
+          "grad_numpy_analytic": {
+            "covar_module.raw_outputscale": [
+              0.05588754582646387
+            ],
+            "likelihood.raw_noise": [
+              0.06106261523669034
+            ],
+            "likelihood.raw_task_noises": [
+              0.06106261523669034
+            ],
+            "mean_module.raw_constant": [
+              0.0023269052366383844
+            ]
+          },
+          "loss_abs_diff": 1.0555288865177204e-08,
+          "loss_gpytorch": 1.5240514278411865,
+          "loss_numpy_analytic_float64": 1.5240514172858977,
+          "natural": {
+            "constant_mean": [
+              0.0
+            ],
+            "outputscale": [
+              0.6931471805599453
+            ],
+            "shared_sigma2": 0.6932471805599453,
+            "task_noise_d": [
+              0.6932471805599453
+            ],
+            "tau_effective": [
+              1.3864943611198906
+            ]
+          },
+          "theta_raw": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      }
+    },
+    "small_n30_t2": {
+      "N": 30,
+      "N_times_T": 60,
+      "T": 2,
+      "below_or_at_max_cholesky_size": true,
+      "settings": {
+        "asymmetric": {
+          "agreement": {
+            "all_params_max_abs_analytic_vs_fd": 1.2009052086092709e-10,
+            "all_params_max_rel_analytic_vs_fd": 1.2675709549870893e-08,
+            "covar_module.raw_outputscale": {
+              "max_abs_autograd_vs_analytic": 5.2714531940945e-09,
+              "max_rel_autograd_vs_analytic": 4.6784971100640675e-07
+            },
+            "likelihood.raw_noise": {
+              "max_abs_autograd_vs_analytic": 7.719476870227115e-09,
+              "max_rel_autograd_vs_analytic": 3.5594401886155603e-07
+            },
+            "likelihood.raw_task_noises": {
+              "max_abs_autograd_vs_analytic": 9.827781632769372e-09,
+              "max_rel_autograd_vs_analytic": 1.4926527263219015e-06
+            },
+            "mean_module.raw_constant": {
+              "max_abs_autograd_vs_analytic": 4.023387994295247e-09,
+              "max_rel_autograd_vs_analytic": 3.1904049064067376e-07
+            }
+          },
+          "grad_central_fd_h1e-6": [
+            0.03263290226929172,
+            0.01126740711843155,
+            0.012610900768095235,
+            -0.031911056574962515,
+            0.0378435091041851,
+            0.006584104483842168,
+            0.021687334150755078
+          ],
+          "grad_gpytorch_autograd": {
+            "covar_module.raw_outputscale": [
+              0.03263290598988533,
+              0.011267412453889847
+            ],
+            "likelihood.raw_noise": [
+              0.02168734185397625
+            ],
+            "likelihood.raw_task_noises": [
+              0.037843506783246994,
+              0.006584114395081997
+            ],
+            "mean_module.raw_constant": [
+              0.01261090487241745,
+              -0.03191105276346207
+            ]
+          },
+          "grad_numpy_analytic": {
+            "covar_module.raw_outputscale": [
+              0.032632902259549776,
+              0.011267407182436653
+            ],
+            "likelihood.raw_noise": [
+              0.02168733413449938
+            ],
+            "likelihood.raw_task_noises": [
+              0.03784350898409458,
+              0.006584104567300364
+            ],
+            "mean_module.raw_constant": [
+              0.012610900849029456,
+              -0.031911056560314975
+            ]
+          },
+          "loss_abs_diff": 4.733219771679842e-08,
+          "loss_gpytorch": 1.4929832220077515,
+          "loss_numpy_analytic_float64": 1.4929832693399492,
+          "natural": {
+            "constant_mean": [
+              0.1,
+              -0.2
+            ],
+            "outputscale": [
+              0.8543552444685272,
+              0.5130152523999526
+            ],
+            "shared_sigma2": 0.31336168751822285,
+            "task_noise_d": [
+              0.9741769841801067,
+              0.4032860488854579
+            ],
+            "tau_effective": [
+              1.2875386716983295,
+              0.7166477364036807
+            ]
+          },
+          "theta_raw": [
+            0.3,
+            -0.4,
+            0.1,
+            -0.2,
+            0.5,
+            -0.7,
+            -1.0
+          ]
+        },
+        "init_zeros": {
+          "agreement": {
+            "all_params_max_abs_analytic_vs_fd": 1.6067949401565862e-10,
+            "all_params_max_rel_analytic_vs_fd": 2.2296143269864854e-07,
+            "covar_module.raw_outputscale": {
+              "max_abs_autograd_vs_analytic": 3.943474016082638e-09,
+              "max_rel_autograd_vs_analytic": 1.3551275312922428e-07
+            },
+            "likelihood.raw_noise": {
+              "max_abs_autograd_vs_analytic": 4.512013297708339e-09,
+              "max_rel_autograd_vs_analytic": 7.510665917246367e-08
+            },
+            "likelihood.raw_task_noises": {
+              "max_abs_autograd_vs_analytic": 2.9263395109890844e-09,
+              "max_rel_autograd_vs_analytic": 9.580307060396026e-08
+            },
+            "mean_module.raw_constant": {
+              "max_abs_autograd_vs_analytic": 7.3382311273524625e-09,
+              "max_rel_autograd_vs_analytic": 4.1704872540203125e-06
+            }
+          },
+          "grad_central_fd_h1e-6": [
+            0.029100390208647298,
+            0.029588937855429265,
+            0.002906076601583152,
+            0.000432002322803271,
+            0.030545362461609216,
+            0.029529381273540878,
+            0.06007474362412779
+          ],
+          "grad_gpytorch_autograd": {
+            "covar_module.raw_outputscale": [
+              0.029100386425852776,
+              0.029588937759399414
+            ],
+            "likelihood.raw_noise": [
+              0.060074739158153534
+            ],
+            "likelihood.raw_task_noises": [
+              0.03054535947740078,
+              0.029529381543397903
+            ],
+            "mean_module.raw_constant": [
+              0.0029060840606689453,
+              0.0004320042207837105
+            ]
+          },
+          "grad_numpy_analytic": {
+            "covar_module.raw_outputscale": [
+              0.02910039036932679,
+              0.029588937810948436
+            ],
+            "likelihood.raw_noise": [
+              0.06007474367016683
+            ],
+            "likelihood.raw_task_noises": [
+              0.03054536240374029,
+              0.029529381266426537
+            ],
+            "mean_module.raw_constant": [
+              0.002906076722437818,
+              0.0004320024191231278
+            ]
+          },
+          "loss_abs_diff": 1.710682795419416e-08,
+          "loss_gpytorch": 1.528051495552063,
+          "loss_numpy_analytic_float64": 1.528051478445235,
+          "natural": {
+            "constant_mean": [
+              0.0,
+              0.0
+            ],
+            "outputscale": [
+              0.6931471805599453,
+              0.6931471805599453
+            ],
+            "shared_sigma2": 0.6932471805599453,
+            "task_noise_d": [
+              0.6932471805599453,
+              0.6932471805599453
+            ],
+            "tau_effective": [
+              1.3864943611198906,
+              1.3864943611198906
+            ]
+          },
+          "theta_raw": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      }
+    },
+    "tiny_n12_t2": {
+      "N": 12,
+      "N_times_T": 24,
+      "T": 2,
+      "below_or_at_max_cholesky_size": true,
+      "settings": {
+        "asymmetric": {
+          "agreement": {
+            "all_params_max_abs_analytic_vs_fd": 2.0315840502937998e-10,
+            "all_params_max_rel_analytic_vs_fd": 1.7930647204992783e-08,
+            "covar_module.raw_outputscale": {
+              "max_abs_autograd_vs_analytic": 6.4483704539236575e-09,
+              "max_rel_autograd_vs_analytic": 4.835012592066497e-07
+            },
+            "likelihood.raw_noise": {
+              "max_abs_autograd_vs_analytic": 7.299570878305239e-10,
+              "max_rel_autograd_vs_analytic": 4.0282012535520084e-08
+            },
+            "likelihood.raw_task_noises": {
+              "max_abs_autograd_vs_analytic": 1.8444657151443777e-09,
+              "max_rel_autograd_vs_analytic": 6.652636146916181e-07
+            },
+            "mean_module.raw_constant": {
+              "max_abs_autograd_vs_analytic": 5.4436924065703884e-09,
+              "max_rel_autograd_vs_analytic": 1.273844433359252e-07
+            }
+          },
+          "grad_central_fd_h1e-6": [
+            0.034289992179026285,
+            0.013336822313192442,
+            0.013959407518804312,
+            -0.055070052074057685,
+            0.036739962627763134,
+            0.0027725335360884173,
+            0.01812116723343138
+          ],
+          "grad_gpytorch_autograd": {
+            "covar_module.raw_outputscale": [
+              0.03428999334573746,
+              0.013336828909814358
+            ],
+            "likelihood.raw_noise": [
+              0.01812116801738739
+            ],
+            "likelihood.raw_task_noises": [
+              0.03673996403813362,
+              0.002772535430267453
+            ],
+            "mean_module.raw_constant": [
+              0.013959405943751335,
+              -0.05507005751132965
+            ]
+          },
+          "grad_numpy_analytic": {
+            "covar_module.raw_outputscale": [
+              0.03428999221363911,
+              0.013336822461443904
+            ],
+            "likelihood.raw_noise": [
+              0.018121167287430302
+            ],
+            "likelihood.raw_task_noises": [
+              0.036739962650394496,
+              0.002772533585801738
+            ],
+            "mean_module.raw_constant": [
+              0.013959407721962717,
+              -0.055070052067637244
+            ]
+          },
+          "loss_abs_diff": 7.148513425647707e-08,
+          "loss_gpytorch": 1.5049104690551758,
+          "loss_numpy_analytic_float64": 1.5049103975700415,
+          "natural": {
+            "constant_mean": [
+              0.1,
+              -0.2
+            ],
+            "outputscale": [
+              0.8543552444685272,
+              0.5130152523999526
+            ],
+            "shared_sigma2": 0.31336168751822285,
+            "task_noise_d": [
+              0.9741769841801067,
+              0.4032860488854579
+            ],
+            "tau_effective": [
+              1.2875386716983295,
+              0.7166477364036807
+            ]
+          },
+          "theta_raw": [
+            0.3,
+            -0.4,
+            0.1,
+            -0.2,
+            0.5,
+            -0.7,
+            -1.0
+          ]
+        },
+        "init_zeros": {
+          "agreement": {
+            "all_params_max_abs_analytic_vs_fd": 1.7182396195962457e-10,
+            "all_params_max_rel_analytic_vs_fd": 1.3736661660204712e-07,
+            "covar_module.raw_outputscale": {
+              "max_abs_autograd_vs_analytic": 5.029938549006019e-09,
+              "max_rel_autograd_vs_analytic": 1.6389637532650442e-07
+            },
+            "likelihood.raw_noise": {
+              "max_abs_autograd_vs_analytic": 1.0855085351424432e-08,
+              "max_rel_autograd_vs_analytic": 1.8807477978852715e-07
+            },
+            "likelihood.raw_task_noises": {
+              "max_abs_autograd_vs_analytic": 6.870360221705729e-09,
+              "max_rel_autograd_vs_analytic": 2.4552529026154e-07
+            },
+            "mean_module.raw_constant": {
+              "max_abs_autograd_vs_analytic": 7.69086382535096e-09,
+              "max_rel_autograd_vs_analytic": 6.461431706164237e-06
+            }
+          },
+          "grad_central_fd_h1e-6": [
+            0.03068974852027395,
+            0.03168288620347681,
+            -0.001250842207589642,
+            -0.001190272436168982,
+            0.02973456647570316,
+            0.027982291372907753,
+            0.057716857959633217
+          ],
+          "grad_gpytorch_autograd": {
+            "covar_module.raw_outputscale": [
+              0.030689753592014313,
+              0.03168288990855217
+            ],
+            "likelihood.raw_noise": [
+              0.057716868817806244
+            ],
+            "likelihood.raw_task_noises": [
+              0.029734570533037186,
+              0.027982298284769058
+            ],
+            "mean_module.raw_constant": [
+              -0.0012508356012403965,
+              -0.0011902647092938423
+            ]
+          },
+          "grad_numpy_analytic": {
+            "covar_module.raw_outputscale": [
+              0.030689748562075764,
+              0.03168288609421114
+            ],
+            "likelihood.raw_noise": [
+              0.05771685796272089
+            ],
+            "likelihood.raw_task_noises": [
+              0.029734566548312056,
+              0.027982291414408837
+            ],
+            "mean_module.raw_constant": [
+              -0.0012508423794136039,
+              -0.0011902724001576677
+            ]
+          },
+          "loss_abs_diff": 9.323986671638806e-08,
+          "loss_gpytorch": 1.534300446510315,
+          "loss_numpy_analytic_float64": 1.5343005397501817,
+          "natural": {
+            "constant_mean": [
+              0.0,
+              0.0
+            ],
+            "outputscale": [
+              0.6931471805599453,
+              0.6931471805599453
+            ],
+            "shared_sigma2": 0.6932471805599453,
+            "task_noise_d": [
+              0.6932471805599453,
+              0.6932471805599453
+            ],
+            "tau_effective": [
+              1.3864943611198906,
+              1.3864943611198906
+            ]
+          },
+          "theta_raw": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      }
+    }
+  },
+  "normalization_check": {
+    "N": 6,
+    "T": 2,
+    "event_shape": [
+      6,
+      2
+    ],
+    "event_shape_numel": 12,
+    "mll_minus_logprob_over_N": 1.445935527483622,
+    "mll_minus_logprob_over_NT": -3.9736429924275285e-08,
+    "mll_plus_numpy_reference": -1.20920458313023e-07,
+    "mll_value": -1.445935606956482,
+    "numpy_reference_neg_logprob_over_NT": 1.4459354860360236,
+    "raw_log_prob": -17.351226806640625,
+    "raw_log_prob_over_N": -2.891871134440104,
+    "raw_log_prob_over_NT": -1.445935567220052
+  }
+}

@@ -1,0 +1,16 @@
+{
+ "_doc": "Determinism and invariance measurements. The hypervolume indicator is a deterministic function of the SET of points; the candidate's fixed total order makes it bitwise reproducible run to run AND invariant to input row order.",
+ "float32_roundtrip_abs_diff": "3.1843490067018365e-09",
+ "float32_roundtrip_hypervolume": "0x1.6cc102906728ap-2",
+ "hypervolume": "0x1.6cc102c71c12ep-2",
+ "random_bank_permutation_bitwise_identical": 252,
+ "random_bank_permutation_cases": 252,
+ "random_bank_permutation_worst_abs_diff": "0.0",
+ "random_permutations_bitwise_identical": 25,
+ "random_permutations_tested": 25,
+ "random_permutations_worst_abs_diff": "0.0",
+ "repeat_call_bitwise_identical": true,
+ "row_reversed_abs_diff": "0.0",
+ "row_reversed_bitwise_identical": true,
+ "run": "benchmark_thicccc_2026-08-16/mogp/seed_0"
+}

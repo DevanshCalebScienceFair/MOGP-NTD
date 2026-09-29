@@ -1,0 +1,2655 @@
+{
+ "_agreement_criterion": "For every case in `selector_no_ties`, `selector_ties`, `selector_zeros`, `boundary`, `real` and `exact_table`, a numpy implementation must choose the branch named in `*_branch` and return `scipy_p` / `auto_p` to within 1e-12 absolute (the exact and permutation branches are exact rationals with denominator 2**n, so they should agree to the last bit; the asymptotic branch inherits the erfc accuracy measured in normal.json). The statistic must agree to 1e-12 absolute.",
+ "_deterministic": "bitwise-reproducible",
+ "_oracle": "scipy 1.17.1 stats.wilcoxon",
+ "_what": "Wilcoxon signed-rank reference values, branches and selector",
+ "archived_cross_check": [
+  {
+   "archived_n": 7,
+   "archived_ttest_p": 6.261068048175771e-06,
+   "archived_ttest_stat": 14.685665625252764,
+   "archived_wilcoxon_p": 0.015625,
+   "baseline": "Random Search",
+   "recomputed_n": 7,
+   "recomputed_ttest_p": 6.261068048175771e-06,
+   "recomputed_ttest_stat": 14.685665625252764,
+   "recomputed_wilcoxon_p": 0.015625,
+   "run": "benchmark_thicccc_2026-08-16"
+  },
+  {
+   "archived_n": 7,
+   "archived_ttest_p": 2.1704494372299894e-06,
+   "archived_ttest_stat": 17.58490875905393,
+   "archived_wilcoxon_p": 0.015625,
+   "baseline": "Single-Obj BO",
+   "recomputed_n": 7,
+   "recomputed_ttest_p": 2.1704494372299894e-06,
+   "recomputed_ttest_stat": 17.58490875905393,
+   "recomputed_wilcoxon_p": 0.015625,
+   "run": "benchmark_thicccc_2026-08-16"
+  },
+  {
+   "archived_n": 7,
+   "archived_ttest_p": 2.3425547423978577e-05,
+   "archived_ttest_stat": 11.707313634756158,
+   "archived_wilcoxon_p": 0.015625,
+   "baseline": "Greedy Filter",
+   "recomputed_n": 7,
+   "recomputed_ttest_p": 2.3425547423978574e-05,
+   "recomputed_ttest_stat": 11.707313634756158,
+   "recomputed_wilcoxon_p": 0.015625,
+   "run": "benchmark_thicccc_2026-08-16"
+  },
+  {
+   "archived_n": 5,
+   "archived_ttest_p": 1.9131396056141635e-05,
+   "archived_ttest_stat": 23.594205967972773,
+   "archived_wilcoxon_p": 0.0625,
+   "baseline": "Random Search",
+   "recomputed_n": 5,
+   "recomputed_ttest_p": 1.9131396056141635e-05,
+   "recomputed_ttest_stat": 23.594205967972773,
+   "recomputed_wilcoxon_p": 0.0625,
+   "run": "benchmark_thicc_2026-08-14"
+  },
+  {
+   "archived_n": 5,
+   "archived_ttest_p": 9.288960737787792e-05,
+   "archived_ttest_stat": 15.837332594880444,
+   "archived_wilcoxon_p": 0.0625,
+   "baseline": "Single-Obj BO",
+   "recomputed_n": 5,
+   "recomputed_ttest_p": 9.288960737787793e-05,
+   "recomputed_ttest_stat": 15.837332594880444,
+   "recomputed_wilcoxon_p": 0.0625,
+   "run": "benchmark_thicc_2026-08-14"
+  },
+  {
+   "archived_n": 5,
+   "archived_ttest_p": 7.487581328821992e-05,
+   "archived_ttest_stat": 16.72563295562413,
+   "archived_wilcoxon_p": 0.0625,
+   "baseline": "Greedy Filter",
+   "recomputed_n": 5,
+   "recomputed_ttest_p": 7.487581328821992e-05,
+   "recomputed_ttest_stat": 16.72563295562413,
+   "recomputed_wilcoxon_p": 0.0625,
+   "run": "benchmark_thicc_2026-08-14"
+  }
+ ],
+ "auto_switch_n": 51,
+ "boundary": [
+  {
+   "branch": "exact",
+   "n": 50,
+   "ref_p": 0.9085978224870299,
+   "ref_stat": 625.0,
+   "ref_z": 0.12066598343098812,
+   "scipy_p": 0.9085978224870299,
+   "scipy_stat": 625.0
+  },
+  {
+   "branch": "asymptotic",
+   "n": 51,
+   "ref_p": 0.9030137998838772,
+   "ref_stat": 650.0,
+   "ref_z": -0.12185506928218394,
+   "scipy_p": 0.9030137998838772,
+   "scipy_stat": 650.0
+  }
+ ],
+ "exact_table": [
+  {
+   "all_negative": {
+    "branch": "exact",
+    "ref_p": 1.0,
+    "ref_stat": 0.0,
+    "scipy_p": 1.0,
+    "scipy_stat": 0.0,
+    "two_over_2n": 1.0
+   },
+   "counts": [
+    1,
+    1
+   ],
+   "n": 1
+  },
+  {
+   "all_negative": {
+    "branch": "exact",
+    "ref_p": 0.5,
+    "ref_stat": 0.0,
+    "scipy_p": 0.5,
+    "scipy_stat": 0.0,
+    "two_over_2n": 0.5
+   },
+   "counts": [
+    1,
+    1,
+    1,
+    1
+   ],
+   "n": 2
+  },
+  {
+   "all_negative": {
+    "branch": "exact",
+    "ref_p": 0.25,
+    "ref_stat": 0.0,
+    "scipy_p": 0.25,
+    "scipy_stat": 0.0,
+    "two_over_2n": 0.25
+   },
+   "counts": [
+    1,
+    1,
+    1,
+    2,
+    1,
+    1,
+    1
+   ],
+   "n": 3
+  },
+  {
+   "all_negative": {
+    "branch": "exact",
+    "ref_p": 0.125,
+    "ref_stat": 0.0,
+    "scipy_p": 0.125,
+    "scipy_stat": 0.0,
+    "two_over_2n": 0.125
+   },
+   "counts": [
+    1,
+    1,
+    1,
+    2,
+    2,
+    2,
+    2,
+    2,
+    1,
+    1,
+    1
+   ],
+   "n": 4
+  },
+  {
+   "all_negative": {
+    "branch": "exact",
+    "ref_p": 0.0625,
+    "ref_stat": 0.0,
+    "scipy_p": 0.0625,
+    "scipy_stat": 0.0,
+    "two_over_2n": 0.0625
+   },
+   "counts": [
+    1,
+    1,
+    1,
+    2,
+    2,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    2,
+    2,
+    1,
+    1,
+    1
+   ],
+   "n": 5
+  },
+  {
+   "all_negative": {
+    "branch": "exact",
+    "ref_p": 0.03125,
+    "ref_stat": 0.0,
+    "scipy_p": 0.03125,
+    "scipy_stat": 0.0,
+    "two_over_2n": 0.03125
+   },
+   "counts": [
+    1,
+    1,
+    1,
+    2,
+    2,
+    3,
+    4,
+    4,
+    4,
+    5,
+    5,
+    5,
+    5,
+    4,
+    4,
+    4,
+    3,
+    2,
+    2,
+    1,
+    1,
+    1
+   ],
+   "n": 6
+  },
+  {
+   "all_negative": {
+    "branch": "exact",
+    "ref_p": 0.015625,
+    "ref_stat": 0.0,
+    "scipy_p": 0.015625,
+    "scipy_stat": 0.0,
+    "two_over_2n": 0.015625
+   },
+   "counts": [
+    1,
+    1,
+    1,
+    2,
+    2,
+    3,
+    4,
+    5,
+    5,
+    6,
+    7,
+    7,
+    8,
+    8,
+    8,
+    8,
+    8,
+    7,
+    7,
+    6,
+    5,
+    5,
+    4,
+    3,
+    2,
+    2,
+    1,
+    1,
+    1
+   ],
+   "n": 7
+  },
+  {
+   "all_negative": {
+    "branch": "exact",
+    "ref_p": 0.0078125,
+    "ref_stat": 0.0,
+    "scipy_p": 0.0078125,
+    "scipy_stat": 0.0,
+    "two_over_2n": 0.0078125
+   },
+   "counts": [
+    1,
+    1,
+    1,
+    2,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    13,
+    13,
+    14,
+    13,
+    13,
+    13,
+    12,
+    11,
+    10,
+    9,
+    8,
+    7,
+    6,
+    5,
+    4,
+    3,
+    2,
+    2,
+    1,
+    1,
+    1
+   ],
+   "n": 8
+  },
+  {
+   "all_negative": {
+    "branch": "exact",
+    "ref_p": 0.00390625,
+    "ref_stat": 0.0,
+    "scipy_p": 0.00390625,
+    "scipy_stat": 0.0,
+    "two_over_2n": 0.00390625
+   },
+   "counts": [
+    1,
+    1,
+    1,
+    2,
+    2,
+    3,
+    4,
+    5,
+    6,
+    8,
+    9,
+    10,
+    12,
+    13,
+    15,
+    17,
+    18,
+    19,
+    21,
+    21,
+    22,
+    23,
+    23,
+    23,
+    23,
+    22,
+    21,
+    21,
+    19,
+    18,
+    17,
+    15,
+    13,
+    12,
+    10,
+    9,
+    8,
+    6,
+    5,
+    4,
+    3,
+    2,
+    2,
+    1,
+    1,
+    1
+   ],
+   "n": 9
+  },
+  {
+   "all_negative": {
+    "branch": "exact",
+    "ref_p": 0.001953125,
+    "ref_stat": 0.0,
+    "scipy_p": 0.001953125,
+    "scipy_stat": 0.0,
+    "two_over_2n": 0.001953125
+   },
+   "counts": [
+    1,
+    1,
+    1,
+    2,
+    2,
+    3,
+    4,
+    5,
+    6,
+    8,
+    10,
+    11,
+    13,
+    15,
+    17,
+    20,
+    22,
+    24,
+    27,
+    29,
+    31,
+    33,
+    35,
+    36,
+    38,
+    39,
+    39,
+    40,
+    40,
+    39,
+    39,
+    38,
+    36,
+    35,
+    33,
+    31,
+    29,
+    27,
+    24,
+    22,
+    20,
+    17,
+    15,
+    13,
+    11,
+    10,
+    8,
+    6,
+    5,
+    4,
+    3,
+    2,
+    2,
+    1,
+    1,
+    1
+   ],
+   "n": 10
+  },
+  {
+   "all_negative": {
+    "branch": "exact",
+    "ref_p": 0.0009765625,
+    "ref_stat": 0.0,
+    "scipy_p": 0.0009765625,
+    "scipy_stat": 0.0,
+    "two_over_2n": 0.0009765625
+   },
+   "counts": [
+    1,
+    1,
+    1,
+    2,
+    2,
+    3,
+    4,
+    5,
+    6,
+    8,
+    10,
+    12,
+    14,
+    16,
+    19,
+    22,
+    25,
+    28,
+    32,
+    35,
+    39,
+    43,
+    46,
+    49,
+    53,
+    56,
+    59,
+    62,
+    64,
+    66,
+    68,
+    69,
+    69,
+    70,
+    69,
+    69,
+    68,
+    66,
+    64,
+    62,
+    59,
+    56,
+    53,
+    49,
+    46,
+    43,
+    39,
+    35,
+    32,
+    28,
+    25,
+    22,
+    19,
+    16,
+    14,
+    12,
+    10,
+    8,
+    6,
+    5,
+    4,
+    3,
+    2,
+    2,
+    1,
+    1,
+    1
+   ],
+   "n": 11
+  },
+  {
+   "all_negative": {
+    "branch": "exact",
+    "ref_p": 0.00048828125,
+    "ref_stat": 0.0,
+    "scipy_p": 0.00048828125,
+    "scipy_stat": 0.0,
+    "two_over_2n": 0.00048828125
+   },
+   "counts": [
+    1,
+    1,
+    1,
+    2,
+    2,
+    3,
+    4,
+    5,
+    6,
+    8,
+    10,
+    12,
+    15,
+    17,
+    20,
+    24,
+    27,
+    31,
+    36,
+    40,
+    45,
+    51,
+    56,
+    61,
+    67,
+    72,
+    78,
+    84,
+    89,
+    94,
+    100,
+    104,
+    108,
+    113,
+    115,
+    118,
+    121,
+    122,
+    123,
+    124,
+    123,
+    122,
+    121,
+    118,
+    115,
+    113,
+    108,
+    104,
+    100,
+    94,
+    89,
+    84,
+    78,
+    72,
+    67,
+    61,
+    56,
+    51,
+    45,
+    40,
+    36,
+    31,
+    27,
+    24,
+    20,
+    17,
+    15,
+    12,
+    10,
+    8,
+    6,
+    5,
+    4,
+    3,
+    2,
+    2,
+    1,
+    1,
+    1
+   ],
+   "n": 12
+  },
+  {
+   "all_negative": {
+    "branch": "exact",
+    "ref_p": 0.000244140625,
+    "ref_stat": 0.0,
+    "scipy_p": 0.000244140625,
+    "scipy_stat": 0.0,
+    "two_over_2n": 0.000244140625
+   },
+   "counts": [
+    1,
+    1,
+    1,
+    2,
+    2,
+    3,
+    4,
+    5,
+    6,
+    8,
+    10,
+    12,
+    15,
+    18,
+    21,
+    25,
+    29,
+    33,
+    39,
+    44,
+    50,
+    57,
+    64,
+    71,
+    79,
+    87,
+    95,
+    104,
+    113,
+    121,
+    131,
+    140,
+    148,
+    158,
+    166,
+    174,
+    182,
+    189,
+    195,
+    202,
+    207,
+    211,
+    215,
+    218,
+    219,
+    221,
+    221,
+    219,
+    218,
+    215,
+    211,
+    207,
+    202,
+    195,
+    189,
+    182,
+    174,
+    166,
+    158,
+    148,
+    140,
+    131,
+    121,
+    113,
+    104,
+    95,
+    87,
+    79,
+    71,
+    64,
+    57,
+    50,
+    44,
+    39,
+    33,
+    29,
+    25,
+    21,
+    18,
+    15,
+    12,
+    10,
+    8,
+    6,
+    5,
+    4,
+    3,
+    2,
+    2,
+    1,
+    1,
+    1
+   ],
+   "n": 13
+  },
+  {
+   "all_negative": {
+    "branch": "exact",
+    "ref_p": 0.0001220703125,
+    "ref_stat": 0.0,
+    "scipy_p": 0.0001220703125,
+    "scipy_stat": 0.0,
+    "two_over_2n": 0.0001220703125
+   },
+   "counts": [
+    1,
+    1,
+    1,
+    2,
+    2,
+    3,
+    4,
+    5,
+    6,
+    8,
+    10,
+    12,
+    15,
+    18,
+    22,
+    26,
+    30,
+    35,
+    41,
+    47,
+    54,
+    62,
+    70,
+    79,
+    89,
+    99,
+    110,
+    122,
+    134,
+    146,
+    160,
+    173,
+    187,
+    202,
+    216,
+    231,
+    246,
+    260,
+    274,
+    289,
+    302,
+    315,
+    328,
+    339,
+    350,
+    361,
+    369,
+    377,
+    384,
+    389,
+    393,
+    396,
+    397,
+    397,
+    396,
+    393,
+    389,
+    384,
+    377,
+    369,
+    361,
+    350,
+    339,
+    328,
+    315,
+    302,
+    289,
+    274,
+    260,
+    246,
+    231,
+    216,
+    202,
+    187,
+    173,
+    160,
+    146,
+    134,
+    122,
+    110,
+    99,
+    89,
+    79,
+    70,
+    62,
+    54,
+    47,
+    41,
+    35,
+    30,
+    26,
+    22,
+    18,
+    15,
+    12,
+    10,
+    8,
+    6,
+    5,
+    4,
+    3,
+    2,
+    2,
+    1,
+    1,
+    1
+   ],
+   "n": 14
+  },
+  {
+   "all_negative": {
+    "branch": "exact",
+    "ref_p": 6.103515625e-05,
+    "ref_stat": 0.0,
+    "scipy_p": 6.103515625e-05,
+    "scipy_stat": 0.0,
+    "two_over_2n": 6.103515625e-05
+   },
+   "counts": [
+    1,
+    1,
+    1,
+    2,
+    2,
+    3,
+    4,
+    5,
+    6,
+    8,
+    10,
+    12,
+    15,
+    18,
+    22,
+    27,
+    31,
+    36,
+    43,
+    49,
+    57,
+    66,
+    75,
+    85,
+    97,
+    109,
+    122,
+    137,
+    152,
+    168,
+    186,
+    203,
+    222,
+    243,
+    263,
+    285,
+    308,
+    330,
+    353,
+    378,
+    401,
+    425,
+    450,
+    473,
+    496,
+    521,
+    542,
+    564,
+    586,
+    605,
+    624,
+    642,
+    657,
+    671,
+    685,
+    695,
+    704,
+    712,
+    716,
+    719,
+    722,
+    719,
+    716,
+    712,
+    704,
+    695,
+    685,
+    671,
+    657,
+    642,
+    624,
+    605,
+    586,
+    564,
+    542,
+    521,
+    496,
+    473,
+    450,
+    425,
+    401,
+    378,
+    353,
+    330,
+    308,
+    285,
+    263,
+    243,
+    222,
+    203,
+    186,
+    168,
+    152,
+    137,
+    122,
+    109,
+    97,
+    85,
+    75,
+    66,
+    57,
+    49,
+    43,
+    36,
+    31,
+    27,
+    22,
+    18,
+    15,
+    12,
+    10,
+    8,
+    6,
+    5,
+    4,
+    3,
+    2,
+    2,
+    1,
+    1,
+    1
+   ],
+   "n": 15
+  }
+ ],
+ "permutation_n_max": 13,
+ "real": [
+  {
+   "base": [
+    0.1020542384335348,
+    0.087450504710551,
+    0.129162777182678,
+    0.1051476327787439,
+    0.0725282414384272,
+    0.0611026073231622,
+    0.0720479592904742
+   ],
+   "baseline": "Random Search",
+   "diff": [
+    0.2541507895307609,
+    0.3040082884383063,
+    0.2786912927853498,
+    0.2636057601341406,
+    0.3938822035166558,
+    0.3648145485261384,
+    0.3736208669801841
+   ],
+   "mean_diff": 0.3189676785587908,
+   "mogp": [
+    0.3562050279642957,
+    0.3914587931488573,
+    0.4078540699680278,
+    0.3687533929128845,
+    0.466410444955083,
+    0.4259171558493006,
+    0.4456688262706583
+   ],
+   "n_pairs": 7,
+   "ref_branch": "exact",
+   "ref_df": 6,
+   "ref_ttest_p": 6.2610680481757545e-06,
+   "ref_ttest_stat": 14.685665625252764,
+   "ref_wilcoxon_p": 0.015625,
+   "ref_wilcoxon_stat": 0.0,
+   "run": "benchmark_thicccc_2026-08-16",
+   "scipy_ttest_p": 6.261068048175771e-06,
+   "scipy_ttest_stat": 14.685665625252764,
+   "scipy_wilcoxon_p": 0.015625,
+   "scipy_wilcoxon_stat": 0.0,
+   "seeds": [
+    0,
+    1,
+    2,
+    3,
+    7,
+    8,
+    9
+   ]
+  },
+  {
+   "base": [
+    0.0697288009718366,
+    0.1287997415412276,
+    0.0945955427095644,
+    0.1096578771055631,
+    0.0917351963120795,
+    0.0596696661413749,
+    0.1069433644411556
+   ],
+   "baseline": "Single-Obj BO",
+   "diff": [
+    0.2864762269924591,
+    0.2626590516076297,
+    0.3132585272584634,
+    0.2590955158073214,
+    0.3746752486430035,
+    0.3662474897079257,
+    0.3387254618295027
+   ],
+   "mean_diff": 0.3144482174066151,
+   "mogp": [
+    0.3562050279642957,
+    0.3914587931488573,
+    0.4078540699680278,
+    0.3687533929128845,
+    0.466410444955083,
+    0.4259171558493006,
+    0.4456688262706583
+   ],
+   "n_pairs": 7,
+   "ref_branch": "exact",
+   "ref_df": 6,
+   "ref_ttest_p": 2.1704494372299873e-06,
+   "ref_ttest_stat": 17.58490875905393,
+   "ref_wilcoxon_p": 0.015625,
+   "ref_wilcoxon_stat": 0.0,
+   "run": "benchmark_thicccc_2026-08-16",
+   "scipy_ttest_p": 2.1704494372299894e-06,
+   "scipy_ttest_stat": 17.58490875905393,
+   "scipy_wilcoxon_p": 0.015625,
+   "scipy_wilcoxon_stat": 0.0,
+   "seeds": [
+    0,
+    1,
+    2,
+    3,
+    7,
+    8,
+    9
+   ]
+  },
+  {
+   "base": [
+    0.1127880842597421,
+    0.1787357125175445,
+    0.1347024638049053,
+    0.1837106907173704,
+    0.1373663188680537,
+    0.1393134255462251,
+    0.0905188582207624
+   ],
+   "baseline": "Greedy Filter",
+   "diff": [
+    0.2434169437045536,
+    0.2127230806313128,
+    0.2731516061631225,
+    0.1850427021955141,
+    0.32904412608702927,
+    0.2866037303030755,
+    0.3551499680498959
+   ],
+   "mean_diff": 0.2693045938763577,
+   "mogp": [
+    0.3562050279642957,
+    0.3914587931488573,
+    0.4078540699680278,
+    0.3687533929128845,
+    0.466410444955083,
+    0.4259171558493006,
+    0.4456688262706583
+   ],
+   "n_pairs": 7,
+   "ref_branch": "exact",
+   "ref_df": 6,
+   "ref_ttest_p": 2.342554742397854e-05,
+   "ref_ttest_stat": 11.707313634756158,
+   "ref_wilcoxon_p": 0.015625,
+   "ref_wilcoxon_stat": 0.0,
+   "run": "benchmark_thicccc_2026-08-16",
+   "scipy_ttest_p": 2.3425547423978574e-05,
+   "scipy_ttest_stat": 11.707313634756158,
+   "scipy_wilcoxon_p": 0.015625,
+   "scipy_wilcoxon_stat": 0.0,
+   "seeds": [
+    0,
+    1,
+    2,
+    3,
+    7,
+    8,
+    9
+   ]
+  },
+  {
+   "base": [
+    0.0848921209906094,
+    0.0781659358045056,
+    0.0916207966421006,
+    0.0906435668251025,
+    0.0783111875982947
+   ],
+   "baseline": "Random Search",
+   "diff": [
+    0.28307894169562864,
+    0.3390989308610421,
+    0.3079058384866609,
+    0.3031006338104269,
+    0.3586654922207118
+   ],
+   "mean_diff": 0.31836996741489404,
+   "mogp": [
+    0.367971062686238,
+    0.4172648666655477,
+    0.3995266351287615,
+    0.3937442006355294,
+    0.4369766798190065
+   ],
+   "n_pairs": 5,
+   "ref_branch": "exact",
+   "ref_df": 4,
+   "ref_ttest_p": 1.9131396056141652e-05,
+   "ref_ttest_stat": 23.594205967972773,
+   "ref_wilcoxon_p": 0.0625,
+   "ref_wilcoxon_stat": 0.0,
+   "run": "benchmark_thicc_2026-08-14",
+   "scipy_ttest_p": 1.9131396056141635e-05,
+   "scipy_ttest_stat": 23.594205967972773,
+   "scipy_wilcoxon_p": 0.0625,
+   "scipy_wilcoxon_stat": 0.0,
+   "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+   ]
+  },
+  {
+   "base": [
+    0.0674646329310383,
+    0.1527452638740052,
+    0.1246959951126085,
+    0.1223812502585806,
+    0.0710130926909462
+   ],
+   "baseline": "Single-Obj BO",
+   "diff": [
+    0.3005064297551997,
+    0.2645196027915425,
+    0.27483064001615304,
+    0.2713629503769488,
+    0.3659635871280603
+   ],
+   "mean_diff": 0.2954366420135809,
+   "mogp": [
+    0.367971062686238,
+    0.4172648666655477,
+    0.3995266351287615,
+    0.3937442006355294,
+    0.4369766798190065
+   ],
+   "n_pairs": 5,
+   "ref_branch": "exact",
+   "ref_df": 4,
+   "ref_ttest_p": 9.288960737787781e-05,
+   "ref_ttest_stat": 15.837332594880444,
+   "ref_wilcoxon_p": 0.0625,
+   "ref_wilcoxon_stat": 0.0,
+   "run": "benchmark_thicc_2026-08-14",
+   "scipy_ttest_p": 9.288960737787793e-05,
+   "scipy_ttest_stat": 15.837332594880444,
+   "scipy_wilcoxon_p": 0.0625,
+   "scipy_wilcoxon_stat": 0.0,
+   "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+   ]
+  },
+  {
+   "base": [
+    0.1044372355194723,
+    0.1693202429148252,
+    0.1154467748986633,
+    0.1562465646306541,
+    0.1073107812737448
+   ],
+   "baseline": "Greedy Filter",
+   "diff": [
+    0.2635338271667657,
+    0.2479446237507225,
+    0.28407986023009824,
+    0.2374976360048753,
+    0.32966589854526174
+   ],
+   "mean_diff": 0.2725443691395447,
+   "mogp": [
+    0.367971062686238,
+    0.4172648666655477,
+    0.3995266351287615,
+    0.3937442006355294,
+    0.4369766798190065
+   ],
+   "n_pairs": 5,
+   "ref_branch": "exact",
+   "ref_df": 4,
+   "ref_ttest_p": 7.487581328821977e-05,
+   "ref_ttest_stat": 16.72563295562413,
+   "ref_wilcoxon_p": 0.0625,
+   "ref_wilcoxon_stat": 0.0,
+   "run": "benchmark_thicc_2026-08-14",
+   "scipy_ttest_p": 7.487581328821992e-05,
+   "scipy_ttest_stat": 16.72563295562413,
+   "scipy_wilcoxon_p": 0.0625,
+   "scipy_wilcoxon_stat": 0.0,
+   "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+   ]
+  }
+ ],
+ "scipy_call_site": "run_benchmark_seeds.py:328 -- stats.wilcoxon(mogp_vals, base_vals), all defaults",
+ "scipy_defaults": {
+  "alternative": "two-sided",
+  "correction": false,
+  "method": "auto",
+  "zero_method": "wilcox"
+ },
+ "selector_no_ties": [
+  {
+   "asymptotic_p": 0.31731050786291415,
+   "auto_matches_ref_branch": true,
+   "auto_p": 1.0,
+   "branches_matching_auto": [
+    "exact"
+   ],
+   "exact_p": 1.0,
+   "n": 1,
+   "permutation_p": "raised: ValueError",
+   "ref_branch": "exact",
+   "ref_p": 1.0
+  },
+  {
+   "asymptotic_p": 0.6547208460185769,
+   "auto_matches_ref_branch": true,
+   "auto_p": 1.0,
+   "branches_matching_auto": [
+    "exact",
+    "permutation"
+   ],
+   "exact_p": 1.0,
+   "n": 2,
+   "permutation_p": 1.0,
+   "ref_branch": "exact",
+   "ref_p": 1.0
+  },
+  {
+   "asymptotic_p": 0.5929800980174267,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.75,
+   "branches_matching_auto": [
+    "exact",
+    "permutation"
+   ],
+   "exact_p": 0.75,
+   "n": 3,
+   "permutation_p": 0.75,
+   "ref_branch": "exact",
+   "ref_p": 0.75
+  },
+  {
+   "asymptotic_p": 0.7150006546880893,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.875,
+   "branches_matching_auto": [
+    "exact",
+    "permutation"
+   ],
+   "exact_p": 0.875,
+   "n": 4,
+   "permutation_p": 0.875,
+   "ref_branch": "exact",
+   "ref_p": 0.875
+  },
+  {
+   "asymptotic_p": 0.6858304344516057,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.8125,
+   "branches_matching_auto": [
+    "exact",
+    "permutation"
+   ],
+   "exact_p": 0.8125,
+   "n": 5,
+   "permutation_p": 0.8125,
+   "ref_branch": "exact",
+   "ref_p": 0.8125
+  },
+  {
+   "asymptotic_p": 0.7531523647659145,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.84375,
+   "branches_matching_auto": [
+    "exact",
+    "permutation"
+   ],
+   "exact_p": 0.84375,
+   "n": 6,
+   "permutation_p": 0.84375,
+   "ref_branch": "exact",
+   "ref_p": 0.84375
+  },
+  {
+   "asymptotic_p": 0.7353166906373405,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.8125,
+   "branches_matching_auto": [
+    "exact",
+    "permutation"
+   ],
+   "exact_p": 0.8125,
+   "n": 7,
+   "permutation_p": 0.8125,
+   "ref_branch": "exact",
+   "ref_p": 0.8125
+  },
+  {
+   "asymptotic_p": 0.779434528427275,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.84375,
+   "branches_matching_auto": [
+    "exact",
+    "permutation"
+   ],
+   "exact_p": 0.84375,
+   "n": 8,
+   "permutation_p": 0.84375,
+   "ref_branch": "exact",
+   "ref_p": 0.84375
+  },
+  {
+   "asymptotic_p": 0.7670968684102772,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.8203125,
+   "branches_matching_auto": [
+    "exact",
+    "permutation"
+   ],
+   "exact_p": 0.8203125,
+   "n": 9,
+   "permutation_p": 0.8203125,
+   "ref_branch": "exact",
+   "ref_p": 0.8203125
+  },
+  {
+   "asymptotic_p": 0.7988593499960496,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.845703125,
+   "branches_matching_auto": [
+    "exact",
+    "permutation"
+   ],
+   "exact_p": 0.845703125,
+   "n": 10,
+   "permutation_p": 0.845703125,
+   "ref_branch": "exact",
+   "ref_p": 0.845703125
+  },
+  {
+   "asymptotic_p": 0.789675102094056,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.8310546875,
+   "branches_matching_auto": [
+    "exact",
+    "permutation"
+   ],
+   "exact_p": 0.8310546875,
+   "n": 11,
+   "permutation_p": 0.8310546875,
+   "ref_branch": "exact",
+   "ref_p": 0.8310546875
+  },
+  {
+   "asymptotic_p": 0.8139453463016609,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.85009765625,
+   "branches_matching_auto": [
+    "exact",
+    "permutation"
+   ],
+   "exact_p": 0.85009765625,
+   "n": 12,
+   "permutation_p": 0.85009765625,
+   "ref_branch": "exact",
+   "ref_p": 0.85009765625
+  },
+  {
+   "asymptotic_p": 0.8067663226228976,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.83935546875,
+   "branches_matching_auto": [
+    "exact",
+    "permutation"
+   ],
+   "exact_p": 0.83935546875,
+   "n": 13,
+   "permutation_p": 0.83935546875,
+   "ref_branch": "exact",
+   "ref_p": 0.83935546875
+  },
+  {
+   "asymptotic_p": 0.8260910288588201,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.855224609375,
+   "branches_matching_auto": [
+    "exact"
+   ],
+   "exact_p": 0.855224609375,
+   "n": 14,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "exact",
+   "ref_p": 0.855224609375
+  },
+  {
+   "asymptotic_p": 0.8202800980995039,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.846923828125,
+   "branches_matching_auto": [
+    "exact"
+   ],
+   "exact_p": 0.846923828125,
+   "n": 15,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "exact",
+   "ref_p": 0.846923828125
+  },
+  {
+   "asymptotic_p": 0.836138661741041,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.860260009765625,
+   "branches_matching_auto": [
+    "exact"
+   ],
+   "exact_p": 0.860260009765625,
+   "n": 16,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "exact",
+   "ref_p": 0.860260009765625
+  },
+  {
+   "asymptotic_p": 0.831310207979425,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.8536376953125,
+   "branches_matching_auto": [
+    "exact"
+   ],
+   "exact_p": 0.8536376953125,
+   "n": 17,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "exact",
+   "ref_p": 0.8536376953125
+  },
+  {
+   "asymptotic_p": 0.8446284810712963,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.8650436401367188,
+   "branches_matching_auto": [
+    "exact"
+   ],
+   "exact_p": 0.8650436401367188,
+   "n": 18,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "exact",
+   "ref_p": 0.8650436401367188
+  },
+  {
+   "asymptotic_p": 0.8405336616716674,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.8595733642578125,
+   "branches_matching_auto": [
+    "exact"
+   ],
+   "exact_p": 0.8595733642578125,
+   "n": 19,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "exact",
+   "ref_p": 0.8595733642578125
+  },
+  {
+   "asymptotic_p": 0.8519245948146423,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.8694877624511719,
+   "branches_matching_auto": [
+    "exact"
+   ],
+   "exact_p": 0.8694877624511719,
+   "n": 20,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "exact",
+   "ref_p": 0.8694877624511719
+  },
+  {
+   "asymptotic_p": 0.8483946983538319,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.8648872375488281,
+   "branches_matching_auto": [
+    "exact"
+   ],
+   "exact_p": 0.8648872375488281,
+   "n": 21,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "exact",
+   "ref_p": 0.8648872375488281
+  },
+  {
+   "asymptotic_p": 0.8582823598181881,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.8736042976379395,
+   "branches_matching_auto": [
+    "exact"
+   ],
+   "exact_p": 0.8736042976379395,
+   "n": 22,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "exact",
+   "ref_p": 0.8736042976379395
+  },
+  {
+   "asymptotic_p": 0.8551984216262508,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.869666576385498,
+   "branches_matching_auto": [
+    "exact"
+   ],
+   "exact_p": 0.869666576385498,
+   "n": 23,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "exact",
+   "ref_p": 0.869666576385498
+  },
+  {
+   "asymptotic_p": 0.8638867905449266,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.8774070739746094,
+   "branches_matching_auto": [
+    "exact"
+   ],
+   "exact_p": 0.8774070739746094,
+   "n": 24,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "exact",
+   "ref_p": 0.8774070739746094
+  },
+  {
+   "asymptotic_p": 0.8611621969468249,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.8739878535270691,
+   "branches_matching_auto": [
+    "exact"
+   ],
+   "exact_p": 0.8739878535270691,
+   "n": 25,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "exact",
+   "ref_p": 0.8739878535270691
+  },
+  {
+   "asymptotic_p": 0.8688756214593663,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.8809217512607574,
+   "branches_matching_auto": [
+    "exact"
+   ],
+   "exact_p": 0.8809217512607574,
+   "n": 26,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "exact",
+   "ref_p": 0.8809217512607574
+  },
+  {
+   "asymptotic_p": 0.866445613400565,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.8779177963733673,
+   "branches_matching_auto": [
+    "exact"
+   ],
+   "exact_p": 0.8779177963733673,
+   "n": 27,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "exact",
+   "ref_p": 0.8779177963733673
+  },
+  {
+   "asymptotic_p": 0.8733537674341689,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.8841757625341415,
+   "branches_matching_auto": [
+    "exact"
+   ],
+   "exact_p": 0.8841757625341415,
+   "n": 28,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "exact",
+   "ref_p": 0.8841757625341415
+  },
+  {
+   "asymptotic_p": 0.8711688268414225,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.8815100230276585,
+   "branches_matching_auto": [
+    "exact"
+   ],
+   "exact_p": 0.8815100230276585,
+   "n": 29,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "exact",
+   "ref_p": 0.8815100230276585
+  },
+  {
+   "asymptotic_p": 0.8774027283940786,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.8871948085725307,
+   "branches_matching_auto": [
+    "exact"
+   ],
+   "exact_p": 0.8871948085725307,
+   "n": 30,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "exact",
+   "ref_p": 0.8871948085725307
+  },
+  {
+   "asymptotic_p": 0.8754242567176749,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.8848088048398495,
+   "branches_matching_auto": [
+    "exact"
+   ],
+   "exact_p": 0.8848088048398495,
+   "n": 31,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "exact",
+   "ref_p": 0.8848088048398495
+  },
+  {
+   "asymptotic_p": 0.8810869002194571,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.8900027303025126,
+   "branches_matching_auto": [
+    "exact"
+   ],
+   "exact_p": 0.8900027303025126,
+   "n": 32,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "exact",
+   "ref_p": 0.8900027303025126
+  },
+  {
+   "asymptotic_p": 0.879284305885663,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.887851148378104,
+   "branches_matching_auto": [
+    "exact"
+   ],
+   "exact_p": 0.887851148378104,
+   "n": 33,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "exact",
+   "ref_p": 0.887851148378104
+  },
+  {
+   "asymptotic_p": 0.8844579257532612,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.892620881437324,
+   "branches_matching_auto": [
+    "exact"
+   ],
+   "exact_p": 0.892620881437324,
+   "n": 34,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "exact",
+   "ref_p": 0.892620881437324
+  },
+  {
+   "asymptotic_p": 0.8828066080210909,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.8906679842039011,
+   "branches_matching_auto": [
+    "exact"
+   ],
+   "exact_p": 0.8906679842039011,
+   "n": 35,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "exact",
+   "ref_p": 0.8906679842039011
+  },
+  {
+   "asymptotic_p": 0.8875577662678293,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.8950681856949814,
+   "branches_matching_auto": [
+    "exact"
+   ],
+   "exact_p": 0.8950681856949814,
+   "n": 36,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "exact",
+   "ref_p": 0.8950681856949814
+  },
+  {
+   "asymptotic_p": 0.8860376867044848,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.893285383383045,
+   "branches_matching_auto": [
+    "exact"
+   ],
+   "exact_p": 0.893285383383045,
+   "n": 37,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "exact",
+   "ref_p": 0.893285383383045
+  },
+  {
+   "asymptotic_p": 0.8904209152438732,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.8973613591879257,
+   "branches_matching_auto": [
+    "exact"
+   ],
+   "exact_p": 0.8973613591879257,
+   "n": 38,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "exact",
+   "ref_p": 0.8973613591879257
+  },
+  {
+   "asymptotic_p": 0.8890155645931768,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.8957254780943913,
+   "branches_matching_auto": [
+    "exact"
+   ],
+   "exact_p": 0.8957254780943913,
+   "n": 39,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "exact",
+   "ref_p": 0.8957254780943913
+  },
+  {
+   "asymptotic_p": 0.8930760236810261,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.8995151304461615,
+   "branches_matching_auto": [
+    "exact"
+   ],
+   "exact_p": 0.8995151304461615,
+   "n": 40,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "exact",
+   "ref_p": 0.8995151304461615
+  },
+  {
+   "asymptotic_p": 0.8917716609813433,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.8980071655796564,
+   "branches_matching_auto": [
+    "exact"
+   ],
+   "exact_p": 0.8980071655796564,
+   "n": 41,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "exact",
+   "ref_p": 0.8980071655796564
+  },
+  {
+   "asymptotic_p": 0.8955471131969037,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.9015424782878654,
+   "branches_matching_auto": [
+    "exact"
+   ],
+   "exact_p": 0.9015424782878654,
+   "n": 42,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "exact",
+   "ref_p": 0.9015424782878654
+  },
+  {
+   "asymptotic_p": 0.8943321962358806,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.9001466806901135,
+   "branches_matching_auto": [
+    "exact"
+   ],
+   "exact_p": 0.9001466806901135,
+   "n": 43,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "exact",
+   "ref_p": 0.9001466806901135
+  },
+  {
+   "asymptotic_p": 0.897854494969354,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.9034548557265225,
+   "branches_matching_auto": [
+    "exact"
+   ],
+   "exact_p": 0.9034548557265225,
+   "n": 44,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "exact",
+   "ref_p": 0.9034548557265225
+  },
+  {
+   "asymptotic_p": 0.8967192476971931,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.9021580514229299,
+   "branches_matching_auto": [
+    "exact"
+   ],
+   "exact_p": 0.9021580514229299,
+   "n": 45,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "exact",
+   "ref_p": 0.9021580514229299
+  },
+  {
+   "asymptotic_p": 0.9000154752274389,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.9052623889877793,
+   "branches_matching_auto": [
+    "exact"
+   ],
+   "exact_p": 0.9052623889877793,
+   "n": 46,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "exact",
+   "ref_p": 0.9052623889877793
+  },
+  {
+   "asymptotic_p": 0.8989515548358539,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.904053463732879,
+   "branches_matching_auto": [
+    "exact"
+   ],
+   "exact_p": 0.904053463732879,
+   "n": 47,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "exact",
+   "ref_p": 0.904053463732879
+  },
+  {
+   "asymptotic_p": 0.9020449034917887,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.9069740528045429,
+   "branches_matching_auto": [
+    "exact"
+   ],
+   "exact_p": 0.9069740528045429,
+   "n": 48,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "exact",
+   "ref_p": 0.9069740528045429
+  },
+  {
+   "asymptotic_p": 0.9010451411117566,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.9058435571951513,
+   "branches_matching_auto": [
+    "exact"
+   ],
+   "exact_p": 0.9058435571951513,
+   "n": 49,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "exact",
+   "ref_p": 0.9058435571951513
+  },
+  {
+   "asymptotic_p": 0.9039556033614752,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.9085978224870299,
+   "branches_matching_auto": [
+    "exact"
+   ],
+   "exact_p": 0.9085978224870299,
+   "n": 50,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "exact",
+   "ref_p": 0.9085978224870299
+  },
+  {
+   "asymptotic_p": 0.9030137998838772,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.9030137998838772,
+   "branches_matching_auto": [
+    "asymptotic"
+   ],
+   "exact_p": 0.9075376655371192,
+   "n": 51,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "asymptotic",
+   "ref_p": 0.9030137998838772
+  },
+  {
+   "asymptotic_p": 0.9057587144621504,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.9057587144621504,
+   "branches_matching_auto": [
+    "asymptotic"
+   ],
+   "exact_p": 0.9101408047974253,
+   "n": 52,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "asymptotic",
+   "ref_p": 0.9057587144621504
+  },
+  {
+   "asymptotic_p": 0.9048694781477522,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.9048694781477522,
+   "branches_matching_auto": [
+    "asymptotic"
+   ],
+   "exact_p": 0.9091440135478177,
+   "n": 53,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "asymptotic",
+   "ref_p": 0.9048694781477523
+  },
+  {
+   "asymptotic_p": 0.9074639664191861,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.9074639664191861,
+   "branches_matching_auto": [
+    "asymptotic"
+   ],
+   "exact_p": 0.9116093503193057,
+   "n": 54,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "asymptotic",
+   "ref_p": 0.9074639664191863
+  },
+  {
+   "asymptotic_p": 0.9066225825523561,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.9066225825523561,
+   "branches_matching_auto": [
+    "asymptotic"
+   ],
+   "exact_p": 0.9106698793439588,
+   "n": 55,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "asymptotic",
+   "ref_p": 0.9066225825523561
+  },
+  {
+   "asymptotic_p": 0.9090799002644454,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.9090799002644454,
+   "branches_matching_auto": [
+    "asymptotic"
+   ],
+   "exact_p": 0.9130091498027677,
+   "n": 56,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "asymptotic",
+   "ref_p": 0.9090799002644454
+  },
+  {
+   "asymptotic_p": 0.908282225636625,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.908282225636625,
+   "branches_matching_auto": [
+    "asymptotic"
+   ],
+   "exact_p": 0.9121217288373789,
+   "n": 57,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "asymptotic",
+   "ref_p": 0.908282225636625
+  },
+  {
+   "asymptotic_p": 0.9106140487918509,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.9106140487918509,
+   "branches_matching_auto": [
+    "asymptotic"
+   ],
+   "exact_p": 0.9143453167779221,
+   "n": 58,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "asymptotic",
+   "ref_p": 0.910614048791851
+  },
+  {
+   "asymptotic_p": 0.9098564256120234,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.9098564256120234,
+   "branches_matching_auto": [
+    "asymptotic"
+   ],
+   "exact_p": 0.9135053277912347,
+   "n": 59,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "asymptotic",
+   "ref_p": 0.9098564256120234
+  }
+ ],
+ "selector_rule": [
+  "1. d = x - y (or x alone). n_all = len(d). n_zero = #{d == 0}.",
+  "2. if method == 'auto' and n_all > 50: method = 'asymptotic'.",
+  "3. compute the statistic; has_ties = some two |d_i| are equal (over the entries the zero_method keeps).",
+  "4. if method is still 'auto': no ties AND no zeros -> 'exact'; else n_all <= 13 -> exhaustive sign-flip permutation; else -> 'asymptotic'."
+ ],
+ "selector_ties": [
+  {
+   "asymptotic_p": 1.0,
+   "auto_matches_ref_branch": true,
+   "auto_p": 1.0,
+   "branches_matching_auto": [
+    "asymptotic",
+    "exact",
+    "permutation"
+   ],
+   "exact_p": 1.0,
+   "n": 2,
+   "permutation_p": 1.0,
+   "ref_branch": "permutation",
+   "ref_p": 1.0
+  },
+  {
+   "asymptotic_p": 0.4142161782425251,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.75,
+   "branches_matching_auto": [
+    "exact",
+    "permutation"
+   ],
+   "exact_p": 0.75,
+   "n": 3,
+   "permutation_p": 0.75,
+   "ref_branch": "permutation",
+   "ref_p": 0.75
+  },
+  {
+   "asymptotic_p": 0.8539232992870668,
+   "auto_matches_ref_branch": true,
+   "auto_p": 1.0,
+   "branches_matching_auto": [
+    "exact",
+    "permutation"
+   ],
+   "exact_p": 1.0,
+   "n": 4,
+   "permutation_p": 1.0,
+   "ref_branch": "permutation",
+   "ref_p": 1.0
+  },
+  {
+   "asymptotic_p": 0.5879367461735663,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.6875,
+   "branches_matching_auto": [
+    "permutation"
+   ],
+   "exact_p": 0.8125,
+   "n": 5,
+   "permutation_p": 0.6875,
+   "ref_branch": "permutation",
+   "ref_p": 0.6875
+  },
+  {
+   "asymptotic_p": 0.8334840043889592,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.875,
+   "branches_matching_auto": [
+    "permutation"
+   ],
+   "exact_p": 1.0,
+   "n": 6,
+   "permutation_p": 0.875,
+   "ref_branch": "permutation",
+   "ref_p": 0.875
+  },
+  {
+   "asymptotic_p": 0.6720517686591893,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.71875,
+   "branches_matching_auto": [
+    "permutation"
+   ],
+   "exact_p": 0.8125,
+   "n": 7,
+   "permutation_p": 0.71875,
+   "ref_branch": "permutation",
+   "ref_p": 0.71875
+  },
+  {
+   "asymptotic_p": 0.8334336202223243,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.875,
+   "branches_matching_auto": [
+    "permutation"
+   ],
+   "exact_p": 0.9453125,
+   "n": 8,
+   "permutation_p": 0.875,
+   "ref_branch": "permutation",
+   "ref_p": 0.875
+  },
+  {
+   "asymptotic_p": 0.7220491421508173,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.7578125,
+   "branches_matching_auto": [
+    "permutation"
+   ],
+   "exact_p": 0.8203125,
+   "n": 9,
+   "permutation_p": 0.7578125,
+   "ref_branch": "permutation",
+   "ref_p": 0.7578125
+  },
+  {
+   "asymptotic_p": 0.8383602338389031,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.865234375,
+   "branches_matching_auto": [
+    "permutation"
+   ],
+   "exact_p": 0.921875,
+   "n": 10,
+   "permutation_p": 0.865234375,
+   "ref_branch": "permutation",
+   "ref_p": 0.865234375
+  },
+  {
+   "asymptotic_p": 0.755540778078535,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.78125,
+   "branches_matching_auto": [
+    "permutation"
+   ],
+   "exact_p": 0.8310546875,
+   "n": 11,
+   "permutation_p": 0.78125,
+   "ref_branch": "permutation",
+   "ref_p": 0.78125
+  },
+  {
+   "asymptotic_p": 0.8444601962923157,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.86474609375,
+   "branches_matching_auto": [
+    "permutation"
+   ],
+   "exact_p": 0.90966796875,
+   "n": 12,
+   "permutation_p": 0.86474609375,
+   "ref_branch": "permutation",
+   "ref_p": 0.86474609375
+  },
+  {
+   "asymptotic_p": 0.7797629284383186,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.7998046875,
+   "branches_matching_auto": [
+    "permutation"
+   ],
+   "exact_p": 0.83935546875,
+   "n": 13,
+   "permutation_p": 0.7998046875,
+   "ref_branch": "permutation",
+   "ref_p": 0.7998046875
+  },
+  {
+   "asymptotic_p": 0.8505820297917449,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.8505820297917449,
+   "branches_matching_auto": [
+    "asymptotic"
+   ],
+   "exact_p": 0.9031982421875,
+   "n": 14,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "asymptotic",
+   "ref_p": 0.8505820297917449
+  },
+  {
+   "asymptotic_p": 0.7982331767109356,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.7982331767109356,
+   "branches_matching_auto": [
+    "asymptotic"
+   ],
+   "exact_p": 0.846923828125,
+   "n": 15,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "asymptotic",
+   "ref_p": 0.7982331767109356
+  },
+  {
+   "asymptotic_p": 0.8563589864870352,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.8563589864870352,
+   "branches_matching_auto": [
+    "asymptotic"
+   ],
+   "exact_p": 0.899932861328125,
+   "n": 16,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "asymptotic",
+   "ref_p": 0.8563589864870352
+  },
+  {
+   "asymptotic_p": 0.8128711544586164,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.8128711544586164,
+   "branches_matching_auto": [
+    "asymptotic"
+   ],
+   "exact_p": 0.8536376953125,
+   "n": 17,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "asymptotic",
+   "ref_p": 0.8128711544586164
+  },
+  {
+   "asymptotic_p": 0.8616909367394272,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.8616909367394272,
+   "branches_matching_auto": [
+    "asymptotic"
+   ],
+   "exact_p": 0.8985748291015625,
+   "n": 18,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "asymptotic",
+   "ref_p": 0.8616909367394272
+  },
+  {
+   "asymptotic_p": 0.8248164909872482,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.8248164909872482,
+   "branches_matching_auto": [
+    "asymptotic"
+   ],
+   "exact_p": 0.8595733642578125,
+   "n": 19,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "asymptotic",
+   "ref_p": 0.8248164909872483
+  }
+ ],
+ "selector_zeros": [
+  {
+   "asymptotic_p": 0.31731050786291415,
+   "auto_matches_ref_branch": true,
+   "auto_p": 1.0,
+   "branches_matching_auto": [
+    "exact",
+    "permutation"
+   ],
+   "exact_p": 1.0,
+   "n": 2,
+   "permutation_p": 1.0,
+   "ref_branch": "permutation",
+   "ref_p": 1.0
+  },
+  {
+   "asymptotic_p": 0.6547208460185769,
+   "auto_matches_ref_branch": true,
+   "auto_p": 1.0,
+   "branches_matching_auto": [
+    "exact",
+    "permutation"
+   ],
+   "exact_p": 1.0,
+   "n": 3,
+   "permutation_p": 1.0,
+   "ref_branch": "permutation",
+   "ref_p": 1.0
+  },
+  {
+   "asymptotic_p": 0.5929800980174267,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.75,
+   "branches_matching_auto": [
+    "exact",
+    "permutation"
+   ],
+   "exact_p": 0.75,
+   "n": 4,
+   "permutation_p": 0.75,
+   "ref_branch": "permutation",
+   "ref_p": 0.75
+  },
+  {
+   "asymptotic_p": 0.7150006546880893,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.875,
+   "branches_matching_auto": [
+    "exact",
+    "permutation"
+   ],
+   "exact_p": 0.875,
+   "n": 5,
+   "permutation_p": 0.875,
+   "ref_branch": "permutation",
+   "ref_p": 0.875
+  },
+  {
+   "asymptotic_p": 0.6858304344516057,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.8125,
+   "branches_matching_auto": [
+    "exact",
+    "permutation"
+   ],
+   "exact_p": 0.8125,
+   "n": 6,
+   "permutation_p": 0.8125,
+   "ref_branch": "permutation",
+   "ref_p": 0.8125
+  },
+  {
+   "asymptotic_p": 0.7531523647659145,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.84375,
+   "branches_matching_auto": [
+    "exact",
+    "permutation"
+   ],
+   "exact_p": 0.84375,
+   "n": 7,
+   "permutation_p": 0.84375,
+   "ref_branch": "permutation",
+   "ref_p": 0.84375
+  },
+  {
+   "asymptotic_p": 0.7353166906373405,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.8125,
+   "branches_matching_auto": [
+    "exact",
+    "permutation"
+   ],
+   "exact_p": 0.8125,
+   "n": 8,
+   "permutation_p": 0.8125,
+   "ref_branch": "permutation",
+   "ref_p": 0.8125
+  },
+  {
+   "asymptotic_p": 0.779434528427275,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.84375,
+   "branches_matching_auto": [
+    "exact",
+    "permutation"
+   ],
+   "exact_p": 0.84375,
+   "n": 9,
+   "permutation_p": 0.84375,
+   "ref_branch": "permutation",
+   "ref_p": 0.84375
+  },
+  {
+   "asymptotic_p": 0.7670968684102772,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.8203125,
+   "branches_matching_auto": [
+    "exact",
+    "permutation"
+   ],
+   "exact_p": 0.8203125,
+   "n": 10,
+   "permutation_p": 0.8203125,
+   "ref_branch": "permutation",
+   "ref_p": 0.8203125
+  },
+  {
+   "asymptotic_p": 0.7988593499960496,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.845703125,
+   "branches_matching_auto": [
+    "exact",
+    "permutation"
+   ],
+   "exact_p": 0.845703125,
+   "n": 11,
+   "permutation_p": 0.845703125,
+   "ref_branch": "permutation",
+   "ref_p": 0.845703125
+  },
+  {
+   "asymptotic_p": 0.789675102094056,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.8310546875,
+   "branches_matching_auto": [
+    "exact",
+    "permutation"
+   ],
+   "exact_p": 0.8310546875,
+   "n": 12,
+   "permutation_p": 0.8310546875,
+   "ref_branch": "permutation",
+   "ref_p": 0.8310546875
+  },
+  {
+   "asymptotic_p": 0.8139453463016609,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.85009765625,
+   "branches_matching_auto": [
+    "exact",
+    "permutation"
+   ],
+   "exact_p": 0.85009765625,
+   "n": 13,
+   "permutation_p": 0.85009765625,
+   "ref_branch": "permutation",
+   "ref_p": 0.85009765625
+  },
+  {
+   "asymptotic_p": 0.8067663226228976,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.8067663226228976,
+   "branches_matching_auto": [
+    "asymptotic"
+   ],
+   "exact_p": 0.83935546875,
+   "n": 14,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "asymptotic",
+   "ref_p": 0.8067663226228976
+  },
+  {
+   "asymptotic_p": 0.8260910288588201,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.8260910288588201,
+   "branches_matching_auto": [
+    "asymptotic"
+   ],
+   "exact_p": 0.855224609375,
+   "n": 15,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "asymptotic",
+   "ref_p": 0.8260910288588201
+  },
+  {
+   "asymptotic_p": 0.8202800980995039,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.8202800980995039,
+   "branches_matching_auto": [
+    "asymptotic"
+   ],
+   "exact_p": 0.846923828125,
+   "n": 16,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "asymptotic",
+   "ref_p": 0.8202800980995039
+  },
+  {
+   "asymptotic_p": 0.836138661741041,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.836138661741041,
+   "branches_matching_auto": [
+    "asymptotic"
+   ],
+   "exact_p": 0.860260009765625,
+   "n": 17,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "asymptotic",
+   "ref_p": 0.8361386617410411
+  },
+  {
+   "asymptotic_p": 0.831310207979425,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.831310207979425,
+   "branches_matching_auto": [
+    "asymptotic"
+   ],
+   "exact_p": 0.8536376953125,
+   "n": 18,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "asymptotic",
+   "ref_p": 0.8313102079794251
+  },
+  {
+   "asymptotic_p": 0.8446284810712963,
+   "auto_matches_ref_branch": true,
+   "auto_p": 0.8446284810712963,
+   "branches_matching_auto": [
+    "asymptotic"
+   ],
+   "exact_p": 0.8650436401367188,
+   "n": 19,
+   "permutation_p": "stochastic: 2**n > 9999 default resamples, not probed",
+   "ref_branch": "asymptotic",
+   "ref_p": 0.8446284810712963
+  }
+ ],
+ "statistic_convention": "two-sided -> min(r_plus, r_minus); 'less' and 'greater' -> r_plus (evidence: selector/real tables, plus the one-sided probes in `statistic_convention_evidence`)",
+ "statistic_convention_evidence": [
+  {
+   "d": [
+    1.0,
+    2.0,
+    3.0,
+    -4.0
+   ],
+   "r_minus": 4.0,
+   "r_plus": 6.0,
+   "scipy_p_greater": 0.4375,
+   "scipy_p_less": 0.6875,
+   "scipy_p_two-sided": 0.875,
+   "scipy_stat_greater": 6.0,
+   "scipy_stat_less": 6.0,
+   "scipy_stat_two-sided": 4.0
+  },
+  {
+   "d": [
+    -1.0,
+    -2.0,
+    -3.0,
+    4.0
+   ],
+   "r_minus": 6.0,
+   "r_plus": 4.0,
+   "scipy_p_greater": 0.6875,
+   "scipy_p_less": 0.4375,
+   "scipy_p_two-sided": 0.875,
+   "scipy_stat_greater": 4.0,
+   "scipy_stat_less": 4.0,
+   "scipy_stat_two-sided": 4.0
+  },
+  {
+   "d": [
+    1.0,
+    -2.0,
+    3.0,
+    -4.0,
+    5.0
+   ],
+   "r_minus": 6.0,
+   "r_plus": 9.0,
+   "scipy_p_greater": 0.40625,
+   "scipy_p_less": 0.6875,
+   "scipy_p_two-sided": 0.8125,
+   "scipy_stat_greater": 9.0,
+   "scipy_stat_less": 9.0,
+   "scipy_stat_two-sided": 6.0
+  }
+ ],
+ "sweep_counts": {
+  "agree": 3924,
+  "disagree": 0
+ },
+ "sweep_disagreements": [],
+ "tiny_inputs": [
+  {
+   "d": [
+    0.0
+   ],
+   "ref_branch": "permutation",
+   "ref_p": 1.0,
+   "ref_stat": 0.0,
+   "scipy_raised": "ValueError: each sample in `data` must contain two or more observations along `axis`."
+  },
+  {
+   "d": [
+    -1.0
+   ],
+   "ref_branch": "exact",
+   "ref_p": 1.0,
+   "ref_stat": 0.0,
+   "scipy_p": 1.0,
+   "scipy_stat": 0.0
+  },
+  {
+   "d": [
+    0.0,
+    0.0
+   ],
+   "ref_branch": "permutation",
+   "ref_p": 1.0,
+   "ref_stat": 0.0,
+   "scipy_p": 1.0,
+   "scipy_stat": 0.0
+  }
+ ]
+}

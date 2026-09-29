@@ -1,0 +1,63 @@
+{
+ "_agreement_criterion": "A numpy implementation must satisfy each identity at least as tightly as the deviation recorded here.",
+ "_deterministic": "bitwise-reproducible",
+ "_oracle": "none -- these are self-consistency checks",
+ "_what": "identities the mathematics guarantees, checked without an oracle",
+ "checks": {
+  "beta_reflection": {
+   "at": {
+    "a": 0.05,
+    "b": 100.0,
+    "x": 1e-06
+   },
+   "max_dev": 9.262590694447681e-13
+  },
+  "normal": {
+   "Phi_at_0": 0.5,
+   "monotone": true,
+   "phi_at_0": 0.3989422804014327,
+   "phi_plus_minus_max_dev": 0.0
+  },
+  "signed_rank_counts": [
+   {
+    "n": 1,
+    "palindromic": true,
+    "sum_equals_2_pow_n": true
+   },
+   {
+    "n": 2,
+    "palindromic": true,
+    "sum_equals_2_pow_n": true
+   },
+   {
+    "n": 5,
+    "palindromic": true,
+    "sum_equals_2_pow_n": true
+   },
+   {
+    "n": 7,
+    "palindromic": true,
+    "sum_equals_2_pow_n": true
+   },
+   {
+    "n": 13,
+    "palindromic": true,
+    "sum_equals_2_pow_n": true
+   },
+   {
+    "n": 20,
+    "palindromic": true,
+    "sum_equals_2_pow_n": true
+   },
+   {
+    "n": 50,
+    "palindromic": true,
+    "sum_equals_2_pow_n": true
+   }
+  ],
+  "spearman_properties_max_dev": 0.0,
+  "spearman_self": 1.0,
+  "ttest_antisymmetry_max_dev": 0.0,
+  "wilcoxon_symmetry_max_dev": 0.0
+ }
+}

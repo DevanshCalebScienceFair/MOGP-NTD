@@ -1,0 +1,225 @@
+{
+ "deterministic": true,
+ "n_objective_samples": 128,
+ "n_query_points": 6000,
+ "results": [
+  {
+   "T1_fails": 0,
+   "T1_worst_abs": 0.0,
+   "T2_counters_worst": {
+    "n_dominated_covered": 0,
+    "n_nondominated_uncovered": 0,
+    "n_overlapping": 0
+   },
+   "T2_fails": 0,
+   "T3_fails": 0,
+   "T3_worst_abs": 2.220446049250313e-16,
+   "T4_fails": 0,
+   "T5_fails": 0,
+   "cell_count_delta_range": [
+    0,
+    0
+   ],
+   "description": "unmutated control",
+   "diverged": 0,
+   "mutation": "NONE",
+   "n_fronts": 16,
+   "nan_cells": 0,
+   "raised": 0
+  },
+  {
+   "T1_fails": 16,
+   "T1_worst_abs": 0.39596697341740966,
+   "T2_counters_worst": {
+    "n_dominated_covered": 0,
+    "n_nondominated_uncovered": 5414,
+    "n_overlapping": 28
+   },
+   "T2_fails": 16,
+   "T3_fails": 16,
+   "T3_worst_abs": 0.8976534539000001,
+   "T4_fails": 16,
+   "T5_fails": 0,
+   "cell_count_delta_range": [
+    -70,
+    -1
+   ],
+   "description": "Theorem 2.1: Z[i][j][k] instead of Z[i][k][j] (transposed axis)",
+   "diverged": 0,
+   "mutation": "thm21_transposed_axis",
+   "n_fronts": 16,
+   "nan_cells": 0,
+   "raised": 0
+  },
+  {
+   "T1_fails": 9,
+   "T1_worst_abs": 0.20332904328297505,
+   "T2_counters_worst": {
+    "n_dominated_covered": 0,
+    "n_nondominated_uncovered": 1884,
+    "n_overlapping": 0
+   },
+   "T2_fails": 9,
+   "T3_fails": 9,
+   "T3_worst_abs": 0.30120622769108385,
+   "T4_fails": 9,
+   "T5_fails": 0,
+   "cell_count_delta_range": [
+    -29,
+    0
+   ],
+   "description": "Equation 2 lower corner: max over k != j instead of k < j",
+   "diverged": 0,
+   "mutation": "eq2_k_ne_j",
+   "n_fronts": 16,
+   "nan_cells": 0,
+   "raised": 0
+  },
+  {
+   "T1_fails": 12,
+   "T1_worst_abs": 0.785422750636063,
+   "T2_counters_worst": {
+    "n_dominated_covered": 0,
+    "n_nondominated_uncovered": 0,
+    "n_overlapping": 3820
+   },
+   "T2_fails": 12,
+   "T3_fails": 12,
+   "T3_worst_abs": 1.5212363029111786,
+   "T4_fails": 12,
+   "T5_fails": 0,
+   "cell_count_delta_range": [
+    0,
+    299
+   ],
+   "description": "Theorem 2.1 condition: max over k < j instead of k != j",
+   "diverged": 0,
+   "mutation": "thm21_k_lt_j",
+   "n_fronts": 16,
+   "nan_cells": 0,
+   "raised": 0
+  },
+  {
+   "T1_fails": 16,
+   "T1_worst_abs": 0.4704220241742396,
+   "T2_counters_worst": {
+    "n_dominated_covered": 0,
+    "n_nondominated_uncovered": 5979,
+    "n_overlapping": 0
+   },
+   "T2_fails": 16,
+   "T3_fails": 16,
+   "T3_worst_abs": 0.9959158295077029,
+   "T4_fails": 16,
+   "T5_fails": 0,
+   "cell_count_delta_range": [
+    -80,
+    -4
+   ],
+   "description": "Equation 2: upper[0] = u[0] instead of the reference coordinate",
+   "diverged": 0,
+   "mutation": "eq2_symmetric_col0",
+   "n_fronts": 16,
+   "nan_cells": 0,
+   "raised": 0
+  },
+  {
+   "T1_fails": 14,
+   "T1_worst_abs": 0.418972359658587,
+   "T2_counters_worst": {
+    "n_dominated_covered": 0,
+    "n_nondominated_uncovered": 5945,
+    "n_overlapping": 0
+   },
+   "T2_fails": 15,
+   "T3_fails": 15,
+   "T3_worst_abs": 0.9907200313405559,
+   "T4_fails": 16,
+   "T5_fails": 0,
+   "cell_count_delta_range": [
+    -74,
+    -1
+   ],
+   "description": "Theorem 2.1 condition made STRICT (> instead of >=)",
+   "diverged": 0,
+   "mutation": "thm21_strict",
+   "n_fronts": 16,
+   "nan_cells": 0,
+   "raised": 0
+  },
+  {
+   "T1_fails": 12,
+   "T1_worst_abs": 18.854628207067282,
+   "T2_counters_worst": {
+    "n_dominated_covered": 0,
+    "n_nondominated_uncovered": 0,
+    "n_overlapping": 5739
+   },
+   "T2_fails": 12,
+   "T3_fails": 12,
+   "T3_worst_abs": 37.83165833567496,
+   "T4_fails": 12,
+   "T5_fails": 0,
+   "cell_count_delta_range": [
+    0,
+    1028
+   ],
+   "description": "Algorithm 1 Step 4 made NON-strict (<= instead of <)",
+   "diverged": 3,
+   "mutation": "step4_nonstrict",
+   "n_fronts": 16,
+   "nan_cells": 0,
+   "raised": 0
+  },
+  {
+   "T1_fails": 0,
+   "T1_worst_abs": 0.0,
+   "T2_counters_worst": {
+    "n_dominated_covered": 0,
+    "n_nondominated_uncovered": 0,
+    "n_overlapping": 0
+   },
+   "T2_fails": 0,
+   "T3_fails": 0,
+   "T3_worst_abs": 2.220446049250313e-16,
+   "T4_fails": 0,
+   "T5_fails": 0,
+   "cell_count_delta_range": [
+    0,
+    0
+   ],
+   "description": "pass 2 ideal corner set to -inf instead of the reference point",
+   "diverged": 0,
+   "mutation": "pass2_ideal_minus_inf",
+   "n_fronts": 16,
+   "nan_cells": 0,
+   "raised": 0
+  },
+  {
+   "T1_fails": 0,
+   "T1_worst_abs": 1.6653345369377348e-16,
+   "T2_counters_worst": {
+    "n_dominated_covered": 0,
+    "n_nondominated_uncovered": 0,
+    "n_overlapping": 0
+   },
+   "T2_fails": 0,
+   "T3_fails": 0,
+   "T3_worst_abs": 2.220446049250313e-16,
+   "T4_fails": 16,
+   "T5_fails": 0,
+   "cell_count_delta_range": [
+    1,
+    405
+   ],
+   "description": "empty cells not dropped",
+   "diverged": 0,
+   "mutation": "no_empty_filter",
+   "n_fronts": 16,
+   "nan_cells": 0,
+   "raised": 0
+  }
+ ],
+ "schema": "mogp-ntd/boxdecomp/mutations/1",
+ "what": "Each bug SPEC.md section 10 predicts, injected, and which of the proposed tests fires. T3's target hypervolume is computed by inclusion-exclusion, independent of any decomposition."
+}

@@ -1,0 +1,8 @@
+B=12	seconds=0.0484
+B=16	seconds=0.0562
+B=20	seconds=0.0518
+B=30	seconds=0.2071
+B=40	seconds=0.1411
+B=60	seconds=0.1823
+B=80	seconds=0.2776
+B=110	seconds=0.3592

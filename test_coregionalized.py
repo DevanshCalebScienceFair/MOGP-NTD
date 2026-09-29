@@ -13,10 +13,30 @@ Tests for the coregionalized (ICM) multi-output GP — the project's PRIMARY mod
     coregionalized the default/primary.
 
 Runnable both as ``pytest test_coregionalized.py`` and ``python test_coregionalized.py``.
+
+UPDATED FOR THE NUMPY CORE (2026-09-28) — three mechanical changes, no change of
+claim:
+
+* ``train_mogp_coregionalized`` now returns a ``mogp_core.icm.ICMState`` where it
+  returned a ``mogp_coregionalized.MOGPCoregionalized``, so the "this is the ICM
+  and not the independent model" checks are ``isinstance(model, ICMState)``.
+  ``ICMState`` carries the same ``task_covariance_matrix()`` method with the same
+  return contract, so every assertion ABOUT the task covariance is untouched.
+  ``MOGPCoregionalized`` still exists (nothing in the production path constructs
+  it); ``GPState`` is imported so the resolve-train-fn test can say explicitly
+  that the coregionalized name does NOT hand back the independent model.
+* Slot 1 of the 4-tuple is now ``None`` — there is no gpytorch likelihood object,
+  the noise lives in ``model.theta`` — so the trained-task count is read off
+  ``model.n_tasks`` instead of ``likelihood.num_tasks``. Same number, same claim.
+* The ICM's ``W`` / ``v_raw`` initialization is drawn from numpy's **global** RNG
+  where ``gpytorch.kernels.IndexKernel`` drew from torch's, so
+  ``torch.manual_seed(0)`` no longer pins anything and is now ``np.random.seed(0)``.
+  It is only there for determinism: the non-diagonal result is not seed-luck —
+  measured ``corr = +0.9939 / +0.9984 / +0.9979`` under seeds 0 / 1 / 12345 and
+  ``+0.9965`` unseeded.
 """
 
 import numpy as np
-import torch
 import pytest
 
 from mogp import TASK_NAMES, DOCKING_TASK_INDICES, OBJECTIVE_SOURCES, train_mogp
@@ -24,8 +44,9 @@ from mogp import predict as mogp_predict
 from mogp_coregionalized import (
     train_mogp_coregionalized,
     predict_coregionalized,
-    MOGPCoregionalized,
 )
+from mogp_core.gp import GPState
+from mogp_core.icm import ICMState
 import loop as loopmod
 
 
@@ -51,7 +72,9 @@ def _correlated_docking_Y(rng, X, noise=0.25):
 
 def test_task_covariance_is_not_diagonal_on_correlated_fit():
     """The learned 2x2 task covariance has a real (positive) off-diagonal term."""
-    torch.manual_seed(0)
+    # The ICM draws W / v_raw off numpy's GLOBAL stream (it was torch's global
+    # stream before the numpy core), so this is the seed that pins the fit.
+    np.random.seed(0)
     rng = np.random.default_rng(0)
     n = 30
     X = (rng.random((n, N_FP)) < 0.05).astype(np.int8)
@@ -60,8 +83,9 @@ def test_task_covariance_is_not_diagonal_on_correlated_fit():
     model, likelihood, y_mean, y_std = train_mogp_coregionalized(
         X, Y, n_iterations=150, rank=1
     )
-    assert isinstance(model, MOGPCoregionalized)
-    assert int(likelihood.num_tasks) == len(DOCKING_TASK_INDICES) == 2
+    assert isinstance(model, ICMState)
+    assert likelihood is None
+    assert int(model.n_tasks) == len(DOCKING_TASK_INDICES) == 2
 
     B = model.task_covariance_matrix()
     assert B.shape == (2, 2)
@@ -85,7 +109,8 @@ def test_coregionalized_is_greybox_dropin():
                    else rng.uniform(0, 1, n))
 
     model, likelihood, y_mean, y_std = train_mogp_coregionalized(X, Y, n_iterations=10)
-    assert int(likelihood.num_tasks) == 2
+    assert likelihood is None
+    assert int(model.n_tasks) == 2
     assert np.where(np.isfinite(y_mean))[0].tolist() == list(DOCKING_TASK_INDICES)
 
     # The model-agnostic acquisition decoder (mogp.predict) must work on the ICM.
@@ -118,8 +143,12 @@ def test_resolve_train_fn_maps_model_names():
         Y[:, j] = (rng.uniform(-11, -5, n) if OBJECTIVE_SOURCES[name][0] == "dock"
                    else rng.uniform(0, 1, n))
     model, likelihood, y_mean, y_std = coreg_fn(X, Y, n_iterations=5, lr=0.1)
-    assert isinstance(model, MOGPCoregionalized)
-    assert int(likelihood.num_tasks) == 2
+    assert isinstance(model, ICMState)
+    # ...and specifically NOT the independent model, which is what a wrong
+    # mapping would silently hand back (train_mogp returns a GPState).
+    assert not isinstance(model, GPState)
+    assert likelihood is None
+    assert int(model.n_tasks) == 2
 
     with pytest.raises(ValueError):
         loopmod.resolve_train_fn("nonsense")

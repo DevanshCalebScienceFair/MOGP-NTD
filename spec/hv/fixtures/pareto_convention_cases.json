@@ -1,0 +1,658 @@
+{
+ "_doc": "Pareto non-dominance conventions on hand-built cases. The rewrite ships mask_candidate_keep_duplicates for REPORTED front membership (matches the repo's current pareto_size) and mask_candidate_dedup internally for hypervolume (duplicates cannot change a union of boxes). Masks are index-aligned to the rows of Y.",
+ "cases": [
+  {
+   "Y": {
+    "b64": "AAAAAAAA8D8AAAAAAAAAQAAAAAAAAABAAAAAAAAA8D8=",
+    "sha256": "e009bfae7d9f97cc5e39f75078c2df42e25baeb6d515370a6d098a63468f68f7",
+    "shape": [
+     2,
+     2
+    ]
+   },
+   "botorch_dedup_false_matches_candidate_keep_duplicates": true,
+   "botorch_dedup_true_matches_candidate_dedup": true,
+   "botorch_dedup_true_matches_candidate_keep_duplicates": true,
+   "case": "two_incomparable",
+   "gpmobo_dedup_false_matches_candidate_keep_duplicates": true,
+   "gpmobo_dedup_true_matches_candidate_dedup": true,
+   "m": 2,
+   "mask_botorch_dedup_false": [
+    true,
+    true
+   ],
+   "mask_botorch_dedup_true": [
+    true,
+    true
+   ],
+   "mask_candidate_dedup": [
+    true,
+    true
+   ],
+   "mask_candidate_keep_duplicates": [
+    true,
+    true
+   ],
+   "mask_gpmobo_dedup_false": [
+    true,
+    true
+   ],
+   "mask_gpmobo_dedup_true": [
+    true,
+    true
+   ],
+   "mask_repo_compute_pareto_front": [
+    true,
+    true
+   ],
+   "n": 2,
+   "repo_matches_candidate_keep_duplicates": true
+  },
+  {
+   "Y": {
+    "b64": "AAAAAAAAAEAAAAAAAAAAQAAAAAAAAPA/AAAAAAAA8D8=",
+    "sha256": "3f16f72cff8363e85bec76df62ed682d7ef75bccfd8abb9ccfe61b7ecffd0e76",
+    "shape": [
+     2,
+     2
+    ]
+   },
+   "botorch_dedup_false_matches_candidate_keep_duplicates": true,
+   "botorch_dedup_true_matches_candidate_dedup": true,
+   "botorch_dedup_true_matches_candidate_keep_duplicates": true,
+   "case": "one_dominates",
+   "gpmobo_dedup_false_matches_candidate_keep_duplicates": true,
+   "gpmobo_dedup_true_matches_candidate_dedup": true,
+   "m": 2,
+   "mask_botorch_dedup_false": [
+    true,
+    false
+   ],
+   "mask_botorch_dedup_true": [
+    true,
+    false
+   ],
+   "mask_candidate_dedup": [
+    true,
+    false
+   ],
+   "mask_candidate_keep_duplicates": [
+    true,
+    false
+   ],
+   "mask_gpmobo_dedup_false": [
+    true,
+    false
+   ],
+   "mask_gpmobo_dedup_true": [
+    true,
+    false
+   ],
+   "mask_repo_compute_pareto_front": [
+    true,
+    false
+   ],
+   "n": 2,
+   "repo_matches_candidate_keep_duplicates": true
+  },
+  {
+   "Y": {
+    "b64": "AAAAAAAA8D8AAAAAAADwPwAAAAAAAPA/AAAAAAAA8D8=",
+    "sha256": "c914e8188e43fff1c96e25283e15b252af0d9f39b469f2d1518915802c756d18",
+    "shape": [
+     2,
+     2
+    ]
+   },
+   "botorch_dedup_false_matches_candidate_keep_duplicates": true,
+   "botorch_dedup_true_matches_candidate_dedup": true,
+   "botorch_dedup_true_matches_candidate_keep_duplicates": false,
+   "case": "exact_duplicates_2",
+   "gpmobo_dedup_false_matches_candidate_keep_duplicates": true,
+   "gpmobo_dedup_true_matches_candidate_dedup": true,
+   "m": 2,
+   "mask_botorch_dedup_false": [
+    true,
+    true
+   ],
+   "mask_botorch_dedup_true": [
+    true,
+    false
+   ],
+   "mask_candidate_dedup": [
+    true,
+    false
+   ],
+   "mask_candidate_keep_duplicates": [
+    true,
+    true
+   ],
+   "mask_gpmobo_dedup_false": [
+    true,
+    true
+   ],
+   "mask_gpmobo_dedup_true": [
+    true,
+    false
+   ],
+   "mask_repo_compute_pareto_front": [
+    true,
+    true
+   ],
+   "n": 2,
+   "repo_matches_candidate_keep_duplicates": true
+  },
+  {
+   "Y": {
+    "b64": "AAAAAAAA8D8AAAAAAADwPwAAAAAAAPA/AAAAAAAA8D8AAAAAAADwPwAAAAAAAPA/AAAAAAAA4D8AAAAAAADgPw==",
+    "sha256": "0427f9f8774ead084ede88ae24ad1c3e59b1c179808aee26a4bea1d0308ae463",
+    "shape": [
+     4,
+     2
+    ]
+   },
+   "botorch_dedup_false_matches_candidate_keep_duplicates": true,
+   "botorch_dedup_true_matches_candidate_dedup": true,
+   "botorch_dedup_true_matches_candidate_keep_duplicates": false,
+   "case": "exact_duplicates_3_plus_dominated",
+   "gpmobo_dedup_false_matches_candidate_keep_duplicates": true,
+   "gpmobo_dedup_true_matches_candidate_dedup": true,
+   "m": 2,
+   "mask_botorch_dedup_false": [
+    true,
+    true,
+    true,
+    false
+   ],
+   "mask_botorch_dedup_true": [
+    true,
+    false,
+    false,
+    false
+   ],
+   "mask_candidate_dedup": [
+    true,
+    false,
+    false,
+    false
+   ],
+   "mask_candidate_keep_duplicates": [
+    true,
+    true,
+    true,
+    false
+   ],
+   "mask_gpmobo_dedup_false": [
+    true,
+    true,
+    true,
+    false
+   ],
+   "mask_gpmobo_dedup_true": [
+    true,
+    false,
+    false,
+    false
+   ],
+   "mask_repo_compute_pareto_front": [
+    true,
+    true,
+    true,
+    false
+   ],
+   "n": 4,
+   "repo_matches_candidate_keep_duplicates": true
+  },
+  {
+   "Y": {
+    "b64": "AAAAAAAA8D8AAAAAAAAAQAAAAAAAAPA/AAAAAAAA8D8=",
+    "sha256": "eb39f5723f2b995f5929fb3ead77f6276ea7ab9abaacd9f5c5d9e7ebbb706337",
+    "shape": [
+     2,
+     2
+    ]
+   },
+   "botorch_dedup_false_matches_candidate_keep_duplicates": true,
+   "botorch_dedup_true_matches_candidate_dedup": true,
+   "botorch_dedup_true_matches_candidate_keep_duplicates": true,
+   "case": "weak_only_tie_on_one_axis",
+   "gpmobo_dedup_false_matches_candidate_keep_duplicates": true,
+   "gpmobo_dedup_true_matches_candidate_dedup": true,
+   "m": 2,
+   "mask_botorch_dedup_false": [
+    true,
+    false
+   ],
+   "mask_botorch_dedup_true": [
+    true,
+    false
+   ],
+   "mask_candidate_dedup": [
+    true,
+    false
+   ],
+   "mask_candidate_keep_duplicates": [
+    true,
+    false
+   ],
+   "mask_gpmobo_dedup_false": [
+    true,
+    false
+   ],
+   "mask_gpmobo_dedup_true": [
+    true,
+    false
+   ],
+   "mask_repo_compute_pareto_front": [
+    true,
+    false
+   ],
+   "n": 2,
+   "repo_matches_candidate_keep_duplicates": true
+  },
+  {
+   "Y": {
+    "b64": "AAAAAAAA8D8AAAAAAAAIQAAAAAAAAABAAAAAAAAACEAAAAAAAAAIQAAAAAAAAAhA",
+    "sha256": "4f21645930364506ce4219aea826d0961d35c79a25a84b405dcaa962ac5e682c",
+    "shape": [
+     3,
+     2
+    ]
+   },
+   "botorch_dedup_false_matches_candidate_keep_duplicates": true,
+   "botorch_dedup_true_matches_candidate_dedup": true,
+   "botorch_dedup_true_matches_candidate_keep_duplicates": true,
+   "case": "shared_axis_value",
+   "gpmobo_dedup_false_matches_candidate_keep_duplicates": true,
+   "gpmobo_dedup_true_matches_candidate_dedup": true,
+   "m": 2,
+   "mask_botorch_dedup_false": [
+    false,
+    false,
+    true
+   ],
+   "mask_botorch_dedup_true": [
+    false,
+    false,
+    true
+   ],
+   "mask_candidate_dedup": [
+    false,
+    false,
+    true
+   ],
+   "mask_candidate_keep_duplicates": [
+    false,
+    false,
+    true
+   ],
+   "mask_gpmobo_dedup_false": [
+    false,
+    false,
+    true
+   ],
+   "mask_gpmobo_dedup_true": [
+    false,
+    false,
+    true
+   ],
+   "mask_repo_compute_pareto_front": [
+    false,
+    false,
+    true
+   ],
+   "n": 3,
+   "repo_matches_candidate_keep_duplicates": true
+  },
+  {
+   "Y": {
+    "b64": "MzMzMzMz0z8zMzMzMzPTPzMzMzMzM9M/MzMzMzMz0z8zMzMzMzPTPzMzMzMzM9M/MzMzMzMz0z8zMzMzMzPTPzMzMzMzM9M/MzMzMzMz0z8zMzMzMzPTPzMzMzMzM9M/MzMzMzMz0z8zMzMzMzPTPzMzMzMzM9M/MzMzMzMz0z8zMzMzMzPTPzMzMzMzM9M/MzMzMzMz0z8zMzMzMzPTPw==",
+    "sha256": "1946ee36db70876072629833a1e74279430b639d37d5d18252959fa0a91a6501",
+    "shape": [
+     4,
+     5
+    ]
+   },
+   "botorch_dedup_false_matches_candidate_keep_duplicates": true,
+   "botorch_dedup_true_matches_candidate_dedup": true,
+   "botorch_dedup_true_matches_candidate_keep_duplicates": false,
+   "case": "all_identical_m5",
+   "gpmobo_dedup_false_matches_candidate_keep_duplicates": true,
+   "gpmobo_dedup_true_matches_candidate_dedup": true,
+   "m": 5,
+   "mask_botorch_dedup_false": [
+    true,
+    true,
+    true,
+    true
+   ],
+   "mask_botorch_dedup_true": [
+    true,
+    false,
+    false,
+    false
+   ],
+   "mask_candidate_dedup": [
+    true,
+    false,
+    false,
+    false
+   ],
+   "mask_candidate_keep_duplicates": [
+    true,
+    true,
+    true,
+    true
+   ],
+   "mask_gpmobo_dedup_false": [
+    true,
+    true,
+    true,
+    true
+   ],
+   "mask_gpmobo_dedup_true": [
+    true,
+    false,
+    false,
+    false
+   ],
+   "mask_repo_compute_pareto_front": [
+    true,
+    true,
+    true,
+    true
+   ],
+   "n": 4,
+   "repo_matches_candidate_keep_duplicates": true
+  },
+  {
+   "Y": {
+    "b64": "AAAAAAAA8D8AAAAAAADwPwAAAAAAAPh/AAAAAAAAFEA=",
+    "sha256": "9f52ad44e5a8456b353c893dda9ae185766a2392f659d5032054956d36aa2748",
+    "shape": [
+     2,
+     2
+    ]
+   },
+   "botorch_dedup_false_matches_candidate_keep_duplicates": false,
+   "botorch_dedup_true_matches_candidate_dedup": true,
+   "botorch_dedup_true_matches_candidate_keep_duplicates": true,
+   "case": "nan_row",
+   "gpmobo_dedup_false_matches_candidate_keep_duplicates": false,
+   "gpmobo_dedup_true_matches_candidate_dedup": false,
+   "m": 2,
+   "mask_botorch_dedup_false": [
+    true,
+    true
+   ],
+   "mask_botorch_dedup_true": [
+    true,
+    false
+   ],
+   "mask_candidate_dedup": [
+    true,
+    false
+   ],
+   "mask_candidate_keep_duplicates": [
+    true,
+    false
+   ],
+   "mask_gpmobo_dedup_false": [
+    true,
+    true
+   ],
+   "mask_gpmobo_dedup_true": [
+    true,
+    true
+   ],
+   "mask_repo_compute_pareto_front": [
+    true,
+    true
+   ],
+   "n": 2,
+   "repo_matches_candidate_keep_duplicates": false
+  },
+  {
+   "Y": {
+    "b64": "AAAAAAAA8D8AAAAAAADwPwAAAAAAAPh/AAAAAAAA+H8=",
+    "sha256": "382bdd97f8b5281ce7f96ef29aa45f05a11c227f947226f50a14822b6cda2969",
+    "shape": [
+     2,
+     2
+    ]
+   },
+   "botorch_dedup_false_matches_candidate_keep_duplicates": true,
+   "botorch_dedup_true_matches_candidate_dedup": true,
+   "botorch_dedup_true_matches_candidate_keep_duplicates": true,
+   "case": "all_nan_row",
+   "gpmobo_dedup_false_matches_candidate_keep_duplicates": false,
+   "gpmobo_dedup_true_matches_candidate_dedup": false,
+   "m": 2,
+   "mask_botorch_dedup_false": [
+    true,
+    false
+   ],
+   "mask_botorch_dedup_true": [
+    true,
+    false
+   ],
+   "mask_candidate_dedup": [
+    true,
+    false
+   ],
+   "mask_candidate_keep_duplicates": [
+    true,
+    false
+   ],
+   "mask_gpmobo_dedup_false": [
+    true,
+    true
+   ],
+   "mask_gpmobo_dedup_true": [
+    true,
+    true
+   ],
+   "mask_repo_compute_pareto_front": [
+    true,
+    true
+   ],
+   "n": 2,
+   "repo_matches_candidate_keep_duplicates": false
+  },
+  {
+   "Y": {
+    "b64": "AAAAAAAAAAAAAAAAAADwPwAAAAAAAOA/AAAAAAAA4D8AAAAAAADwPwAAAAAAAAAA",
+    "sha256": "b7fd5d74a177e810e1daf82ab200707054f971d02853cf81f6fd388a075ca2b2",
+    "shape": [
+     3,
+     2
+    ]
+   },
+   "botorch_dedup_false_matches_candidate_keep_duplicates": true,
+   "botorch_dedup_true_matches_candidate_dedup": true,
+   "botorch_dedup_true_matches_candidate_keep_duplicates": true,
+   "case": "zero_coordinate",
+   "gpmobo_dedup_false_matches_candidate_keep_duplicates": true,
+   "gpmobo_dedup_true_matches_candidate_dedup": true,
+   "m": 2,
+   "mask_botorch_dedup_false": [
+    true,
+    true,
+    true
+   ],
+   "mask_botorch_dedup_true": [
+    true,
+    true,
+    true
+   ],
+   "mask_candidate_dedup": [
+    true,
+    true,
+    true
+   ],
+   "mask_candidate_keep_duplicates": [
+    true,
+    true,
+    true
+   ],
+   "mask_gpmobo_dedup_false": [
+    true,
+    true,
+    true
+   ],
+   "mask_gpmobo_dedup_true": [
+    true,
+    true,
+    true
+   ],
+   "mask_repo_compute_pareto_front": [
+    true,
+    true,
+    true
+   ],
+   "n": 3,
+   "repo_matches_candidate_keep_duplicates": true
+  },
+  {
+   "Y": {
+    "b64": "AAAAAAAAAAAAAAAAAADgPwAAAAAAAPA/AAAAAAAAAAAAAAAAAADwPwAAAAAAAOA/AAAAAAAA4D8AAAAAAADgPwAAAAAAAOA/AAAAAAAA4D8AAAAAAADgPwAAAAAAAOA/AAAAAAAA8D8AAAAAAAAAAAAAAAAAAAAA",
+    "sha256": "8d196e81f4c1378ce92114961ab39c0270ff17aaefe0318f360099b767e9b6e0",
+    "shape": [
+     5,
+     3
+    ]
+   },
+   "botorch_dedup_false_matches_candidate_keep_duplicates": true,
+   "botorch_dedup_true_matches_candidate_dedup": true,
+   "botorch_dedup_true_matches_candidate_keep_duplicates": false,
+   "case": "grid_m3_ties",
+   "gpmobo_dedup_false_matches_candidate_keep_duplicates": true,
+   "gpmobo_dedup_true_matches_candidate_dedup": true,
+   "m": 3,
+   "mask_botorch_dedup_false": [
+    true,
+    true,
+    true,
+    true,
+    true
+   ],
+   "mask_botorch_dedup_true": [
+    true,
+    true,
+    true,
+    false,
+    true
+   ],
+   "mask_candidate_dedup": [
+    true,
+    true,
+    true,
+    false,
+    true
+   ],
+   "mask_candidate_keep_duplicates": [
+    true,
+    true,
+    true,
+    true,
+    true
+   ],
+   "mask_gpmobo_dedup_false": [
+    true,
+    true,
+    true,
+    true,
+    true
+   ],
+   "mask_gpmobo_dedup_true": [
+    true,
+    true,
+    true,
+    false,
+    true
+   ],
+   "mask_repo_compute_pareto_front": [
+    true,
+    true,
+    true,
+    true,
+    true
+   ],
+   "n": 5,
+   "repo_matches_candidate_keep_duplicates": true
+  },
+  {
+   "Y": {
+    "b64": "ZmZmZmZm5j+amZmZmZnJP83MzMzMzOw/",
+    "sha256": "39669a3d4c10623358ee370dd98105b0ce53dcc446528e51f6e4593cea9ce1b6",
+    "shape": [
+     1,
+     3
+    ]
+   },
+   "botorch_dedup_false_matches_candidate_keep_duplicates": true,
+   "botorch_dedup_true_matches_candidate_dedup": true,
+   "botorch_dedup_true_matches_candidate_keep_duplicates": true,
+   "case": "single_point",
+   "gpmobo_dedup_false_matches_candidate_keep_duplicates": true,
+   "gpmobo_dedup_true_matches_candidate_dedup": true,
+   "m": 3,
+   "mask_botorch_dedup_false": [
+    true
+   ],
+   "mask_botorch_dedup_true": [
+    true
+   ],
+   "mask_candidate_dedup": [
+    true
+   ],
+   "mask_candidate_keep_duplicates": [
+    true
+   ],
+   "mask_gpmobo_dedup_false": [
+    true
+   ],
+   "mask_gpmobo_dedup_true": [
+    true
+   ],
+   "mask_repo_compute_pareto_front": [
+    true
+   ],
+   "n": 1,
+   "repo_matches_candidate_keep_duplicates": true
+  },
+  {
+   "Y": {
+    "b64": "",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "shape": [
+     0,
+     2
+    ]
+   },
+   "botorch_dedup_false_matches_candidate_keep_duplicates": true,
+   "botorch_dedup_true_matches_candidate_dedup": true,
+   "botorch_dedup_true_matches_candidate_keep_duplicates": true,
+   "case": "empty",
+   "gpmobo_dedup_false_matches_candidate_keep_duplicates": true,
+   "gpmobo_dedup_true_matches_candidate_dedup": true,
+   "m": 2,
+   "mask_botorch_dedup_false": [],
+   "mask_botorch_dedup_true": [],
+   "mask_candidate_dedup": [],
+   "mask_candidate_keep_duplicates": [],
+   "mask_gpmobo_dedup_false": [],
+   "mask_gpmobo_dedup_true": [],
+   "mask_repo_compute_pareto_front": [],
+   "n": 0,
+   "repo_matches_candidate_keep_duplicates": true
+  }
+ ],
+ "disagreements_with_candidate_weak": {
+  "botorch_dedup_false": 1,
+  "botorch_dedup_true": 4,
+  "gpmobo_dedup_false": 2,
+  "gpmobo_dedup_true": 2,
+  "repo": 2
+ }
+}

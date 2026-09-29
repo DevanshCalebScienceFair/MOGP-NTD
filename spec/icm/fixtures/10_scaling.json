@@ -1,0 +1,71 @@
+{
+  "flop_counts": {
+    "dense_cholesky_per_step": "(NK)^3/3 for the factorization plus (NK)^3 for the explicit inverse the analytic gradient needs",
+    "kron_per_step": "O(K^3) for eigh(D^-1/2 B D^-1/2) + O(N K^2 + N^2 K) for the rotations, solve and gradient contractions",
+    "kron_setup_once": "O(N^3) for eigh(K_xx)"
+  },
+  "honest_caveat": "At K=2 the Kronecker factorization on its own buys little or nothing: compare kron_cold_step_ms against dense_logdet_solve_only_ms (one eigh of an N x N matrix costs more than one Cholesky of a 2N x 2N matrix). The decisive win is that the Tanimoto Gram has NO hyperparameters, so eigh(K_xx) is paid ONCE per training set: see kron_warm_step_ms and per_step_speedup.",
+  "measured": [
+    {
+      "N": 40,
+      "NK": 80,
+      "cold_vs_dense_no_inverse_speedup": 0.7823062439677417,
+      "cold_vs_dense_speedup": 1.6965842028679199,
+      "dense_logdet_solve_only_ms": 0.10837223380804062,
+      "dense_step_ms": 0.23502639960497618,
+      "eigh_once_ms": 0.23325008805841208,
+      "end_to_end_speedup_200_steps": 9.312223838609512,
+      "full_200_step_fit_dense_s": 0.047005279920995235,
+      "full_200_step_fit_kron_s": 0.005047696526162326,
+      "kron_cold_step_ms": 0.13852916890755296,
+      "kron_warm_step_ms": 0.02407223219051957,
+      "per_step_speedup": 9.76338204720114
+    },
+    {
+      "N": 100,
+      "NK": 200,
+      "cold_vs_dense_no_inverse_speedup": 1.4606824764745925,
+      "cold_vs_dense_speedup": 2.293943741111183,
+      "dense_logdet_solve_only_ms": 1.6514638671651483,
+      "dense_step_ms": 2.5935583282262087,
+      "eigh_once_ms": 0.7921670330688357,
+      "end_to_end_speedup_200_steps": 46.86235692567365,
+      "full_200_step_fit_dense_s": 0.5187116656452417,
+      "full_200_step_fit_kron_s": 0.01106883434113115,
+      "kron_cold_step_ms": 1.130611131278177,
+      "kron_warm_step_ms": 0.051383336540311575,
+      "per_step_speedup": 50.474696717903754
+    },
+    {
+      "N": 290,
+      "NK": 580,
+      "cold_vs_dense_no_inverse_speedup": 1.6193723843099552,
+      "cold_vs_dense_speedup": 2.4923416206466356,
+      "dense_logdet_solve_only_ms": 12.676487502176315,
+      "dense_step_ms": 19.51011250494048,
+      "eigh_once_ms": 7.539457990787923,
+      "end_to_end_speedup_200_steps": 127.71062484784534,
+      "full_200_step_fit_dense_s": 3.902022500988096,
+      "full_200_step_fit_kron_s": 0.030553624693614743,
+      "kron_cold_step_ms": 7.828024995978922,
+      "kron_warm_step_ms": 0.1150708335141341,
+      "per_step_speedup": 169.54871976784685
+    },
+    {
+      "N": 600,
+      "NK": 1200,
+      "cold_vs_dense_no_inverse_speedup": 0.9307211569519908,
+      "cold_vs_dense_speedup": 2.1001048965873452,
+      "dense_logdet_solve_only_ms": 45.00251048011705,
+      "dense_step_ms": 101.54490623972379,
+      "eigh_once_ms": 33.35458296351135,
+      "end_to_end_speedup_200_steps": 117.9353829664172,
+      "full_200_step_fit_dense_s": 20.308981247944757,
+      "full_200_step_fit_kron_s": 0.17220430999683836,
+      "kron_cold_step_ms": 48.3523020229768,
+      "kron_warm_step_ms": 0.694248635166635,
+      "per_step_speedup": 146.2659069043049
+    }
+  ],
+  "timing_note": "Wall-clock, machine dependent. Do NOT byte-compare. Reproduce the ORDER of magnitude of per_step_speedup."
+}

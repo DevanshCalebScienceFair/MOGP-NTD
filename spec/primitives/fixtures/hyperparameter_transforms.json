@@ -1,0 +1,386 @@
+{
+  "fixture": "hyperparameter_transforms",
+  "title": "softplus (threshold=20), GreaterThan(1e-4), and which parameter is unconstrained",
+  "spec": "spec/primitives/SPEC.md",
+  "generated_by": "spec/primitives/capture_primitives.py",
+  "environment": {
+    "python": "3.11.15",
+    "platform": "macOS-26.5.1-arm64-arm-64bit",
+    "machine": "arm64",
+    "numpy": "2.4.6",
+    "oracles_available": true,
+    "oracle_versions": {
+      "torch": "2.13.0",
+      "gpytorch": "1.15.2",
+      "scipy": "1.17.1"
+    }
+  },
+  "notes": [
+    "Positive()  -> softplus(z)                 [no offset]",
+    "GreaterThan(1e-4) -> softplus(z) + 1e-4    [offset AFTER softplus]",
+    "ConstantMean.raw_constant is UNCONSTRAINED: constant == raw_constant identically (verified against gpytorch below).",
+    "gpytorch gotcha measured here: model.named_constraints() does NOT list likelihood.raw_noise_constraint, but likelihood.raw_noise_constraint exists and IS GreaterThan(1e-4). Enumerating constraints via named_constraints() therefore under-reports; getattr(holder, name + '_constraint') is the reliable probe."
+  ],
+  "arrays": {
+    "constant_mean_is_raw": {
+      "dtype": "<i8",
+      "shape": [
+        1
+      ],
+      "sha256": "6e5fe855a431ec85b8cf1c99d8babf4090d985fa265f0ee1ec1c7a36edaac6ed",
+      "description": "1 iff ConstantMean.constant is bit-identical to raw_constant, i.e. NO transform is applied. This is the verification that the mean constant must NOT be softplus-wrapped by analogy with the other parameters.",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "must be 1"
+    },
+    "constant_mean_negative_roundtrip": {
+      "dtype": "<f8",
+      "shape": [
+        2
+      ],
+      "sha256": "0d661c858c57a2146ecddb93e6dd6275514cc25b2d387cfead11502cd93fc385",
+      "description": "ConstantMean.constant after setting raw_constant to [-3.5, 7.25]: comes back UNCHANGED, including the negative value, which softplus could never produce",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality to [-3.5, 7.25]"
+    },
+    "greater_than_1em4_f32": {
+      "dtype": "<f4",
+      "shape": [
+        41
+      ],
+      "sha256": "fa0482e7604ccb291ce23888b79e8d06cecd3661d3bf90ca76d25741c557bf20",
+      "description": "GreaterThan(1e-4) in float32",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "rtol 1e-6"
+    },
+    "greater_than_1em4_f64": {
+      "dtype": "<f8",
+      "shape": [
+        41
+      ],
+      "sha256": "7f7647d3514cfd579ee7c84ed58a4a7cdc03c32d654dea3b93c5631eb643e28c",
+      "description": "GreaterThan(1e-4): softplus(z) + 1e-4",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "rtol 1e-15"
+    },
+    "greater_than_lower_as_float32": {
+      "dtype": "<f8",
+      "shape": [
+        1
+      ],
+      "sha256": "7491e9bd5d1f6d1001671b1a8be53fefb7835104371b11d03296781e180d63db",
+      "description": "gpytorch stores GreaterThan's lower bound as a float32 tensor, so the offset actually applied is float32(1e-4) = 9.999999747378752e-05, not 1e-4. Identical once the whole GP layer is float32.",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "inv_softplus_f64": {
+      "dtype": "<f8",
+      "shape": [
+        11
+      ],
+      "sha256": "d738f82f155bbc7dcbb23bbc9409b77d439e86ceb43c782c0d4c8b33b49d2544",
+      "description": "softplus^{-1}(y) = y + log(-expm1(-y))",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "rtol 1e-13"
+    },
+    "inv_softplus_input": {
+      "dtype": "<f8",
+      "shape": [
+        11
+      ],
+      "sha256": "45b471db171897ea8fc8f2ca4dbc3123d150f698d25b7657e54ee2082ee96ffd",
+      "description": "positive targets y",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "inv_softplus_roundtrip_err": {
+      "dtype": "<f8",
+      "shape": [
+        11
+      ],
+      "sha256": "79f256f3f07f274d71f4eee04147e6176c517cf28bd5eaa1a45e30b7c24527db",
+      "description": "|softplus(inv_softplus(y)) - y|",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "each entry < 1e-12 * max(1, y)"
+    },
+    "linear_branch_is_identity": {
+      "dtype": "|b1",
+      "shape": [
+        41
+      ],
+      "sha256": "bd59cd904a365f58ab3e0cf2ccc54f3b513885fe2c51bcbf3a82dc7b2752aee6",
+      "description": "softplus(z) == z bit-for-bit wherever z > 20",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "must be all True"
+    },
+    "linear_branch_mask": {
+      "dtype": "|b1",
+      "shape": [
+        41
+      ],
+      "sha256": "bb637d45fa872c0b8f1b86d5a2f6f333e4fbef66ac67ff7657ce1ba8356794c2",
+      "description": "True where the STRICTLY-linear branch applies (z > 20, not >=)",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "oracle_greater_than_f64": {
+      "dtype": "<f8",
+      "shape": [
+        41
+      ],
+      "sha256": "fb757417303f3ea9bf546fbeb259c8b418287af73ae8721ed43a10fa29c77fab",
+      "description": "gpytorch GreaterThan(1e-4).transform, float64",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "must match greater_than_1em4_f64 to atol 1e-12"
+    },
+    "oracle_greaterthan_minus_positive": {
+      "dtype": "<f8",
+      "shape": [
+        41
+      ],
+      "sha256": "b1476d439132cd2556723eba66b399c0f149ae5c4e9116f76748e5137bc9fcee",
+      "description": "GreaterThan(1e-4) - Positive(): must be the CONSTANT 1e-4 everywhere, proving the offset is applied AFTER softplus (a before-softplus offset would give a z-dependent difference)",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "every entry equal to float32(1e-4) to atol 1e-12"
+    },
+    "oracle_positive_f64": {
+      "dtype": "<f8",
+      "shape": [
+        41
+      ],
+      "sha256": "576c2d53cb1c87041e29c95ce44a05f89eae4399c05e1ed9bcb24f94b59e4aa9",
+      "description": "gpytorch Positive().transform, float64",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "must match softplus_f64 to rtol 1e-15"
+    },
+    "oracle_softplus_f64": {
+      "dtype": "<f8",
+      "shape": [
+        41
+      ],
+      "sha256": "576c2d53cb1c87041e29c95ce44a05f89eae4399c05e1ed9bcb24f94b59e4aa9",
+      "description": "torch.nn.functional.softplus(beta=1, threshold=20), float64",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "must match softplus_f64 to rtol 1e-15"
+    },
+    "oracle_softplus_grad_f64": {
+      "dtype": "<f8",
+      "shape": [
+        41
+      ],
+      "sha256": "579ef50a8d14c9c7d64dcb05c81ece0c70da3f2a5b04c2708aa0ab262031f30f",
+      "description": "autograd derivative of the above",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "must match softplus_grad_f64 to rtol 1e-15"
+    },
+    "oracle_softplus_max_rel_err": {
+      "dtype": "<f8",
+      "shape": [
+        1
+      ],
+      "sha256": "7f772bdf682f6906072ec7863baeaa10b6816c258e6d9e6596fda954913a379a",
+      "description": "max relative |numpy softplus - torch softplus| over the grid",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "must be < 1e-15"
+    },
+    "param_constraint_code_T1": {
+      "dtype": "<i8",
+      "shape": [
+        4
+      ],
+      "sha256": "780b15fc447a5d42b21e9150161e39374eebc83cebabf7ac2266192040b893db",
+      "description": "0 = UNCONSTRAINED (identity), 1 = Positive() i.e. plain softplus, 2 = GreaterThan(1e-4) i.e. softplus + 1e-4. Order matches param_numel_T*.",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "param_constraint_code_T2": {
+      "dtype": "<i8",
+      "shape": [
+        4
+      ],
+      "sha256": "780b15fc447a5d42b21e9150161e39374eebc83cebabf7ac2266192040b893db",
+      "description": "0 = UNCONSTRAINED (identity), 1 = Positive() i.e. plain softplus, 2 = GreaterThan(1e-4) i.e. softplus + 1e-4. Order matches param_numel_T*.",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "param_constraint_code_T3": {
+      "dtype": "<i8",
+      "shape": [
+        4
+      ],
+      "sha256": "780b15fc447a5d42b21e9150161e39374eebc83cebabf7ac2266192040b893db",
+      "description": "0 = UNCONSTRAINED (identity), 1 = Positive() i.e. plain softplus, 2 = GreaterThan(1e-4) i.e. softplus + 1e-4. Order matches param_numel_T*.",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "param_init_T1": {
+      "dtype": "<f8",
+      "shape": [
+        4
+      ],
+      "sha256": "15cd8b7cd8b89d38b6c49ad7f54eefba626c87611c620a06582d08aaa8b4e004",
+      "description": "initial value of each raw parameter block (all zero)",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "param_init_T2": {
+      "dtype": "<f8",
+      "shape": [
+        4
+      ],
+      "sha256": "15cd8b7cd8b89d38b6c49ad7f54eefba626c87611c620a06582d08aaa8b4e004",
+      "description": "initial value of each raw parameter block (all zero)",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "param_init_T3": {
+      "dtype": "<f8",
+      "shape": [
+        4
+      ],
+      "sha256": "15cd8b7cd8b89d38b6c49ad7f54eefba626c87611c620a06582d08aaa8b4e004",
+      "description": "initial value of each raw parameter block (all zero)",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "param_numel_T1": {
+      "dtype": "<i8",
+      "shape": [
+        4
+      ],
+      "sha256": "d3013e50da56278912bfb9e4f606c4abd3244fab7b606f39f7d0b46a2d07ef6e",
+      "description": "numel of each trainable parameter block, in model.named_parameters() order: likelihood.raw_task_noises, likelihood.raw_noise, mean_module.raw_constant, covar_module.raw_outputscale",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "param_numel_T2": {
+      "dtype": "<i8",
+      "shape": [
+        4
+      ],
+      "sha256": "c095ee540945d35be5a4568f1412865f2fb8a5681ba15a48e8523e8bc0ff4ac7",
+      "description": "numel of each trainable parameter block, in model.named_parameters() order: likelihood.raw_task_noises, likelihood.raw_noise, mean_module.raw_constant, covar_module.raw_outputscale",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "param_numel_T3": {
+      "dtype": "<i8",
+      "shape": [
+        4
+      ],
+      "sha256": "d131e887b03e6aba8b9a1a015190b4b99259bd3f06585760b881374ea97c961c",
+      "description": "numel of each trainable parameter block, in model.named_parameters() order: likelihood.raw_task_noises, likelihood.raw_noise, mean_module.raw_constant, covar_module.raw_outputscale",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "param_total_T1": {
+      "dtype": "<i8",
+      "shape": [
+        1
+      ],
+      "sha256": "ced9bbd5d152a7c2e6fbd013e8f6c8b43eb622fc4ad7389f305f907b75c64a2e",
+      "description": "total trainable scalars for T=1 tasks; must equal 3T+1",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "param_total_T2": {
+      "dtype": "<i8",
+      "shape": [
+        1
+      ],
+      "sha256": "1fd61d4463a91c76d7b49a47cc67f2fca7780a908704b2e31bbf77e15832e996",
+      "description": "total trainable scalars for T=2 tasks; must equal 3T+1",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "param_total_T3": {
+      "dtype": "<i8",
+      "shape": [
+        1
+      ],
+      "sha256": "d9f254362d6a356e10f2590c1e7a4661475c74f8ddfc1ca2c978bf8fdbfd2269",
+      "description": "total trainable scalars for T=3 tasks; must equal 3T+1",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "scalar_constants": {
+      "dtype": "<f8",
+      "shape": [
+        6
+      ],
+      "sha256": "a7847d3d8ca4182bef6afc9bff527ab24cd8b8785b41b98f10d8c026aa922198",
+      "description": "[kernel eps, GreaterThan lower bound, softplus threshold, softplus beta, softplus(0)=ln2 = the initial outputscale, softplus(0)+1e-4 = the initial task/global noise]",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "softplus_f32": {
+      "dtype": "<f4",
+      "shape": [
+        41
+      ],
+      "sha256": "f780e3de62fdd43d6b2c50f746315fd7ad3bad45d943fc56938b36c3df0dd086",
+      "description": "softplus in float32",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "rtol 1e-6"
+    },
+    "softplus_f32_underflows_to_zero": {
+      "dtype": "|b1",
+      "shape": [
+        41
+      ],
+      "sha256": "2325d21d032253c3d741efd920e5513a444881366b47ca7b96d57446972447e7",
+      "description": "where float32 softplus returns EXACTLY 0.0 -> Positive() can produce a zero outputscale and a singular kernel; GreaterThan's +1e-4 offset is what prevents the same for the noises",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "softplus_f64": {
+      "dtype": "<f8",
+      "shape": [
+        41
+      ],
+      "sha256": "576c2d53cb1c87041e29c95ce44a05f89eae4399c05e1ed9bcb24f94b59e4aa9",
+      "description": "softplus with beta=1, threshold=20 (numpy reference, float64)",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "rtol 1e-15 (libm log1p/exp may differ in the last ULP)"
+    },
+    "softplus_grad_f32": {
+      "dtype": "<f4",
+      "shape": [
+        41
+      ],
+      "sha256": "15f0b8d8daa6bec795a30874c8bfcecaa4fddc6b8984f9d7b815255ac8d088a3",
+      "description": "softplus derivative in float32",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "rtol 1e-6"
+    },
+    "softplus_grad_f64": {
+      "dtype": "<f8",
+      "shape": [
+        41
+      ],
+      "sha256": "862695fca6db43b58c0cc6f7b3a85a9af938604e490297570353fb043e80d2b6",
+      "description": "d softplus/dz = sigmoid(z); exactly 1.0 for z > 20",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "rtol 1e-15; must be EXACTLY 1.0 wherever z > 20"
+    },
+    "z_f32": {
+      "dtype": "<f4",
+      "shape": [
+        41
+      ],
+      "sha256": "b9812af304c349abcc43d7f6fd9b7de8b78939906926102d491cbad3cacb4096",
+      "description": "the same grid rounded to float32",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "z_f64": {
+      "dtype": "<f8",
+      "shape": [
+        41
+      ],
+      "sha256": "ef95e64a50732779833afcd780936d7c287a801a8e3f696f73c7eb2eaa93c083",
+      "description": "the raw-parameter grid (float64)",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    }
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "_doc": "Environment and inputs for this capture.",
+  "captured_by": "spec/gp/capture_gp.py",
+  "constants": {
+    "adam_betas": [
+      0.9,
+      0.999
+    ],
+    "adam_eps": 1e-08,
+    "adam_lr": 0.1,
+    "max_cholesky_size": 800,
+    "n_adam_steps": 200,
+    "noise_lower_bound": 0.0001,
+    "softplus_threshold": 20.0,
+    "tanimoto_union_eps": 1e-08
+  },
+  "docking_task_indices": [
+    0,
+    1
+  ],
+  "env_pins": {
+    "KMP_DUPLICATE_LIB_OK": "TRUE",
+    "MKL_NUM_THREADS": "1",
+    "OMP_NUM_THREADS": "1",
+    "OPENBLAS_NUM_THREADS": "1"
+  },
+  "environment_hazard": "importing this repo's modules with more than one OpenMP thread segfaults in mogp-drug (duplicate libomp). The script pins every thread count to 1 before importing torch. Because >1 thread cannot be run at all here, reproducibility under multi-threaded BLAS is UNVERIFIED.",
+  "fingerprints_dtype": "int8",
+  "fingerprints_path": "data/library/fingerprints.npy",
+  "fingerprints_sha256": "28c2817252a3607266a452aa4e51485692e332b0974d09844531f542cbe4f800",
+  "fingerprints_shape": [
+    29678,
+    2048
+  ],
+  "gpytorch": "1.15.2",
+  "linear_operator": "0.6.1",
+  "machine": "arm64",
+  "numpy": "2.4.6",
+  "platform": "macOS-26.5.1-arm64-arm-64bit",
+  "python": "3.11.15",
+  "task_names": [
+    "PfDHFR_Docking",
+    "hDHFR_Docking",
+    "hERG_Toxicity_Prob",
+    "Caco2_logPapp",
+    "Half_Life_hours"
+  ],
+  "torch": "2.13.0",
+  "torch_num_threads": 1
+}

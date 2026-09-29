@@ -26,20 +26,30 @@ FIXED, shared frame that never depends on evaluated data.
        docked up front). Which objective is which comes from
        ``mogp.OBJECTIVE_SOURCES`` — nothing is hard-coded to a column position.
 
-       NOTE: the two docking objectives are RAW kcal/mol (see the Day-11
-       objective switch: the corrected holo receptor removed most of the size
-       confound that motivated ligand efficiency, leaving LE over-correcting).
-       Ligand efficiency is still REPORTED alongside. Historical note — they were
-       SIZE-CORRECTED LIGAND EFFICIENCY
-       (raw Vina kcal/mol divided by heavy-atom count, see
-       ``docking.raw_to_ligand_efficiency``), NOT raw kcal/mol. Raw Vina scores
-       are confounded by molecular size/lipophilicity; ``validate_docking.py``
-       flagged that confound, so the optimized objective is LE. Their fixed
-       normalization range is therefore an LE range (per atom), not a kcal range.
+       UNITS — the two docking objectives are RAW WHOLE-MOLECULE Vina kcal/mol.
+       They are NOT ligand efficiency. They were briefly size-corrected LIGAND
+       EFFICIENCY (raw Vina kcal/mol divided by heavy-atom count, see
+       ``docking.raw_to_ligand_efficiency``) because the *apo* receptor's raw
+       score was size-confounded; retaining the NADPH cofactor removed most of
+       that confound (paired Spearman(score, heavy_atoms) -0.726 -> -0.257 while
+       LE's counter-bias barely moved, +0.891 -> +0.880), so LE was
+       over-correcting ~3.4x in the opposite direction and the objective
+       reverted to raw kcal (``CLAUDE.md`` correction 2). Ligand efficiency is
+       still computed and REPORTED as the ``*_LE`` columns, so a finished front
+       can be re-ranked by LE without re-docking. The fixed normalization range
+       ``DOCKING_KCAL_MIN/MAX`` is therefore a RAW KCAL range, never a per-atom
+       LE range.
+
+       Evidence, not assertion (``spec/bounds/objective_bounds.frozen.json``):
+       replaying ``benchmark_thicccc_2026-08-16/mogp/seed_0`` from the raw
+       ``*_Docking`` columns reproduces the archived hypervolume
+       0.356205027964296; substituting the ``*_Docking_LE`` columns yields
+       exactly 0.0, because every LE value (~-0.06..-0.57) falls outside
+       [-11, -5] and clips.
     2. ``normalize`` maps every objective into [0, 1] in a pure MAXIMIZATION
        frame using those bounds, flipping lower-is-better objectives so 1.0 is
-       always best. Both docking objectives share the same fixed LE range, and
-       their opposite preferred directions (PfDHFR strong / hDHFR weak) are
+       always best. Both docking objectives share the same fixed raw-kcal range,
+       and their opposite preferred directions (PfDHFR strong / hDHFR weak) are
        handled purely by their signs.
     3. ``FIXED_REFERENCE_POINT`` is the all-zeros corner of that normalized cube
        — the worst possible point on every objective. It never changes, for any
@@ -52,59 +62,120 @@ Objective order everywhere is ``mogp.TASK_NAMES``:
      Half_Life_hours]
 with directions [lower, higher, lower, higher, higher] better.
 ``add_selectivity_index`` adds a REPORTED-only Selectivity Index
-(hDHFR - PfDHFR, now on the LE columns -> per-atom selectivity) that is not a
-GP objective.
+(hDHFR - PfDHFR, on the raw whole-molecule kcal columns, with
+``Selectivity_Index_LE`` as the per-atom companion when the ``*_LE`` columns are
+present) that is not a GP objective.
+
+NUMERICAL CORE
+--------------
+The arithmetic is own-code pure numpy: normalization, the reference point, the
+non-dominated filter and the hypervolume indicator all come from ``mogp_core``
+(``mogp_core.objective``, ``mogp_core.pareto``, ``mogp_core.hypervolume``), not
+from torch/botorch. ``mogp_core`` is a 1:1 behavioural mirror derived in
+``spec/hv/SPEC.md``, and the swap is measured, not assumed:
+
+  * ``mogp_core.objective.normalize_frame`` is BITWISE identical to the previous
+    ``normalize`` on all 20,305 archived normalized cells (worst |diff| 0.0;
+    ``test_core_hv.py::test_normalize_bitwise_vs_repo_evaluation``).
+  * Replaying all 28 runs / 210 iterations of ``benchmark_thicccc_2026-08-16``
+    through ``compute_hypervolume`` reproduces the archived ``history.csv``
+    hypervolume to worst |residual| 1.1102230246251565e-16 (mean
+    8.756223259692455e-18, 136/210 iterations bitwise exact) -- inside 1 ulp of
+    the values themselves and well inside 4 ulp of 1.0.
+
+    Read that honestly, because it is easy to over-claim: the archive was
+    PRODUCED by the botorch code, so the botorch code reproduces it exactly.
+    Replaying both implementations side by side under ONE driver that parses the
+    archived CSVs with Python's correctly-rounded ``float()``, the pre-edit
+    botorch version is bitwise exact on 210/210 iterations (worst |residual|
+    0.0); this numpy version is bitwise exact on 136/210, worst |residual|
+    1.1102230246251565e-16. The two implementations agree bitwise on 135/210
+    hypervolumes and never differ by more than 1.1102230246251565e-16 (2 ulp at
+    hv ~ 0.4). So the swap is a 0-2 ulp CHANGE in the reported number, not an
+    improvement on it.
+
+    The often-quoted "the repo's own botorch code manages 1.6653345369377348e-16"
+    is an artifact of the replay DRIVER, not of either implementation:
+    ``spec/bounds/reproduce_archived_hypervolume.py`` reads the archives with
+    ``pandas.read_csv``, whose default C float parser is not correctly rounded
+    and disagrees with ``float()`` on 1750 of the 12,682 archived numeric fields
+    (worst 7.105427357601002e-15). Under that driver BOTH implementations report
+    worst |residual| 1.6653345369377348e-16. Replay with
+    ``float_precision="round_trip"``, or with the ``csv`` module, or the parser
+    noise swamps what is being measured.
+
+Neither the frame nor the constants moved. Known scientific problems in this
+frame are deliberately PRESERVED, not fixed: the [-11, -5] docking cube is
+narrow enough that 18/4061 pooled archived PfDHFR rows clip to 0.0 and 18 to
+1.0, and 15 of the 79 hDHFR rows that saturate at exactly 1.0 are POSITIVE Vina
+scores — failed/clashing docks scoring as perfect selectivity. Both are recorded
+in ``spec/bounds/objective_bounds.frozen.json`` and are out of scope here.
 """
 
 import os
 import json
 
 import numpy as np
-import torch
 
-from botorch.utils.multi_objective.hypervolume import Hypervolume
+from mogp_core.hypervolume import hypervolume as _core_hypervolume
+from mogp_core.objective import (
+    SELECTIVITY_COLUMN,
+    SELECTIVITY_LE_COLUMN,
+    active_objectives,
+    add_selectivity_index as _core_add_selectivity_index,
+    fixed_reference_point as _core_fixed_reference_point,
+    normalize_frame,
+)
 
 from mogp import TASK_NAMES, resolve_objective_layout
-from acquisition import (
-    compute_pareto_front,
-    get_active_objectives,
-    DEFAULT_OBJECTIVE_SIGNS,
-)
+from acquisition import DEFAULT_OBJECTIVE_SIGNS
 
 
 # Objective layout (matches TASK_NAMES). Signs: +1 higher-is-better, -1 lower.
 N_OBJECTIVES = len(TASK_NAMES)
 OBJECTIVE_SIGNS = list(DEFAULT_OBJECTIVE_SIGNS)
 
-# Fixed LIGAND-EFFICIENCY range (kcal/mol PER HEAVY ATOM), shared by EVERY
-# docking objective (PfDHFR and hDHFR). The docking objectives are now
-# size-corrected ligand efficiency (raw Vina score / heavy-atom count, see
-# ``docking.raw_to_ligand_efficiency``), NOT raw kcal/mol, so these are LE
-# bounds. Ligand efficiency is NOT computed over the whole library up front (it
-# needs a dock), so — exactly like the old raw-docking range — its normalization
-# bounds cannot come from data and are fixed and configurable.
+# Fixed RAW WHOLE-MOLECULE Vina range (kcal/mol), shared by EVERY docking
+# objective (PfDHFR and hDHFR). These are raw kcal/mol, NOT ligand efficiency —
+# the objective reverted from LE to raw kcal once the NADPH fix removed most of
+# the size confound (``CLAUDE.md`` correction 2). Raw docking scores are NOT
+# computed over the whole library up front (each one needs a dock), so their
+# normalization bounds cannot come from data and are fixed and configurable.
 #
-# The span is set from the LE distribution ``validate_docking.py`` observed on
-# its ~200-dock sample (best/most-negative LE ~ -0.53, worst ~ -0.19, mean
-# ~ -0.36), widened with margin so realistic and even stronger-than-observed
-# binders stay inside the cube (``normalize`` clips anything outside to [0, 1]).
+# The span is the observed holo docking distribution, widened with margin so
+# realistic and even stronger-than-observed binders stay inside the cube
+# (``normalize`` clips anything outside to [0, 1]). For scale: pyrimethamine
+# -9.18, cycloguanil -9.11, WR99210 -8.82, P218 -8.55 kcal/mol on the corrected
+# holo receptor, all comfortably interior (``test_objective_units.py``).
 # The two docking objectives use the SAME range; their opposite preferred
 # directions (PfDHFR strong = minimize, hDHFR weak = maximize) are handled by
-# their signs in ``normalize``, not by different bounds. Lower (more negative) LE
-# = stronger binding per atom = better, so DOCKING_LE_MIN is the best corner.
+# their signs in ``normalize``, not by different bounds. Lower (more negative)
+# kcal/mol = stronger binding = better, so DOCKING_KCAL_MIN is the best corner.
+#
+# DO NOT WIDEN THESE. The cube is known to be too narrow (18 archived PfDHFR
+# rows clip to 0.0, 18 to 1.0, and 79 hDHFR rows saturate at 1.0 — see the
+# module docstring); every archived hypervolume in the repo was produced in this
+# exact frame, so moving a bound silently invalidates every historical number.
 DOCKING_KCAL_MIN = -11.0
 DOCKING_KCAL_MAX = -5.0
 
-# Backwards-compatible aliases: several modules referred to the LE-scaled names.
+# Backwards-compatible aliases. The ``_LE`` in these names is WRONG and is kept
+# only because other modules (e.g. ``loop.py``'s saturation warning text) still
+# refer to them: they alias the RAW KCAL bounds above, not any per-atom ligand-
+# efficiency bound. Prefer DOCKING_KCAL_MIN/MAX in new code.
 DOCKING_LE_MIN = DOCKING_KCAL_MIN
 DOCKING_LE_MAX = DOCKING_KCAL_MAX
 
-# Column name of the reported-only Selectivity Index (see add_selectivity_index).
-# The primary Selectivity_Index is now computed on the LE columns (per-atom
-# selectivity); a raw-kcal counterpart is emitted when the *_kcal columns exist.
-SELECTIVITY_COLUMN = "Selectivity_Index"
-SELECTIVITY_LE_COLUMN = "Selectivity_Index_LE"
-# Kept as an alias: the primary column is now whole-molecule kcal.
+# Column names of the reported-only Selectivity Indices (see
+# add_selectivity_index). Imported from ``mogp_core.objective`` so there is ONE
+# source of truth for the reported-column contract that ``matrix_report.py`` and
+# ``test_report_completeness.py`` key off:
+#   SELECTIVITY_COLUMN    == "Selectivity_Index"     (raw whole-molecule kcal)
+#   SELECTIVITY_LE_COLUMN == "Selectivity_Index_LE"  (per-atom companion)
+# Kept as an alias: the primary column IS whole-molecule kcal, so the ``_kcal``
+# name is a self-alias. No ``Selectivity_Index_kcal`` column is ever emitted —
+# no writer in this repo produces ``*_kcal`` docking columns and no archived
+# evaluated.csv / pareto_front.csv contains one.
 SELECTIVITY_KCAL_COLUMN = SELECTIVITY_COLUMN
 
 # Where the shared bounds are persisted so every method/run reads identical
@@ -124,18 +195,19 @@ def compute_objective_bounds(library_dir="data/library",
 
     The three library/ADMET bounds (hERG, Caco2, Half_Life) are the min/max of
     each column over the ENTIRE cached library (``data.load_library``); the two
-    docking objectives (PfDHFR, hDHFR) share the fixed configurable LIGAND-
-    EFFICIENCY range ``(docking_min, docking_max)`` (kcal/mol per heavy atom, not
-    raw kcal). Bounds are computed once and persisted to ``bounds_path`` so every
-    method and every run normalizes with the exact same numbers. If
-    ``bounds_path`` already exists it is loaded verbatim (unless ``force``), which
-    is what guarantees run-to-run identical hypervolumes.
+    docking objectives (PfDHFR, hDHFR) share the fixed configurable RAW
+    WHOLE-MOLECULE Vina range ``(docking_min, docking_max)`` in kcal/mol — NOT
+    ligand efficiency, and not per heavy atom. Bounds are computed once and
+    persisted to ``bounds_path`` so every method and every run normalizes with
+    the exact same numbers. If ``bounds_path`` already exists it is loaded
+    verbatim (unless ``force``), which is what guarantees run-to-run identical
+    hypervolumes.
 
     Args:
         library_dir: Cached library directory (for the ADMET bounds).
         bounds_path: JSON file to read/write the persisted bounds.
-        docking_min, docking_max: Fixed docking ligand-efficiency range
-            (kcal/mol per heavy atom).
+        docking_min, docking_max: Fixed docking range in raw whole-molecule
+            kcal/mol.
         force: Recompute and overwrite ``bounds_path`` even if it exists.
 
     Returns:
@@ -159,8 +231,8 @@ def compute_objective_bounds(library_dir="data/library",
         bounds[j, 0] = float(admet[:, col].min())
         bounds[j, 1] = float(admet[:, col].max())
     for j, _target in docking_tasks:
-        # Every docking objective shares the same fixed ligand-efficiency range
-        # (per atom); direction is a matter of sign, not of bounds.
+        # Every docking objective shares the same fixed raw-kcal range;
+        # direction is a matter of sign, not of bounds.
         bounds[j, 0] = float(docking_min)
         bounds[j, 1] = float(docking_max)
 
@@ -206,11 +278,20 @@ def normalize(Y, objective_indices=None, bounds=None, signs=None):
     """Map objective columns into [0, 1], pure maximization, 1.0 = best.
 
     Each column is scaled by its ``(min, max)`` bound; lower-is-better columns
-    (hERG, and PfDHFR docking ligand efficiency) are flipped so the best value
-    maps to 1.0 and the worst to 0.0. The docking columns are ligand efficiency
-    (per atom), so their bounds are the fixed LE range. Results are clipped to
-    [0, 1], so values outside the fixed bounds saturate rather than escaping the
-    cube.
+    (hERG, and PfDHFR docking) are flipped so the best value maps to 1.0 and the
+    worst to 0.0. The docking columns are RAW WHOLE-MOLECULE kcal/mol, so their
+    bounds are the fixed raw-kcal range ``DOCKING_KCAL_MIN/MAX`` — not a
+    per-atom ligand-efficiency range. Results are clipped to [0, 1], so values
+    outside the fixed bounds saturate rather than escaping the cube.
+
+    The arithmetic is ``mogp_core.objective.normalize_frame``, which is bitwise
+    identical to this function's previous body on all 20,305 archived normalized
+    cells (worst |diff| 0.0). The CLIP is load-bearing and must stay ahead of
+    the hypervolume's strict reference filter: the archived ``Half_Life_hours``
+    library minimum serializes into ``evaluated.csv`` 5.551115123125783e-17
+    BELOW its float32-derived bound, so unclipped it normalizes to
+    -8.609973506672763e-19 and the strict filter would drop that molecule's
+    whole contribution on the other four objectives.
 
     Args:
         Y: Objective matrix of shape ``(N, k)`` in ORIGINAL units. ``k`` may be
@@ -248,17 +329,28 @@ def normalize(Y, objective_indices=None, bounds=None, signs=None):
         signs = OBJECTIVE_SIGNS
     signs = np.asarray(signs, dtype=float)
 
-    lo = bounds[objective_indices, 0]
-    hi = bounds[objective_indices, 1]
+    lo_full = bounds[:, 0]
+    hi_full = bounds[:, 1]
+    span = hi_full[objective_indices] - lo_full[objective_indices]
+
+    if (span > 0.0).all():
+        # The only reachable path in this project: all five persisted spans are
+        # strictly positive.
+        return normalize_frame(Y, lo_full, hi_full, signs,
+                               objective_indices=objective_indices)
+
+    # LEGACY degenerate-span path, preserved VERBATIM and deliberately.
+    # ``normalize_frame`` raises on a non-positive span because SPEC 4.4 / 5.3
+    # records that substituting ``span = 1.0`` is a silent wrong answer (the old
+    # docstring's claim that such a column "collapses to 0.0 everywhere" is
+    # false for y > lo). Turning that into an exception would be a behaviour
+    # change, and behaviour changes are out of scope for this integration, so
+    # the original arithmetic is kept for the unreachable case. Not a path any
+    # run in this repo takes: every bound set in use has five positive spans.
+    lo = lo_full[objective_indices]
+    hi = hi_full[objective_indices]
     s = signs[objective_indices]
-
-    span = hi - lo
-    # Guard degenerate (zero-width) objectives so we never divide by zero; such
-    # a column collapses to 0.0 everywhere, contributing no hypervolume.
     span = np.where(span == 0.0, 1.0, span)
-
-    # Higher-is-better: (y - lo)/span. Lower-is-better: (hi - y)/span. Both put
-    # the best value at 1.0 and the worst at 0.0.
     normalized = np.where(s > 0, (Y - lo) / span, (hi - Y) / span)
     return np.clip(normalized, 0.0, 1.0)
 
@@ -272,8 +364,9 @@ def fixed_reference_point(num_objectives):
     Always the all-zeros corner of the normalized [0, 1] cube — the worst point
     on every objective. It NEVER depends on evaluated data, so it is identical
     for every method and every iteration.
+    (``mogp_core.objective.fixed_reference_point``.)
     """
-    return np.zeros(int(num_objectives), dtype=float)
+    return _core_fixed_reference_point(num_objectives)
 
 
 # The reference point for the full objective set. Never changes, ever.
@@ -288,10 +381,20 @@ def compute_hypervolume(Y_evaluated, bounds=None):
 
     Pipeline: restrict to objectives that actually carry data and to rows fully
     observed across them -> ``normalize`` into the [0, 1] maximization cube ->
-    take the non-dominated front -> measure its hypervolume against
-    ``fixed_reference_point`` (all zeros). The result depends ONLY on the
-    evaluated objective values and the shared bounds — never on which method
-    produced them.
+    ``mogp_core.hypervolume.hypervolume`` against ``fixed_reference_point`` (all
+    zeros), which applies the strict ``> ref`` reference filter and the
+    non-dominated (``mogp_core.pareto``) filter internally before slicing. The
+    result depends ONLY on the evaluated objective values and the shared bounds
+    — never on which method produced them.
+
+    Measured on the swap from botorch's ``Hypervolume`` to the numpy core:
+    replaying all 28 runs / 210 iterations of ``benchmark_thicccc_2026-08-16``
+    reproduces the archived ``history.csv`` trajectory to worst |residual|
+    1.1102230246251565e-16 (136/210 bitwise exact), and agrees with the botorch
+    version of this function bitwise on 135/210 of those hypervolumes, worst
+    difference 1.1102230246251565e-16. See the module docstring for why the
+    botorch version is the bitwise-exact one on this replay and why the
+    "1.665e-16" figure in ``spec/bounds/`` is a CSV-parser artifact.
 
     Args:
         Y_evaluated: Objective matrix of shape ``(N, num_objectives)`` in
@@ -309,7 +412,7 @@ def compute_hypervolume(Y_evaluated, bounds=None):
     if Y.ndim != 2 or Y.shape[0] == 0:
         return 0.0
 
-    active = get_active_objectives(Y)
+    active = active_objectives(Y)
     if not active:
         return 0.0
 
@@ -319,17 +422,13 @@ def compute_hypervolume(Y_evaluated, bounds=None):
         return 0.0
     Y_active = Y_active[finite]
 
-    # Into the shared [0, 1] maximization frame, then the non-dominated front.
+    # Into the shared [0, 1] maximization frame, then the indicator. The
+    # non-dominated front is taken inside ``hypervolume`` (mogp_core.pareto),
+    # after its strict ``> ref`` filter — the frame is already a maximization
+    # frame, so no signs enter here.
     Y_norm = normalize(Y_active, objective_indices=active, bounds=bounds)
-    ones = np.ones(len(active), dtype=float)   # already a maximization frame
-    _, pareto_norm = compute_pareto_front(Y_norm, ones)
-    if pareto_norm.shape[0] == 0:
-        return 0.0
-
     ref = fixed_reference_point(len(active))
-    hv = Hypervolume(ref_point=torch.as_tensor(ref, dtype=torch.float64))
-    pf = torch.as_tensor(pareto_norm, dtype=torch.float64)
-    return float(hv.compute(pf))
+    return float(_core_hypervolume(Y_norm, ref))
 
 
 # ---------------------------------------------------------------------- #
@@ -338,32 +437,38 @@ def compute_hypervolume(Y_evaluated, bounds=None):
 def add_selectivity_index(df):
     """Add a REPORTED-only Selectivity Index column to a results DataFrame.
 
-    ``Selectivity_Index = hDHFR_Docking - PfDHFR_Docking``. Because the two
-    docking columns are now size-corrected LIGAND EFFICIENCY (kcal/mol per heavy
-    atom), this is a PER-ATOM selectivity — the difference in binding-per-atom
-    between the human and parasite enzymes. Higher is more parasite-selective: it
-    grows when human binding is weak (less negative hDHFR LE) and parasite
-    binding is strong (more negative PfDHFR LE). This is a derived, human-facing
-    metric only — it is NOT modeled by any GP and NEVER enters selection or
+    ``Selectivity_Index = hDHFR_Docking - PfDHFR_Docking``, in RAW
+    WHOLE-MOLECULE kcal/mol — the difference in binding free energy between the
+    human and parasite enzymes. Higher is more parasite-selective: it grows when
+    human binding is weak (less negative hDHFR kcal) and parasite binding is
+    strong (more negative PfDHFR kcal). This is a derived, human-facing metric
+    only — it is NOT modeled by any GP and NEVER enters selection or
     hypervolume; it is computed straight from the two docked values for the
     Pareto output and the dashboard.
 
-    When the raw-kcal docking columns (``*_kcal``, retained for reporting) are
-    also present, a raw-kcal Selectivity Index (``Selectivity_Index_kcal``) is
-    emitted alongside — also reported-only — so the traditional whole-molecule
-    kcal selectivity is not lost.
+    When the ligand-efficiency reporting columns (``*_Docking_LE``, raw kcal/mol
+    per heavy atom) are also present, the per-atom companion
+    ``Selectivity_Index_LE = hDHFR_Docking_LE - PfDHFR_Docking_LE`` is emitted
+    alongside — also reported-only — so a finished front can be re-ranked by
+    per-atom selectivity without re-docking.
+
+    No ``Selectivity_Index_kcal`` column is emitted: the PRIMARY
+    ``Selectivity_Index`` already is the whole-molecule kcal quantity (which is
+    why ``SELECTIVITY_KCAL_COLUMN`` is a self-alias of ``SELECTIVITY_COLUMN``),
+    nothing in this repo writes ``*_kcal`` docking columns, and no archived
+    ``evaluated.csv`` / ``pareto_front.csv`` contains one.
 
     The columns are added only when the corresponding docking columns are present
     (e.g. once both targets are docked). The DataFrame is mutated in place and
     returned.
+
+    ``CLAUDE.md`` records that this metric is size-confounded
+    (Spearman(heavy_atoms, SI) = +0.267) and uncalibrated (WR99210 scores -0.17
+    despite being ~1000x selective). That is a property of the metric, not of
+    this arithmetic, and is out of scope here: rank leads by mechanism
+    (``annotate_leads.py``), never by SI alone.
     """
-    if "hDHFR_Docking" in df.columns and "PfDHFR_Docking" in df.columns:
-        df[SELECTIVITY_COLUMN] = df["hDHFR_Docking"] - df["PfDHFR_Docking"]
-    if "hDHFR_Docking_LE" in df.columns and "PfDHFR_Docking_LE" in df.columns:
-        df[SELECTIVITY_LE_COLUMN] = (
-            df["hDHFR_Docking_LE"] - df["PfDHFR_Docking_LE"]
-        )
-    return df
+    return _core_add_selectivity_index(df)
 
 
 if __name__ == "__main__":
@@ -376,28 +481,27 @@ if __name__ == "__main__":
         print(f"  {name:<22} [{lo:.4f}, {hi:.4f}]")
     print(f"\nFixed reference point (normalized): {FIXED_REFERENCE_POINT}")
 
-    # Sign / LE-normalization check: a strong binder (very negative LE) must
-    # normalize near 1.0 on a lower-is-better docking objective (PfDHFR, sign -1),
-    # and a weak binder (least negative LE) near 0.0. This confirms LE preserves
-    # the raw "more negative = better" direction after the size correction.
+    # Sign / kcal-normalization check: a strong binder (very negative raw
+    # kcal/mol) must normalize near 1.0 on a lower-is-better docking objective
+    # (PfDHFR, sign -1), and a weak binder (least negative kcal) near 0.0.
     pf = TASK_NAMES.index("PfDHFR_Docking")
-    strong_le = DOCKING_LE_MIN            # most negative LE = strongest per-atom binder
-    weak_le = DOCKING_LE_MAX              # least negative LE = weakest binder
-    n_strong = float(normalize(np.array([[strong_le]]), objective_indices=[pf])[0, 0])
-    n_weak = float(normalize(np.array([[weak_le]]), objective_indices=[pf])[0, 0])
-    print(f"\nLE sign check (PfDHFR, minimize): strong LE {strong_le:+.3f} -> "
-          f"{n_strong:.3f} (want ~1.0), weak LE {weak_le:+.3f} -> {n_weak:.3f} "
-          "(want ~0.0)")
-    assert n_strong > 0.99, "a strong binder (very negative LE) must normalize near 1.0"
-    assert n_weak < 0.01, "a weak binder (least negative LE) must normalize near 0.0"
+    strong_kcal = DOCKING_KCAL_MIN        # most negative kcal = strongest binder
+    weak_kcal = DOCKING_KCAL_MAX          # least negative kcal = weakest binder
+    n_strong = float(normalize(np.array([[strong_kcal]]), objective_indices=[pf])[0, 0])
+    n_weak = float(normalize(np.array([[weak_kcal]]), objective_indices=[pf])[0, 0])
+    print(f"\nkcal sign check (PfDHFR, minimize): strong {strong_kcal:+.3f} kcal/mol "
+          f"-> {n_strong:.3f} (want ~1.0), weak {weak_kcal:+.3f} kcal/mol -> "
+          f"{n_weak:.3f} (want ~0.0)")
+    assert n_strong > 0.99, "a strong binder (very negative kcal) must normalize near 1.0"
+    assert n_weak < 0.01, "a weak binder (least negative kcal) must normalize near 0.0"
 
     rng = np.random.RandomState(0)
     from mogp import OBJECTIVE_SOURCES
     cols = []
     for name in TASK_NAMES:
         if OBJECTIVE_SOURCES[name][0] == "dock":
-            # Ligand efficiency (kcal/mol per heavy atom), the docking objective.
-            cols.append(rng.uniform(DOCKING_LE_MIN, DOCKING_LE_MAX, size=8))
+            # Raw whole-molecule Vina kcal/mol, the docking objective.
+            cols.append(rng.uniform(DOCKING_KCAL_MIN, DOCKING_KCAL_MAX, size=8))
         else:
             cols.append(rng.uniform(0, 1, size=8))      # e.g. hERG probability
     Y = np.column_stack(cols)

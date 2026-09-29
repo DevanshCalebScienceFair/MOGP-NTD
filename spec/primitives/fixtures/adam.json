@@ -1,0 +1,281 @@
+{
+  "fixture": "adam",
+  "title": "Adam: 1-indexed step counter, bias correction, eps added to sqrt(v_hat)",
+  "spec": "spec/primitives/SPEC.md",
+  "generated_by": "spec/primitives/capture_primitives.py",
+  "environment": {
+    "python": "3.11.15",
+    "platform": "macOS-26.5.1-arm64-arm-64bit",
+    "machine": "arm64",
+    "numpy": "2.4.6",
+    "oracles_available": true,
+    "oracle_versions": {
+      "torch": "2.13.0",
+      "gpytorch": "1.15.2",
+      "scipy": "1.17.1"
+    }
+  },
+  "notes": [
+    "Repo hyperparameters (mogp.train_mogp / baseline_single_obj / mogp_coregionalized, all torch.optim.Adam(model.parameters(), lr=lr) with lr default 0.1): lr=0.1, betas=(0.9,0.999), eps=1e-8, weight_decay=0, amsgrad=False. No schedule, no early stopping, no gradient clipping, fixed n_iterations (default 200).",
+    "MEASURED: eps is added to sqrt(v_hat) (OUTSIDE the sqrt). The variant sqrt(v_hat + eps) diverges measurably -- see eps_inside_sqrt_max_abs_gap."
+  ],
+  "arrays": {
+    "adam_hparams": {
+      "dtype": "<f8",
+      "shape": [
+        6
+      ],
+      "sha256": "8b2b7cc9a88d4037bebf690ae9112a342364f1bba233df39b7f10c669df2700f",
+      "description": "[lr, beta1, beta2, eps, weight_decay, amsgrad]",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "adam_n_steps": {
+      "dtype": "<i8",
+      "shape": [
+        1
+      ],
+      "sha256": "b7eb91408f885cfdf186e9927f0a5d1e1024235fc062b412153ec4a24156ff7a",
+      "description": "number of Adam steps in the trajectory",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "eps_inside_sqrt_max_abs_gap": {
+      "dtype": "<f8",
+      "shape": [
+        1
+      ],
+      "sha256": "b27e83032f2c316c396c8bcccc50df56d44e9c3a33e3051d42ba670427863a1a",
+      "description": "alias of variant_inside_sqrt_max_abs_gap, kept under an explicit name because it is the single number that settles the eps-placement question",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "informational"
+    },
+    "oracle_foreach_vs_single_max_abs": {
+      "dtype": "<f8",
+      "shape": [
+        1
+      ],
+      "sha256": "7f772bdf682f6906072ec7863baeaa10b6816c258e6d9e6596fda954913a379a",
+      "description": "max |foreach=True - foreach=False| for a 4-tensor parameter set matching the repo's parameter layout: torch's vectorized and scalar Adam paths agree, so a numpy loop over parameter blocks is faithful",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "must be 0.0"
+    },
+    "oracle_torch_adam_max_abs_f32": {
+      "dtype": "<f8",
+      "shape": [
+        1
+      ],
+      "sha256": "885042bc51bc0ada4ae724ec0e512618192a9764a2ee2ff0433627d753d76e09",
+      "description": "max |torch Adam - numpy reference Adam| over the whole trajectory",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "must be < 1e-14 (f64) / 1e-6 (f32)"
+    },
+    "oracle_torch_adam_max_abs_f64": {
+      "dtype": "<f8",
+      "shape": [
+        1
+      ],
+      "sha256": "e0f1fa88a5b45df9481b100a45f52c2fdbbda215fb70f32b94d70a1cce38174d",
+      "description": "max |torch Adam - numpy reference Adam| over the whole trajectory",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "must be < 1e-14 (f64) / 1e-6 (f32)"
+    },
+    "oracle_torch_adam_traj_f32": {
+      "dtype": "<f4",
+      "shape": [
+        201,
+        5
+      ],
+      "sha256": "79cd6886a9071ea11560db338b2b6db4fa9dc2f9c60e581b58831fcf5bf70ac2",
+      "description": "torch.optim.Adam trajectory on the same objective in f32",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "must match quad_traj_x_f32 -- see oracle_torch_adam_max_abs_f32"
+    },
+    "oracle_torch_adam_traj_f64": {
+      "dtype": "<f8",
+      "shape": [
+        201,
+        5
+      ],
+      "sha256": "734452e069c33d12ecc4641c179d6be28e0a9ab2ecb8a8805c182aaf2979c9b0",
+      "description": "torch.optim.Adam trajectory on the same objective in f64",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "must match quad_traj_x_f64 -- see oracle_torch_adam_max_abs_f64"
+    },
+    "quad_a": {
+      "dtype": "<f8",
+      "shape": [
+        5
+      ],
+      "sha256": "6ae374717014b3c7bc760b481d54503c612980c281cdc4448a942955bbc10949",
+      "description": "curvature of the objective f(x)=0.5 sum a_i (x_i-c_i)^2",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "quad_c": {
+      "dtype": "<f8",
+      "shape": [
+        5
+      ],
+      "sha256": "c106de071f5724569dd45c680a35b2f40cd8ab71b80658bdd54e49be9c2c1d16",
+      "description": "minimizer of the same objective",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "quad_f32_vs_f64_max_abs": {
+      "dtype": "<f8",
+      "shape": [
+        1
+      ],
+      "sha256": "63b1ca99bd0789caabe97349eac4d8e4b5ae5e9891d2d652d24ea26d002f79b1",
+      "description": "max |float32 trajectory - float64 trajectory| over all 201 steps: how much dtype alone moves Adam",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "informational"
+    },
+    "quad_first_step_f64": {
+      "dtype": "<f8",
+      "shape": [
+        5
+      ],
+      "sha256": "ecf32916149960f2262fd5ca17db51b70cf4c0cd9aec574a2747a6bf5b9d639c",
+      "description": "the first update. With v_1 = (1-b2) g^2 the bias-corrected ratio is m_hat/sqrt(v_hat) = sign(g) exactly, so every coordinate moves exactly -lr*sign(g) up to eps -- a strong 1-indexing check: a 0-indexed counter divides by 1-b1^0 = 0 and blows up.",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "each |entry| within 1e-6 of lr"
+    },
+    "quad_traj_m_f64": {
+      "dtype": "<f8",
+      "shape": [
+        201,
+        5
+      ],
+      "sha256": "0d4f37ed510c2e5caf5033121bee349d9fa989d61169fb7367f86db0fbc456ef",
+      "description": "first-moment trajectory (UNcorrected m_t)",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "rtol 1e-11"
+    },
+    "quad_traj_v_f64": {
+      "dtype": "<f8",
+      "shape": [
+        201,
+        5
+      ],
+      "sha256": "6a00b6b5f780d27b1a14f4211c1eec0b382f590f2e5fca767db4b3513cfeaef6",
+      "description": "second-moment trajectory (UNcorrected v_t)",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "rtol 1e-11"
+    },
+    "quad_traj_x_f32": {
+      "dtype": "<f4",
+      "shape": [
+        201,
+        5
+      ],
+      "sha256": "180099a7a06caf07faef173a5e07c036b20ad3e5fb82d5d39133c3ca8e2a082a",
+      "description": "the same quadratic trajectory computed entirely in float32 (the repo's GP dtype)",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "rtol 1e-4"
+    },
+    "quad_traj_x_f64": {
+      "dtype": "<f8",
+      "shape": [
+        201,
+        5
+      ],
+      "sha256": "478dad2d150e02ba19d07b34a096a7401234b9dd0524b926ebb8b973b70e3edb",
+      "description": "parameter trajectory, shape (n_steps+1, 5); row 0 is x0",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "atol 1e-12 / rtol 1e-11 against a correct float64 Adam"
+    },
+    "quad_x0": {
+      "dtype": "<f8",
+      "shape": [
+        5
+      ],
+      "sha256": "2c2b58e8c18904787934d7bdb211f6add30f7d6afc037ff12f5d14779036b9b9",
+      "description": "starting point",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "rosen_traj_x_f64": {
+      "dtype": "<f8",
+      "shape": [
+        501,
+        4
+      ],
+      "sha256": "09182a784c0797a10af9985c588458f49a971116ca679b6f10e6d2800745a7de",
+      "description": "Adam on the 4-D Rosenbrock function, lr=0.01, 500 steps. Asymmetric and badly scaled, so it exercises bias correction far more than a quadratic does.",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "rtol 1e-9"
+    },
+    "rosen_x0": {
+      "dtype": "<f8",
+      "shape": [
+        4
+      ],
+      "sha256": "9ef2ba6d883152847e898bdda2c8c57d56b43a21e2b22fe2bfaaaffc16e52a6d",
+      "description": "Rosenbrock starting point (4-D)",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "variant_inside_sqrt_final": {
+      "dtype": "<f8",
+      "shape": [
+        5
+      ],
+      "sha256": "f94e72ce724b6a535b5a1f7d0c746ca1b4aa56e9a32c4b6437ff41e2bc63fc6f",
+      "description": "final iterate of the inside_sqrt variant",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "informational"
+    },
+    "variant_inside_sqrt_max_abs_gap": {
+      "dtype": "<f8",
+      "shape": [
+        1
+      ],
+      "sha256": "b27e83032f2c316c396c8bcccc50df56d44e9c3a33e3051d42ba670427863a1a",
+      "description": "max |variant trajectory - normative trajectory|: the WRONG variant sqrt(v_hat + eps): a different optimizer, and the gap is largest on low-curvature coordinates where v_hat ~ eps",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "informational"
+    },
+    "variant_no_bias_correction_final": {
+      "dtype": "<f8",
+      "shape": [
+        5
+      ],
+      "sha256": "c9d622f94899f600ae4e7fe5ebe5d217e3839a5ef17ae9351c34e014e4426bb4",
+      "description": "final iterate of the no_bias_correction variant",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "informational"
+    },
+    "variant_no_bias_correction_max_abs_gap": {
+      "dtype": "<f8",
+      "shape": [
+        1
+      ],
+      "sha256": "b270ec40ed32701bca0531f1e7cf4dcc477508351a39b252e20c98964ca658a1",
+      "description": "max |variant trajectory - normative trajectory|: the WRONG variant with bias correction omitted entirely",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "informational"
+    },
+    "variant_torch_stepsize_final": {
+      "dtype": "<f8",
+      "shape": [
+        5
+      ],
+      "sha256": "00027f70aec4fb016f71a321d02a7c9c1ef05dd9f6e5d6493c322d2a11ead504",
+      "description": "final iterate of the torch_stepsize variant",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "informational"
+    },
+    "variant_torch_stepsize_max_abs_gap": {
+      "dtype": "<f8",
+      "shape": [
+        1
+      ],
+      "sha256": "e0f1fa88a5b45df9481b100a45f52c2fdbbda215fb70f32b94d70a1cce38174d",
+      "description": "max |variant trajectory - normative trajectory|: the algebraically identical rearrangement lr/bc1 * m / (sqrt(v)/sqrt(bc2) + eps) -- differs from the normative form only by float round-off",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "informational"
+    }
+  }
+}

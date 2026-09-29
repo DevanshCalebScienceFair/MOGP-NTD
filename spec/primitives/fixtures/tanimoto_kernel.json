@@ -1,0 +1,711 @@
+{
+  "fixture": "tanimoto_kernel",
+  "title": "Tanimoto/Jaccard kernel on binary Morgan fingerprints",
+  "spec": "spec/primitives/SPEC.md",
+  "generated_by": "spec/primitives/capture_primitives.py",
+  "environment": {
+    "python": "3.11.15",
+    "platform": "macOS-26.5.1-arm64-arm-64bit",
+    "machine": "arm64",
+    "numpy": "2.4.6",
+    "oracles_available": true,
+    "oracle_versions": {
+      "torch": "2.13.0",
+      "gpytorch": "1.15.2",
+      "scipy": "1.17.1"
+    }
+  },
+  "notes": [
+    "k(x,y) = <x,y> / (|x|_1 + |y|_1 - <x,y>), eps=1e-8 on the DENOMINATOR via max(union, eps); see SPEC.md section 1.",
+    "Binary 0/1 float32 matmul is EXACT: every partial sum is an integer <= 2048 < 2**24, so no rounding occurs and the Gram matrix is bitwise identical under any BLAS or thread count (verified below by gram_equals_int64_matmul).",
+    "On the repo's ACTUAL cached library (data/library/fingerprints.npy, 29678 x 2048 int8, Morgan radius=2): max on-bits = 85, median 47, p99 72. The int8 overflow therefore does NOT currently fire -- it is a latent hazard, not an active corruption. Measured headroom: at radius=3 the max over the 300 widest library fingerprints is 119; at radius=4, 17% exceed 128 and the trap fires; at radius=5, 83% do. The cast is mandatory as defensive engineering, not as a bug fix.",
+    "PSD proof recorded here (SPEC.md 1.7): Broder's MinHash gives Pr_pi[h_pi(A) = h_pi(B)] = J(A,B) for nonempty A,B, verified above to within 1.6 MC standard errors. Pr[f(x)=f(y)] for a random f is E_f[<one-hot(f(x)), one-hot(f(y))>], an expectation of inner products, hence PSD. The empty fingerprint is handled by setting its feature vector to 0, which is exactly what eps-on-the-denominator produces (k(0,.) = k(0,0) = 0) and keeps the Gram PSD but singular.",
+    "RDKit version at capture: 2024.03.6"
+  ],
+  "arrays": {
+    "count_fp_kernel_out": {
+      "dtype": "<f4",
+      "shape": [
+        2,
+        2
+      ],
+      "sha256": "07b7619f6f2c12adc8a104407b42e0f481489389e6de184df7e436f96d62358b",
+      "description": "the (wrong but clipped) output for count input",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "count_fp_union_raw": {
+      "dtype": "<f4",
+      "shape": [
+        2,
+        2
+      ],
+      "sha256": "0d9c3bf49dd5edfcb006843cbf5814dab9e3f0250e434ead37ef6faa9b7398c8",
+      "description": "COUNT (non-binary) fingerprints [[3,0],[3,0]]: raw union = |x|+|y|-<x,y> = -3 < 0. The repo's max(union,eps) then yields 9/1e-8 -> clipped to 1.0. The kernel is only valid on BINARY input.",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "diag_branch_equal_rows": {
+      "dtype": "<f4",
+      "shape": [
+        6
+      ],
+      "sha256": "0d950236cea0f5febbc6048f49a62cd2f4cf461c93929949a4b2dd3bc4dcba96",
+      "description": "the diag=True branch with n==m: equals diag(full Gram)",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "diag_branch_matches_full": {
+      "dtype": "|b1",
+      "shape": [
+        1
+      ],
+      "sha256": "265e6b573637524100e6222332a3c4a92ba0cba78532eae2701915ac823cc05c",
+      "description": "flag: diag branch == diag(full) for n==m",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "must be True"
+    },
+    "eigvalsh_f64_n16": {
+      "dtype": "<f8",
+      "shape": [
+        16
+      ],
+      "sha256": "e6c77dddfcc4a2129d6deaca24bcf8ed0d26f40105844520edfdf31a0c3ae2c7",
+      "description": "eigenvalues of the float64 Gram (PSD evidence)",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "min eigenvalue >= -1e-12; compare sorted eigenvalues with rtol=1e-10"
+    },
+    "eigvalsh_f64_n256": {
+      "dtype": "<f8",
+      "shape": [
+        256
+      ],
+      "sha256": "1454586dd9d3af6a5119b04bef939544c485db8b249ffe0d8615f2a889148862",
+      "description": "eigenvalues of the float64 Gram (PSD evidence)",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "min eigenvalue >= -1e-12; compare sorted eigenvalues with rtol=1e-10"
+    },
+    "eigvalsh_f64_n4": {
+      "dtype": "<f8",
+      "shape": [
+        4
+      ],
+      "sha256": "bf74d85f2d34f1269d3304689ac12b716ae8e5dce4893fa48b257912ec1c00df",
+      "description": "eigenvalues of the float64 Gram (PSD evidence)",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "min eigenvalue >= -1e-12; compare sorted eigenvalues with rtol=1e-10"
+    },
+    "eigvalsh_f64_n64": {
+      "dtype": "<f8",
+      "shape": [
+        64
+      ],
+      "sha256": "ef1f501bd92a7dd0390a5e4520e4b90ad277485dac49d604d10d4dea45615122",
+      "description": "eigenvalues of the float64 Gram (PSD evidence)",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "min eigenvalue >= -1e-12; compare sorted eigenvalues with rtol=1e-10"
+    },
+    "eps_denominator_f32": {
+      "dtype": "<f4",
+      "shape": [
+        6,
+        6
+      ],
+      "sha256": "aae067f5f37cf1fef000eec3aa76e6708b2e9fa379ca21cbc4f190062a3fa230",
+      "description": "f32: eps on the denominator (the repo's placement)",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality; diagonal must be exactly 1.0"
+    },
+    "eps_denominator_f64": {
+      "dtype": "<f8",
+      "shape": [
+        6,
+        6
+      ],
+      "sha256": "68c1585d20fe896873dc37d836b7ffd09f2d745984e244f019fb380dd6682d91",
+      "description": "f64: eps on the denominator (the repo's placement)",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality; diagonal must be exactly 1.0"
+    },
+    "eps_numerator_diag_residual_f32": {
+      "dtype": "<f4",
+      "shape": [
+        6
+      ],
+      "sha256": "f09d243cca9485d180e744905f4d145741f8a6be30a18214bd140a6c665c5f60",
+      "description": "f32: diag(numerator-eps variant) - 1.0. ZERO in float32 (1e-8 < half-ULP of any integer count), NONZERO in float64 -> the numerator-eps bug is invisible at float32 and visible at float64",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "eps_numerator_diag_residual_f64": {
+      "dtype": "<f8",
+      "shape": [
+        6
+      ],
+      "sha256": "2950e0c570c9c90b0549ea529f47e1b0695ca97ddd64787f6b5540c13d00356c",
+      "description": "f64: diag(numerator-eps variant) - 1.0. ZERO in float32 (1e-8 < half-ULP of any integer count), NONZERO in float64 -> the numerator-eps bug is invisible at float32 and visible at float64",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "eps_numerator_f32": {
+      "dtype": "<f4",
+      "shape": [
+        6,
+        6
+      ],
+      "sha256": "aae067f5f37cf1fef000eec3aa76e6708b2e9fa379ca21cbc4f190062a3fa230",
+      "description": "f32: eps also added to the numerator (the WRONG placement)",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "eps_numerator_f64": {
+      "dtype": "<f8",
+      "shape": [
+        6,
+        6
+      ],
+      "sha256": "91ef801c5512cd073b6f479006f5f372e6296796aa5d6030544858ca1dbd0923",
+      "description": "f64: eps also added to the numerator (the WRONG placement)",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "fp_int8_n16": {
+      "dtype": "|i1",
+      "shape": [
+        16,
+        2048
+      ],
+      "sha256": "687d95948f94af0f152142c36d15bd71ac441431b3cb72d378dc09410f923aa5",
+      "description": "Deterministic binary Morgan-shaped fingerprints, 16 x 2048, int8, from splitmix64",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "fp_int8_n256": {
+      "dtype": "|i1",
+      "shape": [
+        256,
+        2048
+      ],
+      "sha256": "2a1d855c32140925001d2e359078d7a3adb0d704fbca6fb1181ed7ca13d705a3",
+      "description": "Deterministic binary Morgan-shaped fingerprints, 256 x 2048, int8, from splitmix64",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "fp_int8_n4": {
+      "dtype": "|i1",
+      "shape": [
+        4,
+        2048
+      ],
+      "sha256": "ae190e41bdb29c9f79e9e371cd47bc948c00d8c165c2f9690b1d65a56abac94e",
+      "description": "Deterministic binary Morgan-shaped fingerprints, 4 x 2048, int8, from splitmix64",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "fp_int8_n64": {
+      "dtype": "|i1",
+      "shape": [
+        64,
+        2048
+      ],
+      "sha256": "541e875945525cdc769530452ae3ad60ee13c4d942e90cfb85da93b6574c5aa4",
+      "description": "Deterministic binary Morgan-shaped fingerprints, 64 x 2048, int8, from splitmix64",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "fp_int8_rectA": {
+      "dtype": "|i1",
+      "shape": [
+        7,
+        2048
+      ],
+      "sha256": "1e26941b161113c141a1e912a6a74c253d32c522233983741cc8773110bbdb25",
+      "description": "7 x 2048 int8 fingerprints",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "fp_int8_rectB": {
+      "dtype": "|i1",
+      "shape": [
+        13,
+        2048
+      ],
+      "sha256": "b50180a57d640c982b7302470ec0a6b089f9024a4135d36b26ae6b3aee9de0c7",
+      "description": "13 x 2048 int8 fingerprints",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "fp_int8_with_duplicate_row": {
+      "dtype": "|i1",
+      "shape": [
+        10,
+        2048
+      ],
+      "sha256": "2baeaf1cb63d074c8a62b6f578492242983b48a07d1e88ab9cebda9630855d7a",
+      "description": "10 x 2048 int8; row 4 is an exact copy of row 2",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "fp_int8_with_zero_row": {
+      "dtype": "|i1",
+      "shape": [
+        6,
+        2048
+      ],
+      "sha256": "4dff406d292953f9d30d3ddddbdbecc14643adde741ae765e419b1b67ac2285e",
+      "description": "6 x 2048 int8; row 5 is the all-zero fingerprint",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "gram_duplicate_eigvalsh": {
+      "dtype": "<f8",
+      "shape": [
+        10
+      ],
+      "sha256": "691fb00e5975dc22b6ba2cf88e3d790e0d4aad73324de90ca16e55d11a49a625",
+      "description": "eigenvalues showing exact rank deficiency",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "smallest |eigenvalue| < 1e-12"
+    },
+    "gram_equals_int64_matmul": {
+      "dtype": "|b1",
+      "shape": [
+        4
+      ],
+      "sha256": "a4f6759e64c7974c6023be809b68f382b90446b3378b56aa0de796f36f80c124",
+      "description": "per-size flag: float32 binary matmul == exact int64 matmul",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "must be all True"
+    },
+    "gram_f32_batched_3x9x9": {
+      "dtype": "<f4",
+      "shape": [
+        3,
+        9,
+        9
+      ],
+      "sha256": "a23acc30f50648b846b3020f98ead0036cb6cd716fda49a8f96764f93218d6ab",
+      "description": "batched K with a leading batch dim of 3; all 3 slices must be identical because the kernel has no parameters",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality; also assert slice 0 == slice 1 == slice 2"
+    },
+    "gram_f32_n16": {
+      "dtype": "<f4",
+      "shape": [
+        16,
+        16
+      ],
+      "sha256": "b30021f2d1c0a6b0726dff07e3af64de758d991586c53554d4fba71aedff3cdd",
+      "description": "float32 Tanimoto Gram matrix, 16 x 16, numpy reference",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality (binary matmul is exact)"
+    },
+    "gram_f32_n256": {
+      "dtype": "<f4",
+      "shape": [
+        256,
+        256
+      ],
+      "sha256": "8c69f5d0a2f31339007f3ded2fe923be6ded8b541819d2df60e4b34f1cf74489",
+      "description": "float32 Tanimoto Gram matrix, 256 x 256, numpy reference",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality (binary matmul is exact)"
+    },
+    "gram_f32_n4": {
+      "dtype": "<f4",
+      "shape": [
+        4,
+        4
+      ],
+      "sha256": "1f02e6f50dc6e26eb2fcfa651a491d753d7e545198b1d091766fd1cc814ce835",
+      "description": "float32 Tanimoto Gram matrix, 4 x 4, numpy reference",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality (binary matmul is exact)"
+    },
+    "gram_f32_n64": {
+      "dtype": "<f4",
+      "shape": [
+        64,
+        64
+      ],
+      "sha256": "f4d2da3e020c3d4c041c7de0c4aefe608c7844601c11ba9b40cd2e38c36f9234",
+      "description": "float32 Tanimoto Gram matrix, 64 x 64, numpy reference",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality (binary matmul is exact)"
+    },
+    "gram_f32_rect_13x7": {
+      "dtype": "<f4",
+      "shape": [
+        13,
+        7
+      ],
+      "sha256": "3266213d2dd76b008669e6bf00f16b823c6b6c38c617dd2abaf9693e41a8ff24",
+      "description": "float32 K(B,A), shape (13,7); must equal the transpose of the above",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality; also assert == gram_f32_rect_7x13.T"
+    },
+    "gram_f32_rect_7x13": {
+      "dtype": "<f4",
+      "shape": [
+        7,
+        13
+      ],
+      "sha256": "a81fd9fd1da3d69e3f96ed947b770b136410d8b01e541cfaf17e68c1f78534b9",
+      "description": "float32 K(A,B), shape (7,13)",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "gram_f32_with_duplicate_row": {
+      "dtype": "<f4",
+      "shape": [
+        10,
+        10
+      ],
+      "sha256": "7a75270767a068a7a3315eac52126295b5e5e40602eb047bdf6a971f2a152857",
+      "description": "Gram with a duplicated fingerprint -> exactly rank deficient",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "gram_f32_with_zero_row": {
+      "dtype": "<f4",
+      "shape": [
+        6,
+        6
+      ],
+      "sha256": "d679f2e13168ab838c0f12f1ec38b0c9f344ed23bccf4fb5bbfbd3fad1144070",
+      "description": "Gram with an all-zero fingerprint: row/col 5 is all zeros and K[5,5] == 0.0 (NOT 1.0) -> the matrix is PSD but singular",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "gram_f64_n16": {
+      "dtype": "<f8",
+      "shape": [
+        16,
+        16
+      ],
+      "sha256": "7eb92103ed498e833341d9174fae9fccb550f9e24396e3ed8445cc596cf143eb",
+      "description": "float64 Tanimoto Gram matrix (same X)",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "gram_f64_n256": {
+      "dtype": "<f8",
+      "shape": [
+        256,
+        256
+      ],
+      "sha256": "e33950e8f70cf8379531835dbffb7101d05e5366fd1451ebab33e151557f3c04",
+      "description": "float64 Tanimoto Gram matrix (same X)",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "gram_f64_n4": {
+      "dtype": "<f8",
+      "shape": [
+        4,
+        4
+      ],
+      "sha256": "71fe2cdb0c99d516656775d42fdc23aad2d282a7e7dac029f384293861a561d0",
+      "description": "float64 Tanimoto Gram matrix (same X)",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "gram_f64_n64": {
+      "dtype": "<f8",
+      "shape": [
+        64,
+        64
+      ],
+      "sha256": "598500807010269ab1e2c04d8a01e1bba039ce965433fe06631a741662aa7c4c",
+      "description": "float64 Tanimoto Gram matrix (same X)",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "gram_zero_row_eigvalsh": {
+      "dtype": "<f8",
+      "shape": [
+        6
+      ],
+      "sha256": "b51a3ffb6e3de02f0fad57d4d23fe334ad9bb9d7aa148a0e9a030d687fb265b5",
+      "description": "eigenvalues showing the zero-fingerprint Gram is singular",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "smallest |eigenvalue| < 1e-12"
+    },
+    "minhash_abs_error": {
+      "dtype": "<f8",
+      "shape": [
+        4
+      ],
+      "sha256": "81ee4e93871f98a3d403fe788462645cfc8c0d6be03e73eb8a3f42898ca6cc13",
+      "description": "|Jaccard - MinHash collision estimate|",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "each entry < 4 * sqrt(J(1-J)/200000)"
+    },
+    "minhash_collision_estimate": {
+      "dtype": "<f8",
+      "shape": [
+        4
+      ],
+      "sha256": "2cb1c684ea2deac3cfb0f537e3c4baa1a09826031fa839e5e6164b063e656c52",
+      "description": "Monte-Carlo estimate of Pr_pi[minhash(A) == minhash(B)] over 200000 random permutations, drawn from the script's own numpy PCG64 seeded 8102 so the estimate is reproducible. STOCHASTIC in nature: reproducible only because the seed is fixed.",
+      "reproducibility": "stochastic",
+      "agreement_criterion": "|estimate - minhash_jaccard_exact| < 4 * sqrt(J(1-J)/200000) for every entry"
+    },
+    "minhash_jaccard_exact": {
+      "dtype": "<f8",
+      "shape": [
+        4
+      ],
+      "sha256": "998e26e249880ac33690486892ccd6e384974cdc52135a01288b654860019fe0",
+      "description": "|A n B| / |A u B| for 4 deterministically drawn set pairs",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "minhash_mc_stderr": {
+      "dtype": "<f8",
+      "shape": [
+        4
+      ],
+      "sha256": "05eb92c066aed0ac7343735ea3de18601892acb0ebcd1f1a7267d530a58ed59a",
+      "description": "one Monte-Carlo standard error for each estimate",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "on_bits_n16": {
+      "dtype": "<i8",
+      "shape": [
+        16
+      ],
+      "sha256": "8338fc37c6c1699b9db1bca47a6c01a6321026ad8cd454bf57b57dfe2407d15a",
+      "description": "on-bit count per row (int64)",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "on_bits_n256": {
+      "dtype": "<i8",
+      "shape": [
+        256
+      ],
+      "sha256": "52f96e1fde993a94be8204c89c701ea7baeb204a1e384817362c82b2d1fbb96b",
+      "description": "on-bit count per row (int64)",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "on_bits_n4": {
+      "dtype": "<i8",
+      "shape": [
+        4
+      ],
+      "sha256": "de662e7fe99104c21c559fecb2359c127da998f6891150f178d3ed29a289d887",
+      "description": "on-bit count per row (int64)",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "on_bits_n64": {
+      "dtype": "<i8",
+      "shape": [
+        64
+      ],
+      "sha256": "1ca5612abf679cadd38c3b9f192ca0792aac6c41506b1696c6722c97118b1ef3",
+      "description": "on-bit count per row (int64)",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "oracle_diag_n5_m1_len": {
+      "dtype": "<i8",
+      "shape": [
+        1
+      ],
+      "sha256": "1fd61d4463a91c76d7b49a47cc67f2fca7780a908704b2e31bbf77e15832e996",
+      "description": "length of the diag=True output for x1(7,D), x2(1,D): the branch broadcasts and returns 7 values where gpytorch's contract is min(7,1)=1 -> silently wrong shape, not an exception",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "must be 7"
+    },
+    "oracle_diag_unequal_rows_raises": {
+      "dtype": "<i8",
+      "shape": [
+        1
+      ],
+      "sha256": "6e5fe855a431ec85b8cf1c99d8babf4090d985fa265f0ee1ec1c7a36edaac6ed",
+      "description": "1 if TanimotoKernel.forward(x1(7,D), x2(13,D), diag=True) raises RuntimeError (broadcast failure). Reported as latently broken; NOT fixed per the file-discipline rule.",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "must be 1"
+    },
+    "oracle_gram_max_abs_diff": {
+      "dtype": "<f8",
+      "shape": [
+        4
+      ],
+      "sha256": "15cd8b7cd8b89d38b6c49ad7f54eefba626c87611c620a06582d08aaa8b4e004",
+      "description": "max |numpy reference - kernel.TanimotoKernel| per size in float32",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "must be all exactly 0.0"
+    },
+    "overflow_float32_matmul": {
+      "dtype": "<f8",
+      "shape": [
+        16
+      ],
+      "sha256": "17aa8037c65eebf190f0781f14690521064c956ffcea6d059865d80d1d216438",
+      "description": "same with float32: exact for every count (the required cast)",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "overflow_fp_int8_heavy": {
+      "dtype": "|i1",
+      "shape": [
+        6,
+        2048
+      ],
+      "sha256": "4c30bef5d3ca947b66e2e2f25aed3e27c86b5ea58d170974f81f1f280432bdeb",
+      "description": "6 x 2048 int8 fingerprints with 150-200 on-bits",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "overflow_int16_matmul": {
+      "dtype": "<i8",
+      "shape": [
+        16
+      ],
+      "sha256": "fa4b2d49a93b2f041f2a3f1c8d2f04123e3f713ce171afc1f90d131580033e16",
+      "description": "same with int16: no wrap up to 2048",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "overflow_int8_matmul": {
+      "dtype": "<i8",
+      "shape": [
+        16
+      ],
+      "sha256": "3399cc0415991ccfca9e97d97f2e6c6e7eb52a511d38d4bba8b8ac8fb45245ae",
+      "description": "(row @ row.T) with dtype int8: wraps modulo 256 into [-128,127] for >= 128 on-bits. THE TRAP.",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "overflow_intersection_int8": {
+      "dtype": "<i8",
+      "shape": [
+        6,
+        6
+      ],
+      "sha256": "4c331919bbb61e60863544026a016379b743835f7041ee1807f6fc0cbddd4ded",
+      "description": "Xo @ Xo.T left in int8: wrapped, and the diagonal is NEGATIVE",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "overflow_kernel_output_cast": {
+      "dtype": "<f4",
+      "shape": [
+        6,
+        6
+      ],
+      "sha256": "9ca5d7e46b474b1c2fca64252eef3abc7d13f0cb2265fcb67db5a3995a0da63d",
+      "description": "the same input with the mandatory float32 cast: diagonal exactly 1.0",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality; diagonal must be exactly 1.0"
+    },
+    "overflow_kernel_output_uncast": {
+      "dtype": "<f4",
+      "shape": [
+        6,
+        6
+      ],
+      "sha256": "6cfb654ec3738486f73140e528dec06c372b91abcc7c63ab1f996e94a68ca6b8",
+      "description": "the kernel's output with the int8 cast OMITTED: the clip to [0,1] turns every wrapped-negative entry into 0.0, so the DIAGONAL IS 0 instead of 1 and the Gram is not even a similarity matrix. No exception is raised anywhere.",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "overflow_on_bits": {
+      "dtype": "<i8",
+      "shape": [
+        16
+      ],
+      "sha256": "fa4b2d49a93b2f041f2a3f1c8d2f04123e3f713ce171afc1f90d131580033e16",
+      "description": "number of on-bits in the probe row",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "overflow_rowsum_int64": {
+      "dtype": "<i8",
+      "shape": [
+        6
+      ],
+      "sha256": "cb569a39a61fffa78784b5d16d59ee2e83d68af7c6aadfa0ed3108ab13d6c723",
+      "description": "Xo.sum(axis=-1): numpy PROMOTES int8 sums to int64, so this is correct. Only the matmul wraps -- that asymmetry is what makes the bug silent.",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "overflow_true_value": {
+      "dtype": "<i8",
+      "shape": [
+        16
+      ],
+      "sha256": "fa4b2d49a93b2f041f2a3f1c8d2f04123e3f713ce171afc1f90d131580033e16",
+      "description": "the mathematically correct <x,x> = number of on-bits",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "overflow_uint8_matmul": {
+      "dtype": "<i8",
+      "shape": [
+        16
+      ],
+      "sha256": "430c2fccfbfacf1d0817011b0bfa82f9fbfe3dfdb9cc49318f53c894e9f8b46b",
+      "description": "same with uint8: wraps at 256 on-bits",
+      "reproducibility": "bitwise",
+      "agreement_criterion": "exact equality"
+    },
+    "rdkit_fp_int8": {
+      "dtype": "|i1",
+      "shape": [
+        8,
+        2048
+      ],
+      "sha256": "e0d77ad878620110147d1353f9adbf83476a2d22332518bd619910e35dc7de77",
+      "description": "real Morgan r=2, 2048-bit fingerprints for the 8 SMILES in capture_primitives.SMILES (row order matches that list)",
+      "reproducibility": "rdkit-version-dependent",
+      "agreement_criterion": "compare only within the same RDKit version; otherwise use as a smoke test (diagonal exactly 1.0, symmetry, range [0,1])"
+    },
+    "rdkit_gram_f32": {
+      "dtype": "<f4",
+      "shape": [
+        8,
+        8
+      ],
+      "sha256": "37e850a4f87be4bfcd581972dcf65db7f972f6e0793cfcecce91fec8e2a5098e",
+      "description": "float32 Tanimoto Gram of the real fingerprints",
+      "reproducibility": "rdkit-version-dependent",
+      "agreement_criterion": "diagonal exactly 1.0; symmetric to 0 ULP; entries in [0,1]"
+    },
+    "rdkit_on_bits": {
+      "dtype": "<i8",
+      "shape": [
+        8
+      ],
+      "sha256": "b8cf7983dd51a126437c1ecedd63dbb564a5cf7ac40cd749a74b2d0a48da7b33",
+      "description": "on-bit count per real molecule -- note several EXCEED 127, so the int8 matmul would overflow on real data",
+      "reproducibility": "rdkit-version-dependent",
+      "agreement_criterion": "informational"
+    },
+    "zero_fp_eps_denominator_min_eig": {
+      "dtype": "<f8",
+      "shape": [
+        2
+      ],
+      "sha256": "cdead7b1f5591afe2bec9b0007e0c305402e0573f0807909c7b0dfc902b926c9",
+      "description": "[min eigenvalue, K[empty,empty]] with eps on the denominator: singular (min eig 0) and k(0,0)=0, i.e. the zero-feature extension",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "min eig within 1e-12 of 0; K[-1,-1] == 0.0"
+    },
+    "zero_fp_eps_numerator_min_eig": {
+      "dtype": "<f8",
+      "shape": [
+        3
+      ],
+      "sha256": "e5ca5a1dea6a7b53a14fb3b32c6fa97af78e1ce5a61c754b9d5fe4a29088a569",
+      "description": "[min eigenvalue, K[empty,empty], K[empty,first]] with eps also in the numerator: strictly PD and k(0,0)=1, which is arguably better conditioned but is NOT the zero-feature extension and needs its own PSD argument",
+      "reproducibility": "lapack-dependent",
+      "agreement_criterion": "informational"
+    }
+  }
+}

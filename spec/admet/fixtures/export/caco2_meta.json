@@ -1,0 +1,50 @@
+{
+  "ad_comparison": "max_tanimoto < threshold  (STRICT)",
+  "ad_threshold": 0.2,
+  "ad_threshold_rational_p_q": [
+    1,
+    5
+  ],
+  "arrays": {
+    "baseline_prediction": "float64 (1,1)",
+    "count/depth/gain/bin_threshold/is_categorical/bitset_idx": "audit only; NOT used at predict time",
+    "feature_idx": "int32 (total_nodes,) column of X; meaningless on leaves",
+    "is_leaf": "uint8 (total_nodes,)",
+    "left": "int32 (total_nodes,) GLOBAL child index",
+    "missing_go_to_left": "uint8 (total_nodes,) NaN routing only",
+    "node_offset": "int64 (n_trees+1,) tree t occupies nodes [off[t], off[t+1])",
+    "num_threshold": "float64 (total_nodes,) go left iff x <= thr",
+    "right": "int32 (total_nodes,) GLOBAL child index",
+    "train_features": "uint8 (n_train, 2048) applicability-domain reference",
+    "value": "float64 (total_nodes,) leaf value INCLUDING shrinkage"
+  },
+  "baseline_prediction": -5.238485150000001,
+  "baseline_prediction_hex": "-0x1.4f435737f539ep+2",
+  "classes": null,
+  "estimator_class": "sklearn.ensemble._hist_gradient_boosting.gradient_boosting.HistGradientBoostingRegressor",
+  "estimator_kind": "regressor",
+  "format": "MOGP-NTD ADMET numpy export v1",
+  "inverse_link": "identity",
+  "key": "caco2",
+  "learning_rate": 0.1,
+  "n_features_in": 2048,
+  "n_trees": 100,
+  "n_trees_per_iteration": 1,
+  "npz": "caco2_trees.npz",
+  "npz_bytes": 149264,
+  "npz_sha256": "493bd82d6f02f592c5d189807aada3efca72e58f270621e1840f2c1c992475c3",
+  "num_threshold_unique_hex": [
+    "0x1.0000000000000p-1"
+  ],
+  "shrinkage_baked_into_leaf_values": true,
+  "source_artifact": "caco2.joblib",
+  "source_artifact_sha256": "489b52cd7c7f3133f4b99e7131b8449d1f73c7c537aeac0955b1909a65a32871",
+  "target_transform_applied_by_oracle": null,
+  "total_nodes": 5484,
+  "train_features_shape": [
+    728,
+    2048
+  ],
+  "uses_categorical_splits": false,
+  "uses_monotonic_constraints": false
+}

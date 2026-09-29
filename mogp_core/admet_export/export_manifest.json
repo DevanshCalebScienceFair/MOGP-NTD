@@ -1,0 +1,68 @@
+{
+  "ad_comparison_operator": "strict <",
+  "ad_threshold": 0.2,
+  "ad_threshold_rational_p_q": [
+    1,
+    5
+  ],
+  "environment": {
+    "joblib": "1.5.3",
+    "machine": "arm64",
+    "numpy": "2.4.6",
+    "platform": "macOS-26.5.1-arm64-arm-64bit",
+    "python": "3.11.15",
+    "scipy": "1.17.1",
+    "sklearn": "1.9.0"
+  },
+  "format": "MOGP-NTD ADMET numpy export v1",
+  "models": {
+    "caco2": {
+      "meta_json": "caco2_meta.json",
+      "meta_json_bytes": 1918,
+      "n_trees": 100,
+      "npz": "caco2_trees.npz",
+      "npz_bytes": 149264,
+      "npz_sha256": "493bd82d6f02f592c5d189807aada3efca72e58f270621e1840f2c1c992475c3",
+      "source_joblib": "caco2.joblib",
+      "source_joblib_bytes": 1960530,
+      "source_joblib_sha256": "489b52cd7c7f3133f4b99e7131b8449d1f73c7c537aeac0955b1909a65a32871",
+      "total_nodes": 5484,
+      "train_features_shape": [
+        728,
+        2048
+      ]
+    },
+    "half_life": {
+      "meta_json": "half_life_meta.json",
+      "meta_json_bytes": 1932,
+      "n_trees": 100,
+      "npz": "half_life_trees.npz",
+      "npz_bytes": 108378,
+      "npz_sha256": "638c2b66eba422814db041ffa8494aede8f6165fcb11a1915849dc8bdffe6726",
+      "source_joblib": "half_life.joblib",
+      "source_joblib_bytes": 1481650,
+      "source_joblib_sha256": "dfde2b4e456f454a3e5f12b297204395e42380c74cd52188e62e702fa13cd1ef",
+      "total_nodes": 4060,
+      "train_features_shape": [
+        533,
+        2048
+      ]
+    },
+    "herg": {
+      "meta_json": "herg_meta.json",
+      "meta_json_bytes": 1934,
+      "n_trees": 100,
+      "npz": "herg_trees.npz",
+      "npz_bytes": 105996,
+      "npz_sha256": "743d074ce4a3ba82190b169857b2046d734e2ef9ee9b25f173a1babe6d25208e",
+      "source_joblib": "herg.joblib",
+      "source_joblib_bytes": 1453202,
+      "source_joblib_sha256": "755f81c94edc5edd6cb084d0a7b16012c0ad934918fef0b0f50d0fe7d50bd8b6",
+      "total_nodes": 3898,
+      "train_features_shape": [
+        524,
+        2048
+      ]
+    }
+  }
+}

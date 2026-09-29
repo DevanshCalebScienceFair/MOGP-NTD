@@ -22,15 +22,14 @@ are really model error. So this is a GREY-BOX / composite setup:
   * The GP (``mogp.py``) models ONLY the two docking objectives
     (``mogp.DOCKING_TASK_INDICES``); ``mogp.predict`` returns NaN for the ADMET
     columns.
-  * Acquisition is BoTorch's noise-robust **qNEHVI**
+  * Acquisition is the noise-robust **qNEHVI** estimator
     (``qLogNoisyExpectedHypervolumeImprovement``) built on a 2-output docking
-    posterior, with a **composite objective**
-    (``CompositeKnownADMETObjective``) that, per candidate, concatenates that
-    candidate's EXACT known ADMET values onto the two sampled docking values to
-    form the full 5-D objective vector, then maps it into evaluation.py's shared
-    normalized [0, 1] maximization frame. qNEHVI then measures each composite
-    point's hypervolume improvement over the current front against the SINGLE
-    fixed reference point ``evaluation.FIXED_REFERENCE_POINT`` (all zeros).
+    posterior, with a **composite objective** that, per candidate, concatenates
+    that candidate's EXACT known ADMET values onto the two sampled docking values
+    to form the full 5-D objective vector, then maps it into evaluation.py's
+    shared normalized [0, 1] maximization frame. qNEHVI then measures each
+    composite point's hypervolume improvement over the current front against the
+    SINGLE fixed reference point ``evaluation.FIXED_REFERENCE_POINT`` (all zeros).
 
 Scoring in that shared normalized frame is deliberate: the acquisition optimizes
 exactly the hypervolume ``evaluation.compute_hypervolume`` reports, so every
@@ -42,22 +41,51 @@ the composite objective, uses the known ADMET exactly rather than a GP estimate.
 ``compute_pareto_front`` / ``get_reference_point`` (ORIGINAL units) and
 ``get_active_objectives`` are retained as shared helpers used across
 ``evaluation.py``, ``loop.py`` and the baselines.
+
+
+OWN-CODE NUMERICAL CORE
+-----------------------
+The estimator itself is now this project's own code: ``mogp_core.qnehvi``
+(log-smoothed qNEHVI at q=1), ``mogp_core.boxdecomp`` (the Lacour box
+decomposition of the baseline front) and ``mogp_core.sobol`` (the scrambled
+Sobol' QMC normals), all pure numpy. It is a 1:1 behavioural mirror of the
+BoTorch stack it replaces — ``qLogNoisyExpectedHypervolumeImprovement`` +
+``SobolQMCNormalSampler`` + ``FastNondominatedPartitioning`` — verified against
+live BoTorch on real data (``mogp_core/ACQUISITION_GATE.md``): same-normals
+agreement 1.78e-15, qNEHVI rank correlation 0.999417 (BoTorch vs. ITSELF at
+another Sobol seed is 0.999271), and an identical 5-molecule batch selection.
+
+*** THE POSTERIOR CALL SHAPE IS LOAD-BEARING. ***
+That 1.78e-15 is reachable ONLY because this module reproduces BoTorch's
+posterior call shapes exactly (see ``compute_qnehvi``):
+
+    BASELINE  mu/var  <- a SEPARATE ``mogp.predict`` on ``X_baseline`` ALONE
+    CANDIDATE mu/var  <- the STACKED ``cat(X_baseline, X)`` layout,
+                         ``(chunk, B + 1, n_fp)`` flattened to one predict call
+
+The GP is float32 and its output depends on the batch shape it is called with,
+so any other wiring silently costs six orders of magnitude, with no error and no
+warning. Measured on the same fit and the same points:
+
+    baseline SEP   + cand SEP     ->  max_abs 1.1068e-06
+    baseline SEP   + cand STACK   ->  max_abs 1.7764e-15   <-- the ONLY correct wiring
+    baseline STACK + cand STACK   ->  max_abs 1.1529e-07
+
+Do not "simplify" the stacked candidate predict into a plain per-candidate
+predict. It looks equivalent, it type-checks, it runs, and it is wrong.
+
+Two BoTorch adapter classes — ``DockingPosteriorModel`` and
+``CompositeKnownADMETObjective`` — survive as a TEST ORACLE only. They are off
+the shipped path entirely; ``test_acquisition.py`` and
+``test_core_qnehvi.py`` import them to compare this module against live BoTorch.
+They are built lazily (module ``__getattr__``), so importing this module and
+running the real acquisition never imports torch, gpytorch or botorch.
 """
 
+import sys
 import warnings
 
 import numpy as np
-import torch
-
-from gpytorch.distributions import MultitaskMultivariateNormal
-from gpytorch.utils.warnings import GPInputWarning
-from botorch.models.model import Model
-from botorch.posteriors.gpytorch import GPyTorchPosterior
-from botorch.sampling.normal import SobolQMCNormalSampler
-from botorch.acquisition.multi_objective.objective import MCMultiOutputObjective
-from botorch.acquisition.multi_objective.logei import (
-    qLogNoisyExpectedHypervolumeImprovement,
-)
 
 from mogp import (
     train_mogp,
@@ -67,7 +95,8 @@ from mogp import (
     OBJECTIVE_SOURCES,
     resolve_objective_layout,
 )
-from kernel import TanimotoKernel
+from mogp_core import qnehvi as _core_qnehvi
+from mogp_core import tanimoto as _core_tanimoto
 
 
 # Per-objective optimization direction in TASK_NAMES order: +1 = higher better,
@@ -92,8 +121,48 @@ N_MC_SAMPLES = 128
 # memory. Docking dominates wall-clock, so the extra Python-level calls are free.
 CANDIDATE_CHUNK = 128
 
-# BoTorch multi-objective utilities work in double precision.
-_DTYPE = torch.double
+# Estimator / sampler / sample-count. These are not open choices: they are what
+# the archived runs used, read straight off the BoTorch code this module
+# replaces. `qLogNoisyExpectedHypervolumeImprovement` -> estimator="log";
+# `SobolQMCNormalSampler` -> sampler="sobol"; N_MC_SAMPLES -> n_mc=128.
+# spec/qnehvi/SPEC.md prefers exact + iid + 512; that is a REDESIGN and is out of
+# scope here, where the requirement is the same numbers as the archived runs.
+_ESTIMATOR = "log"
+_SAMPLER = "sobol"
+
+# One shared candidate slot in the MC draw (common random numbers), which is what
+# BoTorch's collapsed t-batch base_samples layout (N, 1, B + 1, 2) does.
+_SAMPLE_LAYOUT = "CRN"
+
+# Variance floor, preserved exactly from the BoTorch posterior wrapper.
+_VAR_FLOOR = 1e-9
+
+# Upper bound of the QMC scramble seed draw; see `_draw_scramble_seed`.
+_SOBOL_SEED_HIGH = 1000000
+
+
+def _draw_scramble_seed():
+    """Draw the Sobol' scramble seed from numpy's AMBIENT global RNG.
+
+    This reproduces the structure of what it replaces, not just its output.
+    ``SobolQMCNormalSampler(sample_shape=...)`` was constructed with no explicit
+    seed, so BoTorch's ``MCSampler.__init__`` drew one from the ambient global
+    TORCH RNG, once per sampler construction:
+
+        seed = int(torch.randint(0, 1000000, (1,)).item())
+
+    i.e. the QMC scramble was a deterministic function of the caller's global
+    seed, and it advanced once per ``compute_qnehvi`` call. Every caller seeds
+    both global RNGs on adjacent lines (``loop.BOLoop.__init__``:
+    ``np.random.seed(seed); torch.manual_seed(seed)``; same in all four
+    baselines), so reading numpy's global RNG here keeps a run exactly as
+    reproducible as it was, and keeps the per-call variation the original had.
+
+    A fixed module-level seed would have been MORE deterministic than the code
+    being mirrored, which is a behaviour change in the direction the brief
+    forbids, so it is not what this does.
+    """
+    return int(np.random.randint(0, _SOBOL_SEED_HIGH))
 
 
 def _default_signs(num_objectives):
@@ -263,121 +332,29 @@ def compose_objective_points(docking, admet_tail,
     # samples carry qNEHVI's leading MC-sample dimension that the known ADMET
     # tail (read straight from X) does not, so the ADMET columns broadcast across
     # every posterior sample.
-    if torch.is_tensor(docking):
-        shape = torch.broadcast_shapes(*(c.shape for c in columns))
+    #
+    # The torch branch is reached ONLY from the lazily-built
+    # `CompositeKnownADMETObjective` test oracle. torch is looked up in
+    # sys.modules rather than imported, so this module keeps no torch dependency:
+    # if torch was never imported, `docking` cannot be a torch tensor.
+    _torch = sys.modules.get("torch")
+    if _torch is not None and _torch.is_tensor(docking):
+        shape = _torch.broadcast_shapes(*(c.shape for c in columns))
         columns = [c.expand(shape) for c in columns]
-        return torch.stack(columns, dim=-1)
+        return _torch.stack(columns, dim=-1)
     shape = np.broadcast_shapes(*(c.shape for c in columns))
     columns = [np.broadcast_to(c, shape) for c in columns]
     return np.stack(columns, axis=-1)
 
 
-class DockingPosteriorModel(Model):
-    """BoTorch wrapper exposing the grey-box GP as a docking-only posterior.
-
-    The acquisition input ``X`` is a fingerprint with the candidate's known
-    ADMET appended as a tail (see ``_augment_with_admet``); this model uses only
-    the leading ``n_fp`` fingerprint columns and returns a posterior over the
-    docking objectives (``num_outputs == len(dock_task_indices) == 2``). The
-    ADMET tail is ignored here — it is consumed exactly by the composite
-    objective, never predicted.
-
-    The posterior is assembled from ``mogp.predict``'s per-molecule marginal
-    mean/variance (original docking units) as an independent
-    ``MultitaskMultivariateNormal`` (diagonal covariance), which qNEHVI samples.
-    """
-
-    def __init__(self, model, likelihood, y_mean, y_std, n_fp, dock_task_indices):
-        super().__init__()
-        self._model = model
-        self._likelihood = likelihood
-        self._y_mean = y_mean
-        self._y_std = y_std
-        self._n_fp = int(n_fp)
-        self._dock = list(dock_task_indices)
-
-    @property
-    def num_outputs(self):
-        return len(self._dock)
-
-    def posterior(self, X, output_indices=None, observation_noise=False,
-                  posterior_transform=None):
-        *batch, q, _ = X.shape
-        k = len(self._dock)
-        fp = X[..., :self._n_fp].reshape(-1, self._n_fp).detach().cpu().numpy()
-        with warnings.catch_warnings():
-            # The evaluated baseline IS the GP's training set, so predicting on it
-            # trips GPyTorch's "input matches training data" notice every step.
-            # That is expected here (we want the posterior at those points).
-            warnings.simplefilter("ignore", GPInputWarning)
-            mean_np, var_np = predict(
-                self._model, self._likelihood, self._y_mean, self._y_std, fp
-            )
-        mean_d = torch.as_tensor(
-            mean_np[:, self._dock], dtype=_DTYPE
-        ).reshape(*batch, q, k)
-        var_d = torch.as_tensor(
-            np.clip(var_np[:, self._dock], 1e-9, None), dtype=_DTYPE
-        ).reshape(*batch, q, k)
-        # Independent (diagonal) joint posterior over the q x k docking outputs.
-        covar = torch.diag_embed(var_d.reshape(*batch, q * k))
-        mvn = MultitaskMultivariateNormal(mean_d, covar)
-        post = GPyTorchPosterior(mvn)
-        if posterior_transform is not None:
-            return posterior_transform(post)
-        return post
-
-
-class CompositeKnownADMETObjective(MCMultiOutputObjective):
-    r"""Composite objective: sampled docking + KNOWN-EXACT ADMET, normalized.
-
-    For each point, concatenates the GP-sampled DOCKING outputs with that point's
-    EXACT KNOWN ADMET values — read from the tail of the acquisition input ``X``,
-    NOT from the GP posterior — into the full objective vector, then maps it into
-    ``evaluation.py``'s shared [0, 1] maximization frame (so 1.0 = best on every
-    objective and the fixed all-zeros reference point applies). ADMET is therefore
-    used exactly; only the docking objectives carry model uncertainty.
-    """
-
-    def __init__(self, dock_task_indices, lib_task_indices, num_objectives,
-                 bounds, signs):
-        super().__init__()
-        self.dock_task_indices = list(dock_task_indices)
-        self.lib_task_indices = list(lib_task_indices)
-        self.num_objectives = int(num_objectives)
-        self.n_admet = len(self.lib_task_indices)
-
-        bounds = torch.as_tensor(bounds, dtype=_DTYPE)
-        lo = bounds[:, 0]
-        hi = bounds[:, 1]
-        span = hi - lo
-        # Guard zero-width objectives so normalization never divides by zero.
-        span = torch.where(span == 0, torch.ones_like(span), span)
-        self.register_buffer("_lo", lo)
-        self.register_buffer("_hi", hi)
-        self.register_buffer("_span", span)
-        self.register_buffer("_signs", torch.as_tensor(signs, dtype=_DTYPE))
-
-    def forward(self, samples, X=None):
-        if X is None:
-            raise RuntimeError(
-                "CompositeKnownADMETObjective requires X: the known ADMET values "
-                "are encoded in its tail."
-            )
-        admet_tail = X[..., -self.n_admet:].to(samples)
-        full = compose_objective_points(
-            samples, admet_tail,
-            self.dock_task_indices, self.lib_task_indices, self.num_objectives,
+def _check_admet_rows(X_fp, admet_rows):
+    """Row-for-row alignment check shared by ``_augment_with_admet`` and the
+    acquisition. Raises the same ``ValueError`` either way."""
+    if admet_rows.ndim != 2 or admet_rows.shape[0] != X_fp.shape[0]:
+        raise ValueError(
+            "admet_rows must be a (N, n_admet) matrix aligned row-for-row with "
+            f"X_fp; got admet_rows {admet_rows.shape} vs X_fp {X_fp.shape}."
         )
-        lo = self._lo.to(full)
-        hi = self._hi.to(full)
-        span = self._span.to(full)
-        s = self._signs.to(full)
-        # Higher-is-better: (y - lo)/span; lower-is-better: (hi - y)/span. Both
-        # put the best value at 1.0 and the worst at 0.0; clip so out-of-range
-        # values saturate into the cube rather than escaping it.
-        norm = torch.where(s > 0, (full - lo) / span, (hi - full) / span)
-        return norm.clamp(0.0, 1.0)
 
 
 def _augment_with_admet(X_fp, admet_rows, lib_admet_cols):
@@ -389,13 +366,33 @@ def _augment_with_admet(X_fp, admet_rows, lib_admet_cols):
     """
     X_fp = np.asarray(X_fp, dtype=float)
     admet_rows = np.asarray(admet_rows, dtype=float)
-    if admet_rows.ndim != 2 or admet_rows.shape[0] != X_fp.shape[0]:
-        raise ValueError(
-            "admet_rows must be a (N, n_admet) matrix aligned row-for-row with "
-            f"X_fp; got admet_rows {admet_rows.shape} vs X_fp {X_fp.shape}."
-        )
+    _check_admet_rows(X_fp, admet_rows)
     tail = admet_rows[:, list(lib_admet_cols)]
     return np.concatenate([X_fp, tail], axis=1)
+
+
+def _predict_docking(model, likelihood, y_mean, y_std, X, dock_task_indices):
+    """``mogp.predict`` reduced to the docking columns, with the variance floor.
+
+    The mean/variance selection, the ``float`` cast and the ``1e-9`` variance
+    floor are exactly what the BoTorch posterior wrapper did, so the numbers
+    handed to the estimator are unchanged.
+    """
+    with warnings.catch_warnings():
+        # The evaluated baseline IS the GP's training set, so predicting on it
+        # trips GPyTorch's "input matches training data" notice every step.
+        # That is expected here (we want the posterior at those points).
+        # Filtered by MESSAGE, not by exception class, so this module does not
+        # have to import gpytorch just to name GPInputWarning; the filter is a
+        # harmless no-op for a GP backend that does not warn.
+        warnings.filterwarnings(
+            "ignore", message="The input matches the stored training data"
+        )
+        mean_np, var_np = predict(model, likelihood, y_mean, y_std, X)
+    dock = list(dock_task_indices)
+    mu = np.asarray(mean_np[:, dock], dtype=float)
+    var = np.clip(np.asarray(var_np[:, dock], dtype=float), _VAR_FLOOR, None)
+    return mu, var
 
 
 def compute_qnehvi(model, likelihood, y_mean, y_std,
@@ -441,6 +438,14 @@ def compute_qnehvi(model, likelihood, y_mean, y_std,
         layout = _resolve_admet_layout()
     dock_task_indices, lib_task_indices, lib_admet_cols = layout
 
+    # *** TRIPWIRE — DO NOT "optimize" this into get_active_objectives(...). ***
+    # This constant 5 is the only reason the box decomposition never runs at
+    # m = 2, which is the one objective count where mogp_core.boxdecomp
+    # deliberately diverges from botorch's analytic 2-D path (it is verified
+    # row-for-row bitwise at m >= 3, and 62/62 at m = 5, the only reachable m —
+    # see mogp_core/BOXDECOMP_VERDICT.md). Deriving m from the active objectives
+    # would make m = 2 reachable on the first iterations, when the docking
+    # columns are still all-NaN, and would silently change the numbers.
     num_objectives = len(TASK_NAMES)
     if objective_signs is None:
         objective_signs = _default_signs(num_objectives)
@@ -457,55 +462,112 @@ def compute_qnehvi(model, likelihood, y_mean, y_std,
             "molecule to define the current front."
         )
     n_fp = X_candidates.shape[1]
+    n_baseline = X_baseline.shape[0]
+    n_dock = len(dock_task_indices)
 
-    Xb_aug = torch.as_tensor(
-        _augment_with_admet(X_baseline, baseline_admet, lib_admet_cols),
-        dtype=_DTYPE,
-    )
-    Xc_aug = torch.as_tensor(
-        _augment_with_admet(X_candidates, candidate_admet, lib_admet_cols),
-        dtype=_DTYPE,
-    )
+    candidate_admet = np.asarray(candidate_admet, dtype=float)
+    baseline_admet = np.asarray(baseline_admet, dtype=float)
+    _check_admet_rows(X_candidates, candidate_admet)
+    _check_admet_rows(X_baseline, baseline_admet)
 
-    model_wrap = DockingPosteriorModel(
-        model, likelihood, y_mean, y_std, n_fp, dock_task_indices
-    )
-    objective = CompositeKnownADMETObjective(
-        dock_task_indices, lib_task_indices, num_objectives, bounds, signs
-    )
     ref = (fixed_reference_point(num_objectives)
            if ref_point is None else np.asarray(ref_point, dtype=float))
 
-    sampler = SobolQMCNormalSampler(sample_shape=torch.Size([int(n_mc_samples)]))
-    acqf = qLogNoisyExpectedHypervolumeImprovement(
-        model=model_wrap,
-        ref_point=torch.as_tensor(ref, dtype=_DTYPE),
-        X_baseline=Xb_aug,
-        sampler=sampler,
-        objective=objective,
-        # Our custom marginal posterior does not support the low-rank root cache,
-        # and pruning the baseline is unnecessary for a discrete candidate scan.
-        prune_baseline=False,
-        cache_root=False,
+    chunk = max(1, int(candidate_chunk))
+
+    # ------------------------------------------------------------------ #
+    # POSTERIOR CALL SHAPES — READ THE MODULE DOCSTRING BEFORE TOUCHING.
+    #
+    # The numpy estimator agrees with live BoTorch to 1.78e-15 only when the mu
+    # and var handed to it are the ones BoTorch's own call pattern produces. The
+    # GP is float32 and its output is batch-shape dependent, so:
+    #
+    #   * BASELINE  — ONE SEPARATE predict on X_baseline alone (B rows). This is
+    #     what BoTorch does once, at acquisition construction, to build the box
+    #     decomposition of the current front.
+    #   * CANDIDATE — the STACKED layout. BoTorch's forward (cache_root=False)
+    #     builds X_full = cat(X_baseline, X) of shape (chunk, B + 1, d) and calls
+    #     the posterior ONCE on all chunk * (B + 1) rows, so every candidate's own
+    #     row is predicted alongside `chunk` repeats of the whole baseline. Only
+    #     row B of each block (the candidate itself) is kept.
+    #
+    # Measured cost of getting this wrong, same fit and same points:
+    #     baseline SEP   + cand SEP     1.1068e-06
+    #     baseline SEP   + cand STACK   1.7764e-15   <-- this wiring
+    #     baseline STACK + cand STACK   1.1529e-07
+    # ------------------------------------------------------------------ #
+    mu_baseline, var_baseline = _predict_docking(
+        model, likelihood, y_mean, y_std, X_baseline, dock_task_indices
     )
 
-    # Score each candidate independently as its own q=1 t-batch -> shape (M,).
-    # Chunk the candidate (t-batch) dimension so qNEHVI's internal
-    # (n_mc_samples, M, num_boxes, m) tensor never materializes for the whole
-    # library at once (scoring the full pool OOM-kills the process within a few
-    # iterations). Each candidate is scored independently, so this is a valid
-    # per-candidate qNEHVI estimate with bounded peak memory; it is deterministic
-    # and reproducible for a fixed chunk size, though not bit-identical to a
-    # single-shot call, since the quasi-MC Sobol draws depend on t-batch size.
-    Xc_q = Xc_aug.unsqueeze(1)
-    chunk = max(1, int(candidate_chunk))
-    chunk_scores = []
-    with torch.no_grad():
-        for start in range(0, Xc_q.shape[0], chunk):
-            batch_scores = acqf(Xc_q[start:start + chunk])
-            chunk_scores.append(batch_scores.detach().cpu())
-    scores = torch.cat(chunk_scores, dim=0)
-    return np.asarray(scores.numpy(), dtype=float)
+    X_baseline_f = np.asarray(X_baseline, dtype=float)
+    mu_parts, var_parts = [], []
+    for start in range(0, X_candidates.shape[0], chunk):
+        block = np.asarray(X_candidates[start:start + chunk], dtype=float)
+        n_block = block.shape[0]
+        # cat(X_baseline, x) per candidate -> (n_block, B + 1, n_fp), flattened
+        # in C order exactly as BoTorch's posterior wrapper flattened it.
+        stacked = np.empty((n_block, n_baseline + 1, n_fp), dtype=float)
+        stacked[:, :n_baseline, :] = X_baseline_f[None, :, :]
+        stacked[:, n_baseline, :] = block
+        mu_flat, var_flat = _predict_docking(
+            model, likelihood, y_mean, y_std,
+            stacked.reshape(-1, n_fp), dock_task_indices,
+        )
+        mu_parts.append(
+            mu_flat.reshape(n_block, n_baseline + 1, n_dock)[:, n_baseline, :]
+        )
+        var_parts.append(
+            var_flat.reshape(n_block, n_baseline + 1, n_dock)[:, n_baseline, :]
+        )
+    mu_candidates = np.concatenate(mu_parts, axis=0)
+    var_candidates = np.concatenate(var_parts, axis=0)
+
+    # The posterior this scores is DIAGONAL: only the per-molecule, per-task
+    # MARGINAL variances are used, so the PfDHFR/hDHFR cross-task covariance the
+    # coregionalized GP learns is discarded, and two molecules' docking draws are
+    # independent even when the kernel says they are nearly identical.
+    # `mogp_core.qnehvi` reproduces that exactly (dock = mu + sd * z with an
+    # independent normal per row and per task), which is the same thing the
+    # BoTorch wrapper's `torch.diag_embed(marginal variances)` did.
+    # THIS IS A KNOWN SCIENTIFIC GAP AND IT IS PRESERVED DELIBERATELY: it is the
+    # behaviour every archived run has, and "fixing" it here would change the
+    # benchmark rather than port it. Out of scope. Do not repair it in passing.
+    #
+    # `cand_chunk` bounds peak memory inside the estimator. In mogp_core.qnehvi
+    # it is genuinely bit-neutral (the standard normals do not depend on it and
+    # no reduction crosses a chunk boundary), unlike the chunking of the posterior
+    # calls above, which is not — see the note on CANDIDATE_CHUNK below.
+    scores = _core_qnehvi.qnehvi(
+        mu_baseline, var_baseline, baseline_admet,
+        mu_candidates, var_candidates, candidate_admet,
+        bounds,
+        estimator=_ESTIMATOR,
+        n_mc=int(n_mc_samples),
+        run_seed=_draw_scramble_seed(),
+        iteration=0,
+        signs=signs,
+        ref=ref,
+        dock_idx=dock_task_indices,
+        lib_idx=lib_task_indices,
+        lib_admet_cols=lib_admet_cols,
+        num_objectives=num_objectives,
+        sampler=_SAMPLER,
+        layout=_SAMPLE_LAYOUT,
+        cand_chunk=chunk,
+    )
+
+    # A NOTE ON CANDIDATE_CHUNK, corrected. The previous comment here said
+    # chunking is "not bit-identical to a single-shot call, since the quasi-MC
+    # Sobol draws depend on t-batch size". The CONCLUSION is right — measured,
+    # chunk=128 vs chunk=1 differs by 1.1068e-06 — but the stated REASON is
+    # wrong. The base samples are (n_mc, 1, B + 1, 2): the t-batch dimension is
+    # collapsed, so they are identical at any chunk size. The real cause is the
+    # float32 GP: chunking changes the number of rows in the stacked predict
+    # call above, and the GP's output depends on the batch shape it is called
+    # with. The behaviour is kept as it is (chunk 128); only the explanation is
+    # fixed.
+    return np.asarray(scores, dtype=float)
 
 
 def select_batch(model, likelihood, y_mean, y_std,
@@ -546,11 +608,11 @@ def select_batch(model, likelihood, y_mean, y_std,
         objective_signs=objective_signs, n_mc_samples=n_mc_samples, layout=layout,
     )
 
-    # Rank candidates by qNEHVI score, highest first.
+    # Rank candidates by qNEHVI score, highest first. Kept as np.argsort(-scores)
+    # — NOT mogp_core.qnehvi.rank_for_selection, which is the same order but with
+    # a documented ascending-index tie-break. Under the log estimator exact ties
+    # do not occur, and this is the archived behaviour.
     ranked = np.argsort(-scores)
-
-    kernel = TanimotoKernel()
-    X_t = torch.from_numpy(np.asarray(X_candidates)).to(torch.float32)
 
     selected = []
     for idx in ranked:
@@ -560,7 +622,14 @@ def select_batch(model, likelihood, y_mean, y_std,
             selected.append(int(idx))
             continue
         # Tanimoto similarity of this candidate to every selected molecule.
-        sims = kernel.forward(X_t[idx:idx + 1], X_t[selected]).squeeze(0)
+        # mogp_core.tanimoto.tanimoto_gram mirrors kernel.TanimotoKernel.forward
+        # including its float32 downcast (measured max|diff| = 0.000e+00 on a
+        # 40x40 real-fingerprint gram). check_binary=False keeps the library's
+        # exact out-of-contract behaviour on a non-binary fingerprint instead of
+        # raising, i.e. no new failure mode is introduced here.
+        sims = _core_tanimoto.tanimoto_gram(
+            X_candidates[idx:idx + 1], X_candidates[selected], check_binary=False
+        )[0]
         if float(sims.max()) < diversity_threshold:
             selected.append(int(idx))
 
@@ -569,9 +638,177 @@ def select_batch(model, likelihood, y_mean, y_std,
     return selected_indices, selected_scores
 
 
+# ---------------------------------------------------------------------- #
+# BoTorch adapters — TEST ORACLE ONLY, off the shipped path.
+#
+# `DockingPosteriorModel` and `CompositeKnownADMETObjective` existed only to talk
+# to botorch, and the acquisition above no longer does. They are kept because
+# `test_acquisition.py` and `test_core_qnehvi.py` import them to check this
+# module against LIVE botorch — that differential test is the evidence the port
+# is faithful, so removing the adapters would remove the proof.
+#
+# They are built on first attribute access (PEP 562 module __getattr__), so
+# torch / gpytorch / botorch are imported only by a caller that wants the oracle.
+# Importing this module and running compute_qnehvi / select_batch never does.
+# ---------------------------------------------------------------------- #
+_LAZY_ADAPTERS = {}
+
+
+def _build_botorch_adapters():
+    """Construct the two BoTorch adapter classes (see the note above)."""
+    import torch
+    from gpytorch.distributions import MultitaskMultivariateNormal
+    from gpytorch.utils.warnings import GPInputWarning
+    from botorch.models.model import Model
+    from botorch.acquisition.multi_objective.objective import MCMultiOutputObjective
+    from botorch.posteriors.gpytorch import GPyTorchPosterior
+
+    # BoTorch multi-objective utilities work in double precision.
+    _DTYPE = torch.double
+
+    class DockingPosteriorModel(Model):
+        """BoTorch wrapper exposing the grey-box GP as a docking-only posterior.
+
+        The acquisition input ``X`` is a fingerprint with the candidate's known
+        ADMET appended as a tail (see ``_augment_with_admet``); this model uses only
+        the leading ``n_fp`` fingerprint columns and returns a posterior over the
+        docking objectives (``num_outputs == len(dock_task_indices) == 2``). The
+        ADMET tail is ignored here — it is consumed exactly by the composite
+        objective, never predicted.
+
+        The posterior is assembled from ``mogp.predict``'s per-molecule marginal
+        mean/variance (original docking units) as an independent
+        ``MultitaskMultivariateNormal`` (diagonal covariance), which qNEHVI samples.
+        """
+
+        def __init__(self, model, likelihood, y_mean, y_std, n_fp, dock_task_indices):
+            super().__init__()
+            self._model = model
+            self._likelihood = likelihood
+            self._y_mean = y_mean
+            self._y_std = y_std
+            self._n_fp = int(n_fp)
+            self._dock = list(dock_task_indices)
+
+        @property
+        def num_outputs(self):
+            return len(self._dock)
+
+        def posterior(self, X, output_indices=None, observation_noise=False,
+                      posterior_transform=None):
+            *batch, q, _ = X.shape
+            k = len(self._dock)
+            fp = X[..., :self._n_fp].reshape(-1, self._n_fp).detach().cpu().numpy()
+            with warnings.catch_warnings():
+                # The evaluated baseline IS the GP's training set, so predicting on it
+                # trips GPyTorch's "input matches training data" notice every step.
+                # That is expected here (we want the posterior at those points).
+                warnings.simplefilter("ignore", GPInputWarning)
+                mean_np, var_np = predict(
+                    self._model, self._likelihood, self._y_mean, self._y_std, fp
+                )
+            mean_d = torch.as_tensor(
+                mean_np[:, self._dock], dtype=_DTYPE
+            ).reshape(*batch, q, k)
+            var_d = torch.as_tensor(
+                np.clip(var_np[:, self._dock], _VAR_FLOOR, None), dtype=_DTYPE
+            ).reshape(*batch, q, k)
+            # Independent (diagonal) joint posterior over the q x k docking outputs.
+            # KNOWN SCIENTIFIC GAP, PRESERVED DELIBERATELY: this discards the
+            # cross-task covariance. mogp_core.qnehvi reproduces it exactly.
+            covar = torch.diag_embed(var_d.reshape(*batch, q * k))
+            mvn = MultitaskMultivariateNormal(mean_d, covar)
+            post = GPyTorchPosterior(mvn)
+            if posterior_transform is not None:
+                return posterior_transform(post)
+            return post
+
+    class CompositeKnownADMETObjective(MCMultiOutputObjective):
+        r"""Composite objective: sampled docking + KNOWN-EXACT ADMET, normalized.
+
+        For each point, concatenates the GP-sampled DOCKING outputs with that point's
+        EXACT KNOWN ADMET values — read from the tail of the acquisition input ``X``,
+        NOT from the GP posterior — into the full objective vector, then maps it into
+        ``evaluation.py``'s shared [0, 1] maximization frame (so 1.0 = best on every
+        objective and the fixed all-zeros reference point applies). ADMET is therefore
+        used exactly; only the docking objectives carry model uncertainty.
+        """
+
+        def __init__(self, dock_task_indices, lib_task_indices, num_objectives,
+                     bounds, signs):
+            super().__init__()
+            self.dock_task_indices = list(dock_task_indices)
+            self.lib_task_indices = list(lib_task_indices)
+            self.num_objectives = int(num_objectives)
+            self.n_admet = len(self.lib_task_indices)
+
+            bounds = torch.as_tensor(bounds, dtype=_DTYPE)
+            lo = bounds[:, 0]
+            hi = bounds[:, 1]
+            span = hi - lo
+            # Guard zero-width objectives so normalization never divides by zero.
+            span = torch.where(span == 0, torch.ones_like(span), span)
+            self.register_buffer("_lo", lo)
+            self.register_buffer("_hi", hi)
+            self.register_buffer("_span", span)
+            self.register_buffer("_signs", torch.as_tensor(signs, dtype=_DTYPE))
+
+        def forward(self, samples, X=None):
+            if X is None:
+                raise RuntimeError(
+                    "CompositeKnownADMETObjective requires X: the known ADMET values "
+                    "are encoded in its tail."
+                )
+            admet_tail = X[..., -self.n_admet:].to(samples)
+            full = compose_objective_points(
+                samples, admet_tail,
+                self.dock_task_indices, self.lib_task_indices, self.num_objectives,
+            )
+            lo = self._lo.to(full)
+            hi = self._hi.to(full)
+            span = self._span.to(full)
+            s = self._signs.to(full)
+            # Higher-is-better: (y - lo)/span; lower-is-better: (hi - y)/span. Both
+            # put the best value at 1.0 and the worst at 0.0; clip so out-of-range
+            # values saturate into the cube rather than escaping it.
+            norm = torch.where(s > 0, (full - lo) / span, (hi - full) / span)
+            return norm.clamp(0.0, 1.0)
+
+    return {
+        "DockingPosteriorModel": DockingPosteriorModel,
+        "CompositeKnownADMETObjective": CompositeKnownADMETObjective,
+    }
+
+
+def __getattr__(name):
+    """Lazily expose the BoTorch test-oracle adapters (and ``TanimotoKernel``).
+
+    Built once and cached, so ``isinstance`` and repeated construction behave
+    exactly as they did when the classes were defined at module scope.
+    """
+    if name in ("DockingPosteriorModel", "CompositeKnownADMETObjective"):
+        if not _LAZY_ADAPTERS:
+            _LAZY_ADAPTERS.update(_build_botorch_adapters())
+        return _LAZY_ADAPTERS[name]
+    if name == "TanimotoKernel":
+        # Re-export kept for compatibility: the acquisition itself now uses
+        # mogp_core.tanimoto.tanimoto_gram, which is bit-identical to it.
+        from kernel import TanimotoKernel
+
+        return TanimotoKernel
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
 if __name__ == "__main__":
+    # Determinism, without torch. `np.random.seed(0)` seeds the LEGACY global
+    # RandomState, which is what `_draw_scramble_seed` reads to pick the Sobol'
+    # scramble seed — exactly the role `torch.manual_seed(0)` used to play for
+    # botorch's SobolQMCNormalSampler. `rng` is an explicit numpy Generator for
+    # the synthetic demo data. `mogp.train_mogp` draws no random numbers (its
+    # hyperparameters initialize to constants and Adam is deterministic), so
+    # nothing else needs seeding and two runs of this script agree exactly.
     np.random.seed(0)
-    torch.manual_seed(0)
+    rng = np.random.default_rng(0)
 
     # Objective layout WITHOUT importing the (heavy) data module: docking indices
     # from OBJECTIVE_SOURCES, and library ADMET passed already in library-task
@@ -585,18 +822,18 @@ if __name__ == "__main__":
 
     # Sparse random 2048-bit fingerprints (~5% on bits) for baseline + candidates.
     n_baseline, n_cand = 12, 25
-    X_baseline = (np.random.rand(n_baseline, n_fp) < 0.05).astype(np.int8)
-    X_candidates = (np.random.rand(n_cand, n_fp) < 0.05).astype(np.int8)
+    X_baseline = (rng.random((n_baseline, n_fp)) < 0.05).astype(np.int8)
+    X_candidates = (rng.random((n_cand, n_fp)) < 0.05).astype(np.int8)
 
     # Known ADMET (library-task order) for baseline + candidates.
-    baseline_admet = np.random.uniform(0.0, 1.0, size=(n_baseline, n_admet)).astype(np.float32)
-    candidate_admet = np.random.uniform(0.0, 1.0, size=(n_cand, n_admet)).astype(np.float32)
+    baseline_admet = rng.uniform(0.0, 1.0, size=(n_baseline, n_admet)).astype(np.float32)
+    candidate_admet = rng.uniform(0.0, 1.0, size=(n_cand, n_admet)).astype(np.float32)
 
     # Grey-box GP trains on the docking columns only; the ADMET columns of Y are
     # present but ignored by the GP (train_mogp masks them out).
     Y = np.zeros((n_baseline, len(TASK_NAMES)), dtype=np.float32)
     for j in dock_idx:
-        Y[:, j] = np.random.uniform(-11.0, -5.0, size=n_baseline)
+        Y[:, j] = rng.uniform(-11.0, -5.0, size=n_baseline)
     for k, j in enumerate(lib_idx):
         Y[:, j] = baseline_admet[:, k]
 

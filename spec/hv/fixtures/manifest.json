@@ -1,0 +1,63 @@
+{
+ "_doc": "sha256 of every DETERMINISTIC fixture. A fresh run of capture_hv.py in the same env must reproduce manifest_digest byte for byte. timings.json and environment.json are excluded: they are not reproducible.",
+ "excluded_nondeterministic": [
+  "timings.json",
+  "environment.json",
+  "manifest.json"
+ ],
+ "fixtures": {
+  "archived_hypervolume.json": {
+   "bytes": 203368,
+   "sha256": "07f5114a850a6a6a69bb2488eec8d68f9efcb8daeb48adaa45152d89b9392771"
+  },
+  "bound_roundtrip_edge.json": {
+   "bytes": 679,
+   "sha256": "879503172b76b0b850221456517c850fda34cf5cc6bb9ae812ff62e0a5d60811"
+  },
+  "determinism.json": {
+   "bytes": 829,
+   "sha256": "949e07ff8b7a3330bc402ecaabed16180b2967ec7aa8649cf55cfe2518e5edfa"
+  },
+  "frame.json": {
+   "bytes": 1266,
+   "sha256": "bcbe77fc102068b8cca8e0956fccbaf7099de8acb5a4d35f29643bba18af175c"
+  },
+  "hv_160_replication.json": {
+   "bytes": 46317,
+   "sha256": "03ad316c02aed9375666d581989f96ee44cc37fc8535cdd30b8c7cd6a644226a"
+  },
+  "hv_canonical_cases.json": {
+   "bytes": 13410,
+   "sha256": "5f0431b10e18d7a7716ae6ea2cd313d7e7a8a2d24d473251ca981cf498ab2ae8"
+  },
+  "hv_random_fronts.json": {
+   "bytes": 264550,
+   "sha256": "ad250cbfa25629ec110ffe2d3e823a22b1ed0ab295662c8c620d9e53a3b7e5d5"
+  },
+  "independent_checks.json": {
+   "bytes": 20728,
+   "sha256": "07fb083cc4bf8ef6d91aadfec093dc9b1c9232a334442ba5e9376666166eda65"
+  },
+  "normalized_frames.json": {
+   "bytes": 37079,
+   "sha256": "a536c18d54ccca12bc5f80852b4551828186c281827d6ca105ea360590fd14c9"
+  },
+  "output_column_contract.json": {
+   "bytes": 2499,
+   "sha256": "c1ff9a4e0c1e336c7ec98efb778b753a02533017a53723f383c6bfcbabea901e"
+  },
+  "pareto_convention_cases.json": {
+   "bytes": 14548,
+   "sha256": "05af74b167ad4391cb0d27769db69c7d61f35374fdc1778cb673fd87d4971657"
+  },
+  "ref_filter_strict_vs_weak.json": {
+   "bytes": 4515,
+   "sha256": "354097098674c62d601af707d9ae77f9eba2ba0b1a3bb5f54ba55f69220b97ab"
+  },
+  "repo_oracle_agreement.json": {
+   "bytes": 548,
+   "sha256": "cf2b7e1937930d0d4e1ac50a6031f331fbd9e05d9ee97400186c9d1493e46527"
+  }
+ },
+ "manifest_digest": "49f3d87783df1006abb2683134609bb188122482a2e62ba3c42dfc1f64850ffd"
+}

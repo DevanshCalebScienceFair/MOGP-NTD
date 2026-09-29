@@ -1,34 +1,58 @@
 """Multi-Output Gaussian Process for molecular property prediction.
 
-This module builds a batch-independent multi-output GP on top of the project's
-existing pieces:
+This module builds a multi-output GP on top of the project's existing pieces:
 
   * Morgan fingerprints (``utils/featurize.py``) as the molecular representation.
-  * A Tanimoto similarity kernel (``kernel.py``) as the GP covariance over those
-    fingerprints.
+  * A Tanimoto similarity kernel (``mogp_core.tanimoto``, this project's own
+    implementation) as the GP covariance over those fingerprints.
   * The ADMET oracle (``admet_oracle.ADMETOracle``) that supplies the
     regression/classification targets to learn.
 
-The MOGP is a GREY-BOX model: it places one independent scaled-Tanimoto GP on
-each **docking** objective (``DOCKING_TASK_INDICES``) and packs them into a
-single ``MultitaskMultivariateNormal`` so predictions (mean and per-task
-uncertainty) come out together. The three ADMET objectives are **known exactly**
+The numerics run on ``mogp_core.gp`` — pure numpy, no torch / gpytorch /
+botorch / scipy.  ``mogp_core.gp`` is a 1:1 behavioural mirror of the gpytorch
+model this module used to build, quirks included, so the archived campaigns'
+numbers are reproduced rather than re-derived.
+
+The MOGP is a GREY-BOX model: it places one scaled-Tanimoto GP on each
+**docking** objective (``DOCKING_TASK_INDICES``) and returns their means and
+per-task variances together.  The three ADMET objectives are **known exactly**
 for every candidate (precomputed in ``data.py``), so they are deliberately NOT
 modelled here — the acquisition folds their exact values in via a composite
-objective. Predictions are still returned in the fixed ``TASK_NAMES`` order
+objective.  Predictions are still returned in the fixed ``TASK_NAMES`` order
 ``[PfDHFR_Docking, hDHFR_Docking, hERG_Toxicity_Prob, Caco2_logPapp,
 Half_Life_hours]``, with the un-modelled ADMET columns returned as NaN.
+
+THE PER-TASK GPs ARE **NOT** INDEPENDENT — docstring correction (2026-09-27)
+---------------------------------------------------------------------------
+Earlier revisions of this docstring, and ``MOGPModel``'s, described the model as
+"batch-independent" / "one independent scaled-Tanimoto GP per objective".  That
+is wrong, and it was wrong for every archived run.  The likelihood is
+``MultitaskGaussianLikelihood``, whose per-task noise is::
+
+    tau_t = sigma2 + d_t
+
+where ``d_t`` is a per-task raw noise but ``sigma2`` is **ONE SHARED GLOBAL
+SCALAR** across all tasks.  So the trainable parameter count is ``3T + 1``, not
+``3T``, and ``dloss/dsigma2`` sums each task's contribution: the likelihood
+decomposes additively over tasks but the *optimization* does not separate.  The
+tasks are conditionally independent given the hyperparameters and coupled
+through them.
+
+``mogp_core.gp`` preserves the shared-noise model exactly — it is what the
+archived numbers were produced with — and ``spec/gp/SPEC.md`` §3.1, §6 records
+the derivation and the measurement.  The model is unchanged; only this
+description is corrected.  Note also that ``sigma2`` and ``d_t`` are not
+separately identifiable (``(sigma2, d) -> (sigma2 + e, d - e)`` leaves every
+``tau_t`` and the loss exactly unchanged), so only ``tau_t`` is meaningful.
 
 Run ``python mogp.py`` for a self-contained demo on a handful of known drugs.
 """
 
-import gpytorch
 import numpy as np
-import torch
 
-from admet_oracle import ADMETOracle
+from mogp_core import gp as _gp
+from mogp_core import icm as _icm
 from utils.featurize import smiles_to_morgan, batch_smiles_to_morgan
-from kernel import TanimotoKernel
 
 
 # The fixed column order every Y matrix / prediction in this module adheres to.
@@ -135,44 +159,80 @@ def resolve_objective_layout(admet_columns):
     return library_tasks, docking_tasks, docking_targets
 
 
-class MOGPModel(gpytorch.models.ExactGP):
-    """Batch-independent multi-output exact GP with a Tanimoto kernel.
+class MOGPModel:
+    """Multi-output exact GP with a Tanimoto kernel, over ``T`` trained tasks.
 
-    One scaled-Tanimoto GP is fitted per objective (via a batch dimension over
-    tasks). The per-task GPs are combined into a single
-    ``MultitaskMultivariateNormal`` so the model jointly predicts all objectives.
+    One scaled-Tanimoto GP per objective, sharing a single global noise scalar
+    (see the module docstring: the tasks are NOT independent, ``tau_t = sigma2 +
+    d_t`` with ``sigma2`` shared, so there are ``3T + 1`` trainable scalars).
+
+    This class used to be a ``gpytorch.models.ExactGP``; it is now pure numpy
+    over ``mogp_core.gp``.  The constructor signature is unchanged, and so is
+    what it represents: the training set plus the prior at the model's current
+    raw parameters.  ``likelihood`` is accepted for signature compatibility and
+    otherwise ignored — the noise now lives in :attr:`theta`, positions
+    ``2T..3T`` (per-task ``d_t``) and ``3T`` (the shared ``sigma2``).
+
+    The raw parameters start at exactly zero, which is what the gpytorch model's
+    default initialization gave (``raw_outputscale``, ``raw_constant``,
+    ``raw_task_noises`` and ``raw_noise`` all initialize to 0.0), so a freshly
+    constructed model is numerically the same prior it always was.
+
+    ``train_mogp`` no longer returns an instance of this class — it returns a
+    ``mogp_core.gp.GPState``, which is serializable and carries the fitted
+    ``theta``.  This class is retained for the interface, for the ablation
+    scripts and because nothing in the production path constructs it.
 
     Args:
-        train_x: Fingerprint tensor of shape ``(N, 2048)``, float32.
-        train_y: Target tensor of shape ``(N, num_tasks)``, float32. ``num_tasks``
-            is inferred from ``train_y.shape[1]``.
-        likelihood: A ``MultitaskGaussianLikelihood`` with matching ``num_tasks``.
+        train_x: Fingerprint matrix of shape ``(N, 2048)``.
+        train_y: Target matrix of shape ``(N, num_tasks)``, float32.
+            ``num_tasks`` is inferred from ``train_y.shape[1]``.
+        likelihood: Accepted and ignored (kept for signature compatibility).
     """
 
     def __init__(self, train_x, train_y, likelihood):
-        super().__init__(train_x, train_y, likelihood)
+        train_y = np.asarray(train_y, dtype=np.float32)
         num_tasks = train_y.shape[1]
+        # gpytorch's own attribute names, so a reader of the old code finds the
+        # same two things in the same places.
+        self.train_inputs = (np.asarray(train_x, dtype=np.float32),)
+        self.train_targets = train_y
+        self.likelihood = likelihood
+        self.num_tasks = int(num_tasks)
+        # One constant mean and one outputscale per task, plus per-task noises
+        # and the ONE shared global noise: 3T + 1 raw scalars, all zero at init.
+        self.theta = np.zeros(_gp.n_params(self.num_tasks), dtype=np.float64)
 
-        # One constant mean and one scaled Tanimoto kernel per task. The batch
-        # dimension over tasks gives each objective its own outputscale (and the
-        # likelihood gives each its own noise), i.e. independent GPs per output.
-        self.mean_module = gpytorch.means.ConstantMean(
-            batch_shape=torch.Size([num_tasks])
-        )
-        self.covar_module = gpytorch.kernels.ScaleKernel(
-            TanimotoKernel(),
-            batch_shape=torch.Size([num_tasks]),
-        )
+    def train(self):
+        """No-op; kept because the gpytorch object had it."""
+        return self
+
+    def eval(self):
+        """No-op; kept because the gpytorch object had it."""
+        return self
+
+    def natural(self):
+        """``(s, mu, d, sigma2, tau)`` — the constrained parameters."""
+        return _gp.natural(self.theta, self.num_tasks)
 
     def forward(self, x):
-        # mean_x: (num_tasks, N), covar_x: (num_tasks, N, N) -> a batch of MVNs,
-        # one per task, repacked into a single multitask distribution shaped
-        # (N, num_tasks).
-        mean_x = self.mean_module(x)
-        covar_x = self.covar_module(x)
-        return gpytorch.distributions.MultitaskMultivariateNormal.from_batch_mvn(
-            gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
-        )
+        """The prior mean and covariance at ``x``, batched over tasks.
+
+        Returns:
+            ``(mean_x, covar_x)`` with ``mean_x`` of shape ``(num_tasks, N)`` and
+            ``covar_x`` of shape ``(num_tasks, N, N)`` — exactly the two things
+            the gpytorch ``forward`` built its
+            ``MultitaskMultivariateNormal.from_batch_mvn`` from.  The multitask
+            mean that distribution exposed is ``mean_x.T``, shape ``(N,
+            num_tasks)``.  Returning the pair rather than a distribution object
+            is the one interface change: there is no distribution class here.
+        """
+        s, mu, _d, _sigma2, _tau = self.natural()
+        S = _gp.gram(x, x, dtype=np.float64, check_binary=False)
+        n = S.shape[0]
+        mean_x = np.repeat(np.asarray(mu, dtype=np.float64)[:, None], n, axis=1)
+        covar_x = np.asarray(s, dtype=np.float64)[:, None, None] * S[None, :, :]
+        return mean_x, covar_x
 
 
 def get_training_data(smiles_list):
@@ -195,7 +255,15 @@ def get_training_data(smiles_list):
         stay NaN as placeholders until the docking oracle is run.
         ``valid_smiles`` is the list of SMILES that passed the filter (in input
         order).
+
+    This function has no callers anywhere in the repo (verified) and needs no
+    rewiring: it is pure numpy/pandas over ``admet_oracle`` already.  Its body is
+    unchanged.  The one edit is that ``ADMETOracle`` is now imported HERE rather
+    than at module scope, so ``import mogp`` no longer transitively pulls in
+    joblib/scikit-learn through ``admet_oracle``.
     """
+    from admet_oracle import ADMETOracle
+
     oracle = ADMETOracle()
     df = oracle.predict(smiles_list)
 
@@ -252,78 +320,84 @@ def train_mogp(train_x, train_y, n_iterations=200, lr=0.1):
 
     Returns:
         A tuple ``(model, likelihood, y_mean, y_std)`` where ``y_mean`` and
-        ``y_std`` are numpy arrays of shape ``(num_tasks,)`` used to reverse the target
-        normalization at prediction time. Only the docking columns
+        ``y_std`` are numpy arrays of shape ``(num_tasks,)`` used to reverse the
+        target normalization at prediction time. Only the docking columns
         (``DOCKING_TASK_INDICES``) are trained: the model is fitted on those
         columns alone (so its trained-task count is ``len(DOCKING_TASK_INDICES)``,
         i.e. 2 for the current objective set), and every other column's
         ``y_mean``/``y_std`` entry is NaN to mark it "not modelled". A docking
         column that is itself entirely unobserved (all NaN) is also skipped.
+
+        ``model`` is now a ``mogp_core.gp.GPState`` rather than a gpytorch
+        module, and ``likelihood`` is ``None`` — there is no likelihood object
+        any more, the noise lives in ``model.theta``.  The 4-tuple shape is
+        unchanged so every ``model, likelihood, y_mean, y_std = train_mogp(...)``
+        call site (loop.py, the baselines) needs no change, and ``predict``
+        ignores the second slot.
+
+    Standardization, NaN semantics and the grey-box mask are ``mogp_core.gp``'s
+    and are byte-for-byte the ones this function used to implement inline:
+    population std (``ddof=0``); NaN PROPAGATES so a column with even one NaN row
+    gets NaN statistics and the WHOLE objective is dropped rather than the NaN
+    rows (the docking columns are all-NaN until docked, which is what makes the
+    active objective set dynamic); and the grey-box mask is applied AFTER the
+    statistics, so the three ADMET columns are always NaN regardless of value.
     """
-    train_x_t = torch.from_numpy(np.asarray(train_x)).to(torch.float32)
-    train_y = np.asarray(train_y, dtype=np.float32)
+    state, likelihood, y_mean, y_std = _gp.train_mogp(
+        train_x, train_y, n_iterations=n_iterations, lr=lr,
+        docking_task_indices=DOCKING_TASK_INDICES,
+        # mogp_core defaults to REJECTING count fingerprints. The shipped kernel
+        # clamped instead, so keep clamping: the check has no numerical effect on
+        # binary input, and raising where the old code returned a number would be
+        # a behaviour change.
+        check_binary=False,
+    )
+    # The shipped function printed the loss every 20 Adam steps; ``losses[i]`` is
+    # evaluated at the iterate BEFORE step ``i + 1``, which is the same iterate
+    # the old ``loss.item()`` print reported.
+    if state.losses is not None:
+        for i in range(len(state.losses)):
+            if (i + 1) % 20 == 0:
+                print(f"Iter {i + 1:>4}/{n_iterations} - loss: "
+                      f"{state.losses[i]:.4f}")
+    return state, likelihood, y_mean, y_std
 
-    # Per-column standardization stats over the full task set. Columns that are
-    # not yet observed (all NaN, e.g. the PfDHFR_Docking placeholder) produce NaN
-    # stats and are skipped below: a GP cannot be trained on an unobserved target.
-    y_mean = train_y.mean(axis=0)
-    y_std = train_y.std(axis=0)
-    # Guard zero-variance columns (constant -> normalizes to 0, reverses to its
-    # mean). NaN stats for unobserved columns are left NaN to flag "not trained".
-    y_std = np.where(y_std == 0.0, 1.0, y_std)
 
-    # Grey-box: the GP models ONLY the docking objectives. The three ADMET
-    # objectives are known exactly for every candidate and are handled in the
-    # acquisition's composite objective, so they are excluded from the GP here by
-    # masking every non-docking column's normalization stats to NaN. This makes
-    # predict() return NaN for those columns (its public contract) and fits the
-    # model on the docking columns alone. A docking column that is itself still
-    # unobserved (all-NaN, e.g. before any docking) also drops out via its NaN stats.
-    docking_mask = np.zeros(train_y.shape[1], dtype=bool)
-    docking_mask[[j for j in DOCKING_TASK_INDICES if j < train_y.shape[1]]] = True
-    y_mean = np.where(docking_mask, y_mean, np.nan)
-    y_std = np.where(docking_mask, y_std, np.nan)
+def _predict_backend(model):
+    """Pick the posterior implementation that matches ``model``.
 
-    observed = np.isfinite(y_mean) & np.isfinite(y_std)
-    if not observed.any():
-        raise ValueError(
-            "train_mogp: no observed docking target columns to train on "
-            "(the grey-box GP models only the docking objectives)."
-        )
+    ``predict`` is **model-agnostic** and has to stay that way: ``loop.py``
+    trains with either ``train_mogp`` (independent tasks) or
+    ``mogp_coregionalized.train_mogp_coregionalized`` (the ICM, which is
+    ``loop.DEFAULT_MODEL``) and then decodes BOTH through this one function —
+    "the model-agnostic ``mogp.predict``", as ``loop.resolve_train_fn``'s own
+    docstring puts it — and ``acquisition.py`` imports only this ``predict``.
 
-    train_y_norm = (train_y[:, observed] - y_mean[observed]) / y_std[observed]
-    train_y_t = torch.from_numpy(train_y_norm).to(torch.float32)
-
-    num_tasks = int(observed.sum())
-    likelihood = gpytorch.likelihoods.MultitaskGaussianLikelihood(num_tasks=num_tasks)
-    model = MOGPModel(train_x_t, train_y_t, likelihood)
-
-    model.train()
-    likelihood.train()
-
-    # model.parameters() includes the likelihood's parameters because ExactGP
-    # registers the likelihood as a submodule.
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-    mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model)
-
-    for i in range(n_iterations):
-        optimizer.zero_grad()
-        output = model(train_x_t)
-        loss = -mll(output, train_y_t)
-        loss.backward()
-        optimizer.step()
-        if (i + 1) % 20 == 0:
-            print(f"Iter {i + 1:>4}/{n_iterations} - loss: {loss.item():.4f}")
-
-    return model, likelihood, y_mean, y_std
+    gpytorch supplied that polymorphism for free: ``likelihood(model(X))``
+    dispatched on the module, and the two models' predictions were measured to
+    agree bit for bit (``spec/icm/SPEC.md`` D6, difference exactly ``0.0``).  The
+    numpy path has no such dispatch — the two models have different ``theta``
+    layouts (``3T+1`` vs ``K*R+3K+1``) — so handing an ``ICMState`` to
+    ``mogp_core.gp`` raises ``theta must have shape (7,) ... got (9,)``.  This
+    function restores the dispatch explicitly.  Without it the DEFAULT BO loop
+    dies on its first selection step.
+    """
+    if isinstance(model, _icm.ICMState):
+        return _icm.predict
+    return _gp.predict
 
 
 def predict(model, likelihood, y_mean, y_std, X_new):
     """Predict ADMET targets and uncertainty for new molecules.
 
     Args:
-        model: A trained ``MOGPModel``.
-        likelihood: The matching ``MultitaskGaussianLikelihood``.
+        model: A trained model from :func:`train_mogp` (a
+            ``mogp_core.gp.GPState``) or from
+            ``mogp_coregionalized.train_mogp_coregionalized`` (a
+            ``mogp_core.icm.ICMState``) — this function is model-agnostic, see
+            :func:`_predict_backend`.
+        likelihood: Accepted and ignored (``train_mogp`` returns ``None`` here);
+            the noise lives in ``model.theta``.
         y_mean: Normalization means, shape ``(num_tasks,)``.
         y_std: Normalization stds, shape ``(num_tasks,)``.
         X_new: Fingerprint matrix of shape ``(M, 2048)``, int8.
@@ -335,28 +409,23 @@ def predict(model, likelihood, y_mean, y_std, X_new):
         GP does not model — the three ADMET objectives, which have NaN
         normalization stats — are returned as NaN columns; only the docking
         columns carry real predictions.
+
+    ``variance`` is the noise-inclusive MARGINAL variance ``var_f + tau_t``, NOT
+    the latent-f variance.  That is what this function has always returned — it
+    passed the latent posterior through the likelihood — and ``spec/gp/SPEC.md``
+    §9.2 settles it by measurement, so ``observation_noise=True`` is passed
+    explicitly here rather than left to a default.  The gap is the whole of
+    ``tau_t``.  Whether the acquisition *should* consume the latent variance
+    instead is a live scientific question and deliberately NOT decided here.
+
+    Every row is computed independently, so splitting or stacking the query has
+    no numerical effect: predicting ``M`` rows in one call, in chunks, or one at
+    a time agrees to float64 rounding.  That matters because the acquisition
+    calls this with a flattened stacked layout (``cat(X_baseline, X)``) and the
+    old float32 path DID move with the batch shape.
     """
-    X_new_t = torch.from_numpy(np.asarray(X_new)).to(torch.float32)
-
-    model.eval()
-    likelihood.eval()
-
-    with torch.no_grad(), gpytorch.settings.fast_pred_var():
-        posterior = likelihood(model(X_new_t))
-        mean_obs = posterior.mean.cpu().numpy()
-        variance_obs = posterior.variance.cpu().numpy()
-
-    # Scatter the trained-task predictions back into the full TASK_NAMES layout,
-    # reversing the per-column standardization. Columns that were not trained
-    # (NaN normalization stats) stay NaN.
-    observed = np.isfinite(y_mean) & np.isfinite(y_std)
-    n_rows = mean_obs.shape[0]
-    n_tasks = y_mean.shape[0]
-    mean = np.full((n_rows, n_tasks), np.nan, dtype=float)
-    variance = np.full((n_rows, n_tasks), np.nan, dtype=float)
-    mean[:, observed] = mean_obs * y_std[observed] + y_mean[observed]
-    variance[:, observed] = variance_obs * (y_std[observed] ** 2)
-    return mean, variance
+    return _predict_backend(model)(model, y_mean, y_std, X_new,
+                                   observation_noise=True, check_binary=False)
 
 
 if __name__ == "__main__":

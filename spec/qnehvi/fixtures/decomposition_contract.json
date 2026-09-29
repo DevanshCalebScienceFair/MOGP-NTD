@@ -1,0 +1,29 @@
+{
+  "K_max": 328,
+  "K_min": 1,
+  "all_zero_front": {
+    "K": 1,
+    "L0": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "U0_is_all_inf": true,
+    "expected_prod_y": 0.03125,
+    "hvi_of_half_cube_point": 0.03125,
+    "matches_prod_y_exactly": true
+  },
+  "decomposition_under_test": "botorch FastNondominatedPartitioning (exact, alpha=0) -- the test instrument. The numpy decomposition must pass the same assertions.",
+  "dominated_rows_tolerated_and_ignored": true,
+  "emits_no_degenerate_cells": true,
+  "front_sizes": "B drawn uniform in [1, 20); 30% get a zero coordinate",
+  "min_cell_lower_bound_is_ge_ref": true,
+  "min_cell_lower_bound_over_all_fronts": 0.0,
+  "n_degenerate_cells_L_ge_U": 0,
+  "n_infinite_upper_bound_entries": 4378,
+  "n_random_fronts": 30,
+  "spec_section": "1.5",
+  "upper_bounds_can_be_infinite": true
+}

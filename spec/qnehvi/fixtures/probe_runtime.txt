@@ -1,0 +1,6 @@
+reduction_order	0.5s
+numpy_chunk_invariance	8.3s
+gp_call_shape	0.0s
+diversity_filter	245.6s
+crn_vs_ind_se	445.7s
+total	700.1s

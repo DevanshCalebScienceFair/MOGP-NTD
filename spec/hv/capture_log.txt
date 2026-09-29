@@ -1,0 +1,187 @@
+
+=== S1  frozen normalized frame ===
+bounds_payload_sha256 recomputed = 03bd72e40053b6a9343e44d35b9f55e2101f1f0579f1d37aa0a9742e1b1e707f
+bounds_payload_sha256 declared   = 03bd72e40053b6a9343e44d35b9f55e2101f1f0579f1d37aa0a9742e1b1e707f   match=True
+  PfDHFR_Docking       sign=-1  lo=-11.0                    hi=-5.0                     span=6.0
+  hDHFR_Docking        sign=+1  lo=-11.0                    hi=-5.0                     span=6.0
+  hERG_Toxicity_Prob   sign=-1  lo=0.001999363536015153     hi=0.9998417496681213       span=0.9978423861321062
+  Caco2_logPapp        sign=+1  lo=-7.260476112365723       hi=-3.825927495956421       span=3.4345486164093018
+  Half_Life_hours      sign=+1  lo=0.37630030512809753      hi=64.84938049316406        span=64.47308018803596
+
+=== S2  canonical + edge hypervolume cases (candidate vs 3 oracles) ===
+  m1_single                  m=1 n= 1 cand=3.0                    ie=3.0                    bt=3.0                    bit_bt=True
+  m1_below_ref               m=1 n= 1 cand=0.0                    ie=0.0                    bt=0.0                    bit_bt=True
+  m2_two_points              m=2 n= 2 cand=3.0                    ie=3.0                    bt=3.0                    bit_bt=True
+  m2_dominated_mixed         m=2 n= 5 cand=37.75                  ie=37.75                  bt=37.75                  bit_bt=True
+  m2_shifted_ref             m=2 n= 5 cand=28.75                  ie=28.75                  bt=28.75                  bit_bt=True
+  m3_negative_orthant        m=3 n= 3 cand=11.075                 ie=11.075000000000003     bt=11.075                 bit_bt=True
+  m4_negative_orthant        m=4 n= 4 cand=23.15                  ie=23.14999999999999      bt=23.15                  bit_bt=True
+  m5_six_points              m=5 n= 6 cand=0.42131295934408597    ie=0.42131295934408614    bt=0.42131295934408597    bit_bt=True
+  edge_empty                 m=3 n= 0 cand=0.0                    ie=0.0                    bt=0.0                    bit_bt=True
+  edge_all_on_ref            m=3 n= 1 cand=0.0                    ie=0.0                    bt=0.0                    bit_bt=True
+  edge_one_coord_on_ref      m=3 n= 2 cand=0.06400000000000002    ie=0.06400000000000002    bt=0.06400000000000002    bit_bt=True
+  edge_exact_duplicates      m=2 n= 3 cand=0.25                   ie=0.25                   bt=0.25                   bit_bt=True
+  edge_dup_plus_extra        m=2 n= 3 cand=0.33                   ie=0.33000000000000007    bt=0.33                   bit_bt=True
+  edge_all_dominated_by_one  m=3 n= 3 cand=1.0                    ie=1.0                    bt=1.0                    bit_bt=True
+  edge_partially_below_ref   m=3 n= 1 cand=0.0                    ie=0.0                    bt=0.0                    bit_bt=True
+  edge_unit_cube_corner      m=5 n= 1 cand=1.0                    ie=1.0                    bt=1.0                    bit_bt=True
+  edge_chain_m3              m=3 n= 4 cand=0.185                  ie=0.18500000000000003    bt=0.185                  bit_bt=True
+  edge_nan_row               m=3 n= 2 cand=0.125                  ie=0.125                  bt=0.125                  bit_bt=True
+  candidate vs inclusion-exclusion: worst |diff| = 7.105427357601002e-15
+  candidate vs botorch : 18/18 bitwise, worst |diff| = 0.0
+  candidate vs GP-MOBO : 18/18 bitwise, worst |diff| = 0.0
+
+=== S3  replication: botorch vs GP-MOBO over 160 randomized fronts ===
+    protocol: m in 2..5, n in 1..40, ref = 0, Y = default_rng(1000*m + n).random((n, m))
+  botorch == GP-MOBO   bitwise : 160/160   worst |diff| = 0.0
+  botorch == candidate bitwise : 71/160   worst |diff| = 2.220446049250313e-16
+  GP-MOBO == candidate bitwise : 71/160
+
+=== S4  randomized fronts, 7 families, m=2..5 ===
+  cases = 252   bitwise vs botorch = 171/252   worst |diff| = 4.440892098500626e-16
+  cases with inclusion-exclusion ground truth = 168   worst |diff| = 3.662070646726079e-13
+    boundary     m=2  bitwise  5/ 9  worst_bt=2.220e-16  worst_ie=2.776e-16
+    boundary     m=3  bitwise  5/ 9  worst_bt=1.110e-16  worst_ie=2.776e-17
+    boundary     m=4  bitwise  7/ 9  worst_bt=5.551e-17  worst_ie=0.000e+00
+    boundary     m=5  bitwise  6/ 9  worst_bt=1.388e-17  worst_ie=0.000e+00
+    clipped      m=2  bitwise  6/ 9  worst_bt=2.220e-16  worst_ie=7.772e-16
+    clipped      m=3  bitwise  6/ 9  worst_bt=2.220e-16  worst_ie=2.220e-16
+    clipped      m=4  bitwise  6/ 9  worst_bt=1.110e-16  worst_ie=1.110e-16
+    clipped      m=5  bitwise  5/ 9  worst_bt=1.110e-16  worst_ie=5.551e-17
+    coarse_grid  m=2  bitwise  9/ 9  worst_bt=0.000e+00  worst_ie=0.000e+00
+    coarse_grid  m=3  bitwise  9/ 9  worst_bt=0.000e+00  worst_ie=0.000e+00
+    coarse_grid  m=4  bitwise  9/ 9  worst_bt=0.000e+00  worst_ie=0.000e+00
+    coarse_grid  m=5  bitwise  9/ 9  worst_bt=0.000e+00  worst_ie=0.000e+00
+    duplicated   m=2  bitwise  7/ 9  worst_bt=1.110e-16  worst_ie=3.662e-13
+    duplicated   m=3  bitwise  7/ 9  worst_bt=1.110e-16  worst_ie=2.431e-14
+    duplicated   m=4  bitwise  7/ 9  worst_bt=5.551e-17  worst_ie=1.110e-16
+    duplicated   m=5  bitwise  8/ 9  worst_bt=2.776e-17  worst_ie=4.441e-16
+    mixed_sign   m=2  bitwise  5/ 9  worst_bt=4.441e-16  worst_ie=6.661e-16
+    mixed_sign   m=3  bitwise  6/ 9  worst_bt=4.441e-16  worst_ie=1.332e-15
+    mixed_sign   m=4  bitwise  7/ 9  worst_bt=4.441e-16  worst_ie=2.220e-16
+    mixed_sign   m=5  bitwise  7/ 9  worst_bt=2.220e-16  worst_ie=0.000e+00
+    spherical    m=2  bitwise  3/ 9  worst_bt=1.665e-16  worst_ie=2.998e-15
+    spherical    m=3  bitwise  4/ 9  worst_bt=4.163e-17  worst_ie=9.159e-16
+    spherical    m=4  bitwise  6/ 9  worst_bt=1.735e-18  worst_ie=4.337e-17
+    spherical    m=5  bitwise  6/ 9  worst_bt=1.084e-19  worst_ie=6.776e-20
+    uniform      m=2  bitwise  4/ 9  worst_bt=2.220e-16  worst_ie=1.530e-13
+    uniform      m=3  bitwise  4/ 9  worst_bt=1.110e-16  worst_ie=6.162e-15
+    uniform      m=4  bitwise  4/ 9  worst_bt=1.110e-16  worst_ie=3.220e-15
+    uniform      m=5  bitwise  4/ 9  worst_bt=1.110e-16  worst_ie=4.996e-16
+
+=== S5  Pareto convention: candidate vs botorch vs GP-MOBO vs repo ===
+  two_incomparable                     cand_weak='11'         cand_dedup='11'         bt_T='11'         bt_F='11'         repo='11'
+  one_dominates                        cand_weak='10'         cand_dedup='10'         bt_T='10'         bt_F='10'         repo='10'
+  exact_duplicates_2                   cand_weak='11'         cand_dedup='10'         bt_T='10'         bt_F='11'         repo='11'
+  exact_duplicates_3_plus_dominated    cand_weak='1110'       cand_dedup='1000'       bt_T='1000'       bt_F='1110'       repo='1110'
+  weak_only_tie_on_one_axis            cand_weak='10'         cand_dedup='10'         bt_T='10'         bt_F='10'         repo='10'
+  shared_axis_value                    cand_weak='001'        cand_dedup='001'        bt_T='001'        bt_F='001'        repo='001'
+  all_identical_m5                     cand_weak='1111'       cand_dedup='1000'       bt_T='1000'       bt_F='1111'       repo='1111'
+  nan_row                              cand_weak='10'         cand_dedup='10'         bt_T='10'         bt_F='11'         repo='11'
+  all_nan_row                          cand_weak='10'         cand_dedup='10'         bt_T='10'         bt_F='10'         repo='11'
+  zero_coordinate                      cand_weak='111'        cand_dedup='111'        bt_T='111'        bt_F='111'        repo='111'
+  grid_m3_ties                         cand_weak='11111'      cand_dedup='11101'      bt_T='11101'      bt_F='11111'      repo='11111'
+  single_point                         cand_weak='1'          cand_dedup='1'          bt_T='1'          bt_F='1'          repo='1'
+  empty                                cand_weak=''           cand_dedup=''           bt_T=''           bt_F=''           repo=''
+  disagreements with candidate (weak / duplicates kept), out of 13 cases: {'botorch_dedup_true': 4, 'botorch_dedup_false': 1, 'gpmobo_dedup_true': 2, 'gpmobo_dedup_false': 2, 'repo': 2}
+
+=== S6  archived runs: front sizes, normalized frame, hypervolume ===
+  qualifying archived runs = 53
+  iterations replayed = 448
+  candidate vs archived history.csv hypervolume: max|resid| = 1.1102230246251565e-16, mean|resid| = 8.983389429165609e-18
+  reported pareto_size mismatches (original-units front) = 0
+  normalized-frame front size: min=3 max=62 mean=31.02
+  original-units front size  : min=3 max=62 mean=31.06
+  duplicate rows on the normalized front (pooled) = 0
+  front members with >=1 coordinate == 0.0 (zero exclusive volume, pooled) = 256
+  non-monotone hypervolume steps = 0  []
+
+=== S7  normalized objective matrices under the frozen bounds ===
+  benchmark_thicccc_2026-08-16/mogp/seed_0             n= 90 finite= 89 clip0=[2, 0, 0, 0, 0] clip1=[0, 5, 0, 0, 1] hv=0.35620502796429576
+  benchmark_thicccc_2026-08-16/greedy/seed_3           n= 90 finite= 89 clip0=[0, 1, 0, 0, 0] clip1=[1, 1, 0, 0, 0] hv=0.1837106907173705
+  benchmark_5way_densify_seed0_2026-08-19/gpmobo/seed_0 n= 69 finite= 68 clip0=[0, 0, 0, 0, 0] clip1=[0, 0, 0, 0, 0] hv=0.19096289051403706
+  benchmark_thicc_2026-08-14/random/seed_0             n= 65 finite= 60 clip0=[0, 0, 0, 0, 0] clip1=[0, 0, 0, 0, 0] hv=0.08489212099060948
+
+=== S8  strict (>) vs weak (>=) reference filter ===
+  benchmark_thicccc_2026-08-16/mogp/seed_0             strict= 87 weak= 89 (+2)  hv_strict=0.35620502796429576  bitwise_equal=True
+  benchmark_thicccc_2026-08-16/greedy/seed_3           strict= 88 weak= 89 (+1)  hv_strict=0.1837106907173705  bitwise_equal=True
+  benchmark_5way_densify_seed0_2026-08-19/gpmobo/seed_0 strict= 68 weak= 68 (+0)  hv_strict=0.19096289051403706  bitwise_equal=True
+  benchmark_thicc_2026-08-14/random/seed_0             strict= 60 weak= 60 (+0)  hv_strict=0.08489212099060948  bitwise_equal=True
+  constructed/one_point_entirely_on_ref                  strict=0 weak=1 hv_strict=0.0 hv_weak=0.0 equal=True unclamped_naive=0.0
+  constructed/one_coord_on_ref                           strict=0 weak=1 hv_strict=0.0 hv_weak=0.0 equal=True unclamped_naive=0.0
+  constructed/boundary_plus_interior                     strict=1 weak=2 hv_strict=0.125 hv_weak=0.125 equal=True unclamped_naive=0.125
+  constructed/two_coords_below_ref_product_positive      strict=0 weak=0 hv_strict=0.0 hv_weak=0.0 equal=True unclamped_naive=2.0
+  constructed/all_boundary_m5                            strict=0 weak=4 hv_strict=0.0 hv_weak=0.0 equal=True unclamped_naive=0.0
+  extra rows admitted by >= (pooled) = 10; cases where the VALUE differed = 0; worst |diff| = 0.0
+
+=== S9  output column contract (measured from the archive) ===
+  evaluated.csv      x 53  10 cols  ['SMILES', 'PfDHFR_Docking', 'hDHFR_Docking', 'hERG_Toxicity_Prob', 'Caco2_logPapp', 'Half_Life_hours', 'PfDHFR_Docking_LE', 'hDHFR_Docking_LE', 'Selectivity_Index', 'Selectivity_Index_LE']
+  history.csv        x 52   6 cols  ['iteration', 'n_evaluated', 'pareto_size', 'hypervolume', 'pareto_median_heavy', 'pareto_min_heavy']
+  history.csv        x  1   7 cols  ['iteration', 'n_evaluated', 'pareto_size', 'hypervolume', 'pareto_median_heavy', 'pareto_min_heavy', 'mean_ehvi']
+  pareto_front.csv   x 53  10 cols  ['SMILES', 'PfDHFR_Docking', 'hDHFR_Docking', 'hERG_Toxicity_Prob', 'Caco2_logPapp', 'Half_Life_hours', 'PfDHFR_Docking_LE', 'hDHFR_Docking_LE', 'Selectivity_Index', 'Selectivity_Index_LE']
+  Selectivity_Index    == hDHFR_Docking - PfDHFR_Docking : max|diff| = 0.0 over 89 rows, 89 bitwise-exact
+  Selectivity_Index_LE == hDHFR_Docking_LE - PfDHFR_Docking_LE : max|diff| = 0.0 over 89 rows, 89 bitwise-exact
+  implied heavy-atom count PfDHFR/PfDHFR_LE: max deviation from an integer = 3.552713678800501e-15 over 89 rows; hDHFR: 7.105427357601002e-15; same denominator on both targets: 89/89
+
+=== S10  determinism, row-order invariance, float32 sensitivity ===
+  repeat call bitwise identical           : True
+  row-reversed bitwise identical          : True (|diff| = 0.0)
+  25 random permutations bitwise identical: 25/25 (worst |diff| = 0.0)
+  float32 round-trip of the inputs        : 0.35620502477994676 vs 0.35620502796429576 |diff| = 3.1843490067018365e-09
+  random-bank permutation invariance      : 252/252 bitwise, worst |diff| = 0.0
+
+=== S11  independent cross-checks: Monte Carlo, slicing axis, dominated-point invariance ===
+  MC benchmark_thicccc_2026-08-16/mogp/seed_0             exact=0.35620502796429576    mc=0.355824 +-2.12e-04  z=-1.80
+  MC benchmark_thicccc_2026-08-16/greedy/seed_3           exact=0.1837106907173705     mc=0.183670 +-1.24e-04  z=-0.33
+  MC benchmark_5way_densify_seed0_2026-08-19/gpmobo/seed_0 exact=0.19096289051403706    mc=0.190899 +-9.42e-05  z=-0.68
+  MC benchmark_thicc_2026-08-14/random/seed_0             exact=0.08489212099060948    mc=0.084826 +-7.45e-05  z=-0.88
+  axis 0 on benchmark_thicccc_2026-08-16/mogp hv=0.35620502796429565    bitwise_eq_axis4=False  (   62.9 ms)
+  axis 1 on benchmark_thicccc_2026-08-16/mogp hv=0.35620502796429565    bitwise_eq_axis4=False  (   40.6 ms)
+  axis 2 on benchmark_thicccc_2026-08-16/mogp hv=0.3562050279642956     bitwise_eq_axis4=False  (  112.3 ms)
+  axis 3 on benchmark_thicccc_2026-08-16/mogp hv=0.3562050279642957     bitwise_eq_axis4=False  (   66.7 ms)
+  axis 4 on benchmark_thicccc_2026-08-16/mogp hv=0.35620502796429576    bitwise_eq_axis4=True  (   58.6 ms)
+  axis 0 on benchmark_thicccc_2026-08-16/greedy hv=0.18371069071737048    bitwise_eq_axis4=False  (   49.2 ms)
+  axis 1 on benchmark_thicccc_2026-08-16/greedy hv=0.18371069071737045    bitwise_eq_axis4=False  (   52.8 ms)
+  axis 2 on benchmark_thicccc_2026-08-16/greedy hv=0.1837106907173705     bitwise_eq_axis4=True  (   80.0 ms)
+  axis 3 on benchmark_thicccc_2026-08-16/greedy hv=0.1837106907173705     bitwise_eq_axis4=True  (   68.1 ms)
+  axis 4 on benchmark_thicccc_2026-08-16/greedy hv=0.1837106907173705     bitwise_eq_axis4=True  (   93.9 ms)
+  slicing-axis permutation: 4/10 bitwise identical, worst |diff| = 1.6653345369377348e-16
+  dominated-point invariance: 58/81 bitwise identical, worst |diff| = 4.440892098500626e-16  (exact-arithmetic invariant; the residual is summation order only)
+  strict monotonicity: 160/160 strict increases, smallest increase = 0.017743700248506022; adding a dominated point was bitwise neutral in all 160 trials
+
+=== S12  candidate vs the repo's own evaluation.py (oracle) ===
+  normalize: 20305/20305 cells bitwise identical, worst |diff| = 0.0
+  compute_hypervolume: 30/53 runs bitwise identical, worst |diff| = 5.551115123125783e-17
+  compute_pareto_front mask: 53/53 runs identical
+
+=== S13  the CSV float round-trip that straddles a bound ===
+  bound lo          = 0.37630030512809753  (0x1.8154de0000000p-2)
+  CSV-serialized    = 0.3763003051280975  (0x1.8154ddfffffffp-2)
+  difference        = -5.551115123125783e-17
+  unclipped u       = -8.609973506672763e-19
+  clipped   u       = 0.0
+  float32(bound_lo) = 0.37630030512809753  (bound is a float32 value widened to float64)
+  repr round-trip of bound_lo parses back exactly: True
+
+=== S11  timings (NON-REPRODUCIBLE; wall clock) ===
+  m=2 n=  20  candidate      0.05 ms   botorch      0.33 ms
+  m=2 n=  40  candidate      0.07 ms   botorch      0.69 ms
+  m=2 n=  62  candidate      0.12 ms   botorch      0.92 ms
+  m=2 n= 100  candidate      0.31 ms   botorch      2.16 ms
+  m=2 n= 200  candidate      0.96 ms   botorch      3.77 ms
+  m=3 n=  20  candidate      0.06 ms   botorch      1.21 ms
+  m=3 n=  40  candidate      0.09 ms   botorch      3.62 ms
+  m=3 n=  62  candidate      0.22 ms   botorch      8.04 ms
+  m=3 n= 100  candidate      0.36 ms   botorch     19.06 ms
+  m=3 n= 200  candidate      1.22 ms   botorch     71.59 ms
+  m=4 n=  20  candidate      0.47 ms   botorch      3.24 ms
+  m=4 n=  40  candidate      1.69 ms   botorch     18.84 ms
+  m=4 n=  62  candidate      1.87 ms   botorch     48.45 ms
+  m=4 n= 100  candidate      1.50 ms   botorch    123.98 ms
+  m=4 n= 200  candidate      3.86 ms   botorch    418.87 ms
+  m=5 n=  20  candidate      1.93 ms   botorch      8.49 ms
+  m=5 n=  40  candidate     10.31 ms   botorch     90.98 ms
+  m=5 n=  62  candidate     14.29 ms   botorch    490.21 ms
+  m=5 n= 100  candidate    101.35 ms   botorch   1167.93 ms
+  m=5 n= 200  candidate     30.48 ms   botorch   1812.27 ms
+  largest archived 5-D front (n=89 rows): 62.50 ms/call

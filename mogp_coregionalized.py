@@ -8,37 +8,53 @@ objectives are known exactly and folded into the acquisition's composite
 objective, never predicted. So this is a **2-task ICM** over
 ``PfDHFR_Docking`` / ``hDHFR_Docking``.
 
-It is kept side by side with the batch-independent ``mogp.MOGPModel`` for an
+The numerics run on ``mogp_core.icm`` — pure numpy, no torch / gpytorch /
+botorch / scipy. ``mogp_core.icm`` is a 1:1 behavioural mirror of the gpytorch
+ICM this module used to build, quirks included, so the archived campaigns'
+numbers are reproduced rather than re-derived.
+
+It is kept side by side with the multi-output ``mogp.MOGPModel`` for an
 ablation:
 
-  * ``mogp.MOGPModel`` places one **independent** scaled-Tanimoto GP on each
-    modelled task. Cross-task structure is block-diagonal: learning about one
-    docking target tells the model nothing about the other.
+  * ``mogp.MOGPModel`` places a separate scaled-Tanimoto GP on each modelled
+    task, coupled only through one shared global noise scalar. Cross-task
+    *covariance* is block-diagonal: learning about one docking target tells the
+    model nothing about the other.
   * ``MOGPCoregionalized`` (this file) is an **Intrinsic Coregionalization Model
     (ICM)**. It shares a single Tanimoto data kernel across the docking tasks and
-    adds a learned, *dense* task-covariance matrix (via ``IndexKernel``), so the
-    two correlated docking objectives borrow statistical strength from each other.
+    adds a learned, *dense* task-covariance matrix ``B``, so the two correlated
+    docking objectives borrow statistical strength from each other.
 
 The two dihydrofolate reductases (PfDHFR / hDHFR) are homologous enzymes, so raw
 docking scores against them co-vary strongly (good binders bind both). That
 positive coupling is exactly the biological correlation the ICM exploits, and is
 why the *selective* (strong-PfDHFR / weak-hDHFR) corner of the Pareto front is
-hard to reach with an independent model.
+hard to reach with an uncorrelated model.
 
-Model construction mirrors GPyTorch's standard multitask ICM recipe:
+Model construction mirrors the standard multitask ICM recipe the gpytorch
+version assembled, now built directly in ``mogp_core.icm``:
 
-  * data covariance:  ``TanimotoKernel`` over fingerprints
-  * task covariance:  ``IndexKernel(num_tasks=K, rank=R)`` -> dense ``K x K``
-  * combined:         ``MultitaskKernel(TanimotoKernel(), num_tasks=K, rank=R)``
-  * mean:             ``MultitaskMean(ConstantMean(), num_tasks=K)``
-  * likelihood:       ``MultitaskGaussianLikelihood(num_tasks=K)``  (per-task noise)
+  * data covariance:  Tanimoto kernel over fingerprints (``mogp_core.tanimoto``)
+  * task covariance:  ``B = W W^T + diag(softplus(v_raw))``, ``W`` of shape (K, R)
+  * combined:         ``Sigma = K_XX (x) B + I_N (x) diag(d)``
+  * mean:             one constant per task
+  * noise:            ``d_t = tau_t + sigma2``, ``sigma2`` ONE SHARED scalar
+
+Note the Kronecker ORDER: ``K_XX (x) B``, data-major, so flat index of
+(molecule i, task t) is ``i*K + t``. gpytorch's ``MultitaskKernel`` docstring
+says ``K_TT (x) K_XX``; the matrix it actually assembled is ``K_XX (x) B``
+(measured, ``spec/icm/SPEC.md`` §2). The two are permutation-similar, so the
+loss, the log-determinant and the hypervolume are all bit-identically unchanged
+by getting it backwards — only the per-task posterior silently swaps PfDHFR's
+prediction with hDHFR's. ``mogp_core.icm`` pins the order against a deliberately
+asymmetric fixture.
 
 ``train_mogp_coregionalized`` and ``predict_coregionalized`` deliberately expose
 the **same signatures and return contract** as ``mogp.train_mogp`` /
 ``mogp.predict`` — including the grey-box behaviour that ``y_mean`` / ``y_std``
 are full ``len(TASK_NAMES)`` vectors whose non-docking entries are NaN, and that
 predictions come back in the full ``TASK_NAMES`` layout with NaN ADMET columns —
-so ``acquisition.py`` and ``loop.py`` treat it as a drop-in for the independent
+so ``acquisition.py`` and ``loop.py`` treat it as a drop-in for the uncorrelated
 model (``loop.BOLoop(train_fn=...)`` / ``--model coregionalized``).
 
 Run ``python mogp_coregionalized.py`` for a self-test that fits the 2-task ICM on
@@ -46,67 +62,107 @@ a small set where the docking objectives are correlated, prints the learned
 ``2 x 2`` task-covariance matrix, and confirms it is NOT diagonal.
 """
 
-import gpytorch
 import numpy as np
-import torch
 
-from kernel import TanimotoKernel
+from mogp_core import icm as _icm
 # TASK_NAMES + the grey-box docking-task indices are the single source of truth;
 # re-exported so callers importing from either module agree on the layout.
-from mogp import TASK_NAMES, DOCKING_TASK_INDICES
+# ``_predict_backend`` is the ONE model-dispatch rule, shared with ``mogp.predict``
+# so the two spellings of predict cannot drift apart.
+from mogp import TASK_NAMES, DOCKING_TASK_INDICES, _predict_backend
 
 
-class MOGPCoregionalized(gpytorch.models.ExactGP):
+class MOGPCoregionalized:
     """Intrinsic Coregionalization Model (ICM) exact GP with a Tanimoto kernel.
 
     A single Tanimoto kernel over fingerprints is shared across the modelled
-    (docking) tasks; a learned ``IndexKernel`` supplies a dense ``K x K`` task
-    covariance. The Kronecker structure of ``MultitaskKernel`` combines the two,
-    and the model emits a single ``MultitaskMultivariateNormal`` over all
-    modelled tasks jointly.
+    (docking) tasks; a learned dense ``K x K`` task covariance
+    ``B = W W^T + diag(softplus(v_raw))`` supplies the cross-task structure. The
+    Kronecker product ``K_XX (x) B`` combines the two.
+
+    This class used to be a ``gpytorch.models.ExactGP``; it is now pure numpy
+    over ``mogp_core.icm``. The constructor signature is unchanged, and so is
+    what it represents: the training set plus the prior at the model's current
+    raw parameters. ``likelihood`` is accepted for signature compatibility and
+    otherwise ignored — the noise now lives in :attr:`theta`.
+
+    ``W`` and ``v_raw`` are drawn from numpy's **global** RNG at construction.
+    That mirrors what was there before: gpytorch's ``IndexKernel`` drew
+    ``covar_factor`` and ``raw_var`` from the global torch RNG every time it was
+    constructed, so every BO iteration's refit started from a fresh ``randn``
+    and a run was reproducible from one seed while an individual refit depended
+    on how many draws preceded it. The per-task noises, the shared noise and the
+    task means all initialize to exactly ``0.0``, as they did.
+
+    ``train_mogp_coregionalized`` no longer returns an instance of this class —
+    it returns a ``mogp_core.icm.ICMState``, which is serializable and carries
+    the fitted ``theta`` (something the torch path never was, because ``W`` and
+    ``raw_var`` came off an unrecorded global RNG draw). ``ICMState`` exposes the
+    same ``task_covariance_matrix()`` method with the same return contract.
 
     Args:
-        train_x: Fingerprint tensor of shape ``(N, 2048)``, float32.
-        train_y: Target tensor of shape ``(N, K)``, float32 (fully observed over
+        train_x: Fingerprint matrix of shape ``(N, 2048)``.
+        train_y: Target matrix of shape ``(N, K)``, float32 (fully observed over
             the ``K`` MODELLED tasks). ``K`` is inferred from ``train_y.shape[1]``.
-        likelihood: A ``MultitaskGaussianLikelihood`` with matching ``num_tasks``.
-        rank: Rank ``R`` of the ``IndexKernel`` low-rank task-covariance factor.
+        likelihood: Accepted and ignored (kept for signature compatibility).
+        rank: Rank ``R`` of the low-rank task-covariance factor ``W``.
     """
 
     def __init__(self, train_x, train_y, likelihood, rank=1):
-        super().__init__(train_x, train_y, likelihood)
+        train_y = np.asarray(train_y, dtype=np.float32)
         num_tasks = train_y.shape[1]
+        self.train_inputs = (np.asarray(train_x, dtype=np.float32),)
+        self.train_targets = train_y
+        self.likelihood = likelihood
+        self.num_tasks = int(num_tasks)
+        self.rank = int(rank)
+        # W, v_raw ~ randn off the GLOBAL stream; everything else exactly 0.0.
+        self.theta = _icm.init_theta(self.num_tasks, rank=self.rank, rng=None)
 
-        # Shared constant mean per task.
-        self.mean_module = gpytorch.means.MultitaskMean(
-            gpytorch.means.ConstantMean(),
-            num_tasks=num_tasks,
-        )
-        # Kronecker of a shared data kernel (Tanimoto over fingerprints) and a
-        # dense KxK task covariance (IndexKernel). This is what distinguishes the
-        # ICM from the batch-independent block-diagonal MOGPModel: the off-block
-        # (cross-task) terms are learned rather than forced to zero.
-        self.covar_module = gpytorch.kernels.MultitaskKernel(
-            TanimotoKernel(),
-            num_tasks=num_tasks,
-            rank=rank,
-        )
+    def train(self):
+        """No-op; kept because the gpytorch object had it."""
+        return self
+
+    def eval(self):
+        """No-op; kept because the gpytorch object had it."""
+        return self
+
+    def natural(self):
+        """``(B, tau, sigma2, d, c)`` — the constrained parameters."""
+        return _icm.natural(self.theta, self.num_tasks, self.rank)
 
     def forward(self, x):
-        mean_x = self.mean_module(x)        # (N, K)
-        covar_x = self.covar_module(x)      # (N*K, N*K) lazy Kronecker
-        return gpytorch.distributions.MultitaskMultivariateNormal(mean_x, covar_x)
+        """The prior mean and covariance at ``x``.
+
+        Returns:
+            ``(mean_x, covar_x)`` with ``mean_x`` of shape ``(N, K)`` and
+            ``covar_x`` the dense ``(N*K, N*K)`` Kronecker covariance
+            ``K_XX (x) B`` in data-major order (flat index ``i*K + t``) — the two
+            things the gpytorch ``forward`` fed to
+            ``MultitaskMultivariateNormal``. The noise is NOT included, exactly
+            as the old ``covar_module`` output did not include it. Returning the
+            pair rather than a distribution object is the one interface change:
+            there is no distribution class here.
+        """
+        B, _tau, _sigma2, _d, c = self.natural()
+        K_xx = _icm.gram(x, x, dtype=np.float64, check_binary=False)
+        n = K_xx.shape[0]
+        mean_x = np.repeat(np.asarray(c, dtype=np.float64)[None, :], n, axis=0)
+        return mean_x, _icm.assemble_dense(K_xx, B)
 
     def task_covariance_matrix(self):
         """Return the learned dense ``K x K`` task-covariance matrix.
 
-        Read straight off the ``IndexKernel`` inside the ``MultitaskKernel``:
-        ``B B^T + diag(v)`` where ``B`` is the ``K x R`` factor. A non-diagonal
-        result means the model has captured cross-objective correlation (for the
-        grey-box docking pair, the PfDHFR/hDHFR coupling).
+        ``B = W W^T + diag(softplus(v_raw))`` where ``W`` is the ``K x R``
+        factor. Note the ``softplus``: the old docstring here said ``B B^T +
+        diag(v)``, omitting it, while the gpytorch code it described
+        (``IndexKernel._eval_covar_matrix``) applied it. The code, not the
+        docstring, is what is mirrored (``spec/icm/SPEC.md`` D2).
+
+        A non-diagonal result means the model has captured cross-objective
+        correlation (for the grey-box docking pair, the PfDHFR/hDHFR coupling).
         """
-        index_kernel = self.covar_module.task_covar_module
-        return index_kernel._eval_covar_matrix().detach().cpu().numpy()
+        return self.natural()[0]
 
 
 def train_mogp_coregionalized(train_x, train_y, n_iterations=200, lr=0.1, rank=1):
@@ -125,7 +181,7 @@ def train_mogp_coregionalized(train_x, train_y, n_iterations=200, lr=0.1, rank=1
             ADMET columns are ignored.
         n_iterations: Number of Adam steps.
         lr: Adam learning rate.
-        rank: Rank of the ``IndexKernel`` task-covariance factor (default 1).
+        rank: Rank of the task-covariance factor ``W`` (default 1).
 
     Returns:
         A tuple ``(model, likelihood, y_mean, y_std)`` where ``y_mean`` / ``y_std``
@@ -133,54 +189,35 @@ def train_mogp_coregionalized(train_x, train_y, n_iterations=200, lr=0.1, rank=1
         per-column target normalization at prediction time. Only the docking
         columns are trained (so the model's trained-task count is
         ``len(DOCKING_TASK_INDICES)``, i.e. 2); every other column's stats are NaN.
+
+        ``model`` is now a ``mogp_core.icm.ICMState`` rather than a gpytorch
+        module, and ``likelihood`` is ``None`` — there is no likelihood object any
+        more, the noise lives in ``model.theta``. The 4-tuple shape is unchanged
+        so every ``model, likelihood, y_mean, y_std = train_mogp_coregionalized(...)``
+        call site (loop.py) needs no change, and ``predict_coregionalized``
+        ignores the second slot.
+
+    ``W`` and ``v_raw`` are initialized off numpy's **global** RNG, mirroring the
+    global-torch-RNG draw ``IndexKernel`` did at every construction. The 200 Adam
+    steps are unconditional, with no schedule and no early stop: ``spec/icm``
+    §7.3 shows the step count is acting as early-stopping regularization and is
+    load-bearing, because the true MLE is a degenerate boundary solution with a
+    numerically singular ``B``, perfect task correlation and both noises on the
+    ``1e-4`` floor.
     """
-    train_x_t = torch.from_numpy(np.asarray(train_x)).to(torch.float32)
-    train_y = np.asarray(train_y, dtype=np.float32)
-
-    # Per-column standardization stats over the full task set. Guard zero-variance
-    # columns (constant -> normalizes to 0, reverses to its mean).
-    y_mean = train_y.mean(axis=0)
-    y_std = train_y.std(axis=0)
-    y_std = np.where(y_std == 0.0, 1.0, y_std)
-
-    # Grey-box: model ONLY the docking objectives. Mask every non-docking column's
-    # normalization stats to NaN so they are excluded from the GP (and predict()
-    # returns NaN there) — mirrors mogp.train_mogp exactly, but with the ICM.
-    docking_mask = np.zeros(train_y.shape[1], dtype=bool)
-    docking_mask[[j for j in DOCKING_TASK_INDICES if j < train_y.shape[1]]] = True
-    y_mean = np.where(docking_mask, y_mean, np.nan)
-    y_std = np.where(docking_mask, y_std, np.nan)
-
-    observed = np.isfinite(y_mean) & np.isfinite(y_std)
-    if not observed.any():
-        raise ValueError(
-            "train_mogp_coregionalized: no observed docking target columns to "
-            "train on (the grey-box ICM models only the docking objectives)."
-        )
-
-    train_y_norm = (train_y[:, observed] - y_mean[observed]) / y_std[observed]
-    train_y_t = torch.from_numpy(train_y_norm).to(torch.float32)
-
-    num_tasks = int(observed.sum())
-    likelihood = gpytorch.likelihoods.MultitaskGaussianLikelihood(num_tasks=num_tasks)
-    model = MOGPCoregionalized(train_x_t, train_y_t, likelihood, rank=rank)
-
-    model.train()
-    likelihood.train()
-
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-    mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model)
-
-    for i in range(n_iterations):
-        optimizer.zero_grad()
-        output = model(train_x_t)
-        loss = -mll(output, train_y_t)
-        loss.backward()
-        optimizer.step()
-        if (i + 1) % 20 == 0:
-            print(f"Iter {i + 1:>4}/{n_iterations} - loss: {loss.item():.4f}")
-
-    return model, likelihood, y_mean, y_std
+    return _icm.train_mogp_coregionalized(
+        train_x, train_y, n_iterations=n_iterations, lr=lr, rank=rank,
+        docking_task_indices=DOCKING_TASK_INDICES,
+        rng=None,
+        # The shipped function printed the loss every 20 Adam steps
+        # unconditionally; keep printing it.
+        verbose=True,
+        # mogp_core defaults to REJECTING count fingerprints. The shipped kernel
+        # clamped instead, so keep clamping: the check has no numerical effect on
+        # binary input, and raising where the old code returned a number would be
+        # a behaviour change.
+        check_binary=False,
+    )
 
 
 def predict_coregionalized(model, likelihood, y_mean, y_std, X_new):
@@ -192,8 +229,10 @@ def predict_coregionalized(model, likelihood, y_mean, y_std, X_new):
     the docking columns carry real predictions.
 
     Args:
-        model: A trained ``MOGPCoregionalized``.
-        likelihood: The matching ``MultitaskGaussianLikelihood``.
+        model: A trained model from :func:`train_mogp_coregionalized` (a
+            ``mogp_core.icm.ICMState``).
+        likelihood: Accepted and ignored (``train_mogp_coregionalized`` returns
+            ``None`` here); the noise lives in ``model.theta``.
         y_mean: Normalization means, shape ``(len(TASK_NAMES),)`` (NaN off-docking).
         y_std: Normalization stds, shape ``(len(TASK_NAMES),)`` (NaN off-docking).
         X_new: Fingerprint matrix of shape ``(M, 2048)``.
@@ -201,27 +240,34 @@ def predict_coregionalized(model, likelihood, y_mean, y_std, X_new):
     Returns:
         A tuple ``(mean, variance)`` of numpy arrays, each shape
         ``(M, len(TASK_NAMES))``, columns in ``TASK_NAMES`` order.
+
+    ``variance`` is the noise-inclusive MARGINAL variance ``var_latent + d_t``,
+    NOT the latent variance — that is what this function has always returned,
+    because it passed the latent posterior through the likelihood. The default is
+    made explicit here rather than inherited.
+
+    Every row is computed independently, so splitting or stacking the query has
+    no numerical effect: predicting ``M`` rows in one call, in chunks, or one at a
+    time agrees to float64 rounding. That matters because the acquisition calls
+    this with a flattened stacked layout (``cat(X_baseline, X)``) and the old
+    float32 path DID move with the batch shape.
+
+    Only the MARGINALS are returned, as before. ``mogp_core.icm`` can compute the
+    full joint posterior covariance at the same asymptotic cost
+    (``posterior_covariance`` / ``posterior_block_covariance``), which is what
+    would be needed to stop ``acquisition.py`` rebuilding the joint from the
+    marginals with a forced-diagonal covariance and discarding the cross-task
+    correlation the ICM exists to learn. Closing that gap is a deliberate
+    scientific change, not a port, and is NOT made here.
+
+    Like ``mogp.predict``, this accepts EITHER model: gpytorch's
+    ``likelihood(model(X))`` dispatched on the module, so the two spellings of
+    predict were interchangeable and measured bit-identical
+    (``spec/icm/SPEC.md`` D6, difference exactly ``0.0``). The dispatch is
+    explicit here because the numpy models have different ``theta`` layouts.
     """
-    X_new_t = torch.from_numpy(np.asarray(X_new)).to(torch.float32)
-
-    model.eval()
-    likelihood.eval()
-
-    with torch.no_grad(), gpytorch.settings.fast_pred_var():
-        posterior = likelihood(model(X_new_t))
-        mean_obs = posterior.mean.cpu().numpy()          # (M, K_modelled)
-        variance_obs = posterior.variance.cpu().numpy()  # (M, K_modelled)
-
-    # Scatter the trained-task predictions back into the full TASK_NAMES layout,
-    # reversing the per-column standardization. Un-modelled columns stay NaN.
-    observed = np.isfinite(y_mean) & np.isfinite(y_std)
-    n_rows = mean_obs.shape[0]
-    n_tasks = y_mean.shape[0]
-    mean = np.full((n_rows, n_tasks), np.nan, dtype=float)
-    variance = np.full((n_rows, n_tasks), np.nan, dtype=float)
-    mean[:, observed] = mean_obs * y_std[observed] + y_mean[observed]
-    variance[:, observed] = variance_obs * (y_std[observed] ** 2)
-    return mean, variance
+    return _predict_backend(model)(model, y_mean, y_std, X_new,
+                                   observation_noise=True, check_binary=False)
 
 
 if __name__ == "__main__":
@@ -229,7 +275,7 @@ if __name__ == "__main__":
     # Self-test: fit the 2-task ICM on a small set where the two DOCKING
     # objectives are strongly correlated (both driven by a shared chemical
     # latent), print the learned 2x2 task covariance, and confirm it is NOT
-    # diagonal -> the ICM captured the PfDHFR/hDHFR coupling the independent
+    # diagonal -> the ICM captured the PfDHFR/hDHFR coupling the uncorrelated
     # MOGPModel forces to zero. The two dihydrofolate reductases are homologous,
     # so their raw docking scores co-vary POSITIVELY.
     # ------------------------------------------------------------------
@@ -272,13 +318,13 @@ if __name__ == "__main__":
     model, likelihood, y_mean, y_std = train_mogp_coregionalized(
         train_x, Y, n_iterations=200, rank=1
     )
-    print(f"Trained-task count: {int(likelihood.num_tasks)} "
+    print(f"Trained-task count: {int(model.n_tasks)} "
           f"(expect {len(DOCKING_TASK_INDICES)} = docking only)")
 
     B = model.task_covariance_matrix()   # (2, 2)
     labels = [TASK_NAMES[PF], TASK_NAMES[HD]]
 
-    print("\nLearned task-covariance matrix (IndexKernel, 2 x 2):")
+    print("\nLearned task-covariance matrix (2 x 2):")
     print("            " + "".join(f"{l[:12]:>14}" for l in labels))
     for i, li in enumerate(labels):
         print(f"{li[:12]:>12}" + "".join(f"{B[i, j]:14.4f}" for j in range(2)))
@@ -300,5 +346,5 @@ if __name__ == "__main__":
     print(
         "\nPASS: the learned 2x2 task covariance is non-diagonal "
         f"(corr={off:+.4f}) -> the ICM captures the docking cross-task "
-        "correlation the independent MOGPModel forces to zero."
+        "correlation the uncorrelated MOGPModel forces to zero."
     )

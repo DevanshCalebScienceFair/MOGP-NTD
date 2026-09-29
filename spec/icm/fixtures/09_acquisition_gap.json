@@ -1,0 +1,54 @@
+{
+  "diag_embed_lines": [
+    323
+  ],
+  "file": "acquisition.py",
+  "finding": "DockingPosteriorModel.posterior rebuilds the joint posterior from MARGINAL mean/variance only and then forces a strictly diagonal covariance via torch.diag_embed. The ICM's learned B off-diagonal therefore never reaches qLogNEHVI.",
+  "measured_on_fitted_icm_real_data": {
+    "between_candidate_block_max_abs_cov": 0.31713777780532837,
+    "between_candidate_block_median_abs_cov": 0.03797662816941738,
+    "fit": "train_mogp_coregionalized(200 steps, lr=0.1, rank=1), torch seed 0",
+    "n_candidates": 40,
+    "what_the_acquisition_sees_instead": 0.0,
+    "within_point_cross_task_correlation_latent": {
+      "max": 0.9951866759940017,
+      "mean": 0.9948672235017859,
+      "median": 0.994922726813048,
+      "min": 0.9942392336818455
+    },
+    "within_point_cross_task_correlation_observed": {
+      "max": 0.9239725913923231,
+      "mean": 0.9181117255266624,
+      "median": 0.9190196628588312,
+      "min": 0.9073715220407816
+    }
+  },
+  "ordering_check": "var_d has shape (*batch, q, k) and is flattened row-major to (*batch, q*k), i.e. index = qi*k + t. That IS the data-major order MultitaskMultivariateNormal expects (interleaved=True), so this particular reshape is NOT transposed.",
+  "source_window_306_330": {
+    "306": "        k = len(self._dock)",
+    "307": "        fp = X[..., :self._n_fp].reshape(-1, self._n_fp).detach().cpu().numpy()",
+    "308": "        with warnings.catch_warnings():",
+    "309": "            # The evaluated baseline IS the GP's training set, so predicting on it",
+    "310": "            # trips GPyTorch's \"input matches training data\" notice every step.",
+    "311": "            # That is expected here (we want the posterior at those points).",
+    "312": "            warnings.simplefilter(\"ignore\", GPInputWarning)",
+    "313": "            mean_np, var_np = predict(",
+    "314": "                self._model, self._likelihood, self._y_mean, self._y_std, fp",
+    "315": "            )",
+    "316": "        mean_d = torch.as_tensor(",
+    "317": "            mean_np[:, self._dock], dtype=_DTYPE",
+    "318": "        ).reshape(*batch, q, k)",
+    "319": "        var_d = torch.as_tensor(",
+    "320": "            np.clip(var_np[:, self._dock], 1e-9, None), dtype=_DTYPE",
+    "321": "        ).reshape(*batch, q, k)",
+    "322": "        # Independent (diagonal) joint posterior over the q x k docking outputs.",
+    "323": "        covar = torch.diag_embed(var_d.reshape(*batch, q * k))",
+    "324": "        mvn = MultitaskMultivariateNormal(mean_d, covar)",
+    "325": "        post = GPyTorchPosterior(mvn)",
+    "326": "        if posterior_transform is not None:",
+    "327": "            return posterior_transform(post)",
+    "328": "        return post",
+    "329": "",
+    "330": ""
+  }
+}

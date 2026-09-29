@@ -1,0 +1,11 @@
+{
+ "_doc": "Candidate vs the repo's CURRENT torch/botorch implementation, over every archived evaluated.csv. normalize() must agree bitwise (pure affine + clip). compute_hypervolume() agrees to a few ulp only: it is a different exact algorithm.",
+ "hypervolume_runs_bitwise_identical": 30,
+ "hypervolume_worst_abs_diff": "5.551115123125783e-17",
+ "n_runs": 53,
+ "normalize_cells_bitwise_identical": 20305,
+ "normalize_cells_compared": 20305,
+ "normalize_worst_abs_diff": "0.0",
+ "pareto_mask_runs_compared": 53,
+ "pareto_mask_runs_identical": 53
+}

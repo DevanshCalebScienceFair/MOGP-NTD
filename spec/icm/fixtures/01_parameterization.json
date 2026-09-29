@@ -1,0 +1,98 @@
+{
+  "initialization": {
+    "constant_mean_raw_constant_init": 0.0,
+    "index_kernel_draw_seed0_first": [
+      1.5409960746765137,
+      -0.293428897857666,
+      -2.1787893772125244,
+      0.5684312582015991
+    ],
+    "index_kernel_draw_seed0_second": [
+      -1.0845223665237427,
+      -1.3985954523086548,
+      0.40334683656692505,
+      0.8380263447761536
+    ],
+    "index_kernel_is_randn": true,
+    "index_kernel_redrawn_each_construction": true,
+    "index_kernel_reproducible_under_manual_seed": true,
+    "raw_noise_init": [
+      0.0
+    ],
+    "raw_task_noises_init": [
+      0.0,
+      0.0
+    ]
+  },
+  "noise": {
+    "floor": 0.0001,
+    "formula": "tau_t = softplus(raw_task_noises_t) + 1e-4 ; sigma2 = softplus(raw_noise) + 1e-4",
+    "has_global_noise": true,
+    "has_task_noise": true,
+    "likelihood_rank": 0,
+    "max_abs_diff": 2.526201470232081e-12,
+    "raw_noise": [
+      0.25
+    ],
+    "raw_task_noises": [
+      -2.0,
+      1.5
+    ],
+    "sigma2_gpytorch": [
+      0.8260394198763173
+    ],
+    "sigma2_reference": [
+      0.8260394198788436
+    ],
+    "structure": "Sigma_noise = I_N (x) diag(tau) + sigma2 I_{NK} = I_N (x) diag(tau + sigma2)",
+    "tau_gpytorch": [
+      0.12702801104044628,
+      1.7015132779802262
+    ],
+    "tau_reference": [
+      0.12702801104297248,
+      1.7015132779827524
+    ]
+  },
+  "task_covariance": {
+    "B_gpytorch": [
+      [
+        0.9640769841801067,
+        -0.9099999999999999
+      ],
+      [
+        -0.9099999999999999,
+        3.8169280110429726
+      ]
+    ],
+    "B_reference": [
+      [
+        0.9640769841801067,
+        -0.9099999999999999
+      ],
+      [
+        -0.9099999999999999,
+        3.8169280110429726
+      ]
+    ],
+    "formula": "B = W W^T + diag(softplus(raw_var))",
+    "max_abs_diff": 0.0,
+    "raw_W": [
+      [
+        0.7
+      ],
+      [
+        -1.3
+      ]
+    ],
+    "raw_var": [
+      -0.5,
+      2.0
+    ],
+    "raw_var_link": "softplus, NO offset (constraint Positive())"
+  },
+  "trainable_scalar_count": {
+    "K2_R1": 9,
+    "formula": "K*R (W) + K (raw_var) + K (means) + K (raw_task_noises) + 1 (raw_noise)"
+  }
+}

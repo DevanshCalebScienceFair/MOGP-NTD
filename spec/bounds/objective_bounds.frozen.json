@@ -1,0 +1,236 @@
+{
+  "schema": "mogp-ntd/objective-bounds/frozen/1",
+  "frozen_on": "2026-09-27",
+  "status": "CANONICAL - settled by measurement, not by assertion",
+  "task_names": [
+    "PfDHFR_Docking",
+    "hDHFR_Docking",
+    "hERG_Toxicity_Prob",
+    "Caco2_logPapp",
+    "Half_Life_hours"
+  ],
+  "signs": [
+    -1,
+    1,
+    -1,
+    1,
+    1
+  ],
+  "bounds": {
+    "PfDHFR_Docking": [
+      -11.0,
+      -5.0
+    ],
+    "hDHFR_Docking": [
+      -11.0,
+      -5.0
+    ],
+    "hERG_Toxicity_Prob": [
+      0.001999363536015153,
+      0.9998417496681213
+    ],
+    "Caco2_logPapp": [
+      -7.260476112365723,
+      -3.825927495956421
+    ],
+    "Half_Life_hours": [
+      0.37630030512809753,
+      64.84938049316406
+    ]
+  },
+  "bounds_payload_sha256": "03bd72e40053b6a9343e44d35b9f55e2101f1f0579f1d37aa0a9742e1b1e707f",
+  "bounds_payload_canonical_form": "sha256 of json.dumps({task_names,signs,bounds}, sort_keys=True, separators=(',',':')) - formatting-independent hash of the NUMBERS",
+  "docking_constants": {
+    "DOCKING_KCAL_MIN": -11.0,
+    "DOCKING_KCAL_MAX": -5.0,
+    "units": "raw Vina kcal/mol for the WHOLE molecule",
+    "units_evidence": "Verified by falsification on benchmark_thicccc_2026-08-16/mogp/seed_0: replaying with the raw *_Docking columns reproduces the archived hypervolume 0.356205027964296 exactly; substituting the *_Docking_LE (ligand-efficiency) columns yields hypervolume exactly 0.0, because every LE value (~-0.06..-0.57) lies outside [-11,-5] and clips. Both archived manifests also record objective.docking_units = 'kcal/mol', docking_bounds [-11.0,-5.0].",
+    "WARNING_stale_prose": "evaluation.py's prose (module docstring lines ~29-43 and ~79-100, compute_objective_bounds/normalize/add_selectivity_index docstrings, and the DOCKING_LE_MIN/MAX aliases) still describes these as LIGAND EFFICIENCY in kcal/mol per heavy atom, and cites an LE span of ~-0.53..-0.19. That prose is STALE. The CODE is consistently raw kcal. Fix the prose, never the constants."
+  },
+  "provenance": {
+    "canonical_source_file": "evaluation_bounds.json",
+    "canonical_source_sha256": "9c9c791c66a3eb8d0796bed42b29eec531f825c1c7c1444b0267b4c13549e27e",
+    "byte_identical_archived_snapshots": [
+      {
+        "path": "matrix_thick_2026-08-14/evaluation_bounds.snapshot.json",
+        "sha256": "9c9c791c66a3eb8d0796bed42b29eec531f825c1c7c1444b0267b4c13549e27e"
+      },
+      {
+        "path": "matrix_thick_2026-08-15/evaluation_bounds.snapshot.json",
+        "sha256": "9c9c791c66a3eb8d0796bed42b29eec531f825c1c7c1444b0267b4c13549e27e"
+      }
+    ],
+    "recomputable_from_library": {
+      "claim": "evaluation.compute_objective_bounds(force=True) against the CURRENT data/library reproduces these bounds bit-exactly (elementwise difference all 0.0).",
+      "library_molecules_after_quality_screen": 26660,
+      "library_molecules_raw": 29678,
+      "admet_columns": [
+        "Caco2_logPapp",
+        "Half_Life_hours",
+        "hERG_Toxicity_Prob"
+      ]
+    },
+    "validated_against_run": "benchmark_thicccc_2026-08-16/mogp/seed_0",
+    "validation_method": "Replay history.csv's hypervolume trajectory from evaluated.csv (rows are in evaluation order) via the repo's own evaluation.compute_hypervolume(Y[:n_evaluated], bounds=B).",
+    "residual_on_validation_run": {
+      "n_iterations": 7,
+      "max_abs_residual": 1.1102230246251565e-16,
+      "residuals": [
+        8.326672684688674e-17,
+        5.551115123125783e-17,
+        0.0,
+        5.551115123125783e-17,
+        5.551115123125783e-17,
+        1.1102230246251565e-16,
+        5.551115123125783e-17
+      ]
+    },
+    "residual_across_all_qualifying_runs": {
+      "n_runs": 53,
+      "worst_max_abs_residual": 1.6653345369377348e-16,
+      "all_runs_agree": true
+    }
+  },
+  "rejected": {
+    "path": "matrix_results_holo/evaluation_bounds.snapshot.json",
+    "sha256": "479f1f076018e1f236deb51159a0bcf527c8d519f08ce01961e833cfa962786f",
+    "differs_on": [
+      "hERG_Toxicity_Prob",
+      "Caco2_logPapp",
+      "Half_Life_hours"
+    ],
+    "why_rejected": "It is the faithful archive of a SUPERSEDED generation: matrix_results_holo ran 2026-08-11 against a 3,610-molecule cached library, so its three ADMET bounds are that smaller library's min/max. Its own manifest declares its hypervolume NOT comparable to the preceding sweep. It reproduces NO archived history.csv.",
+    "residual_on_validation_run_max_abs": 0.132329150568737,
+    "worst_max_abs_residual_across_all_runs": 0.14414879083395205,
+    "hypervolume_inflation_vs_canonical": {
+      "note": "final-iteration hypervolume, identical data, 53 runs",
+      "min": 0.032386,
+      "max": 0.144149,
+      "mean": 0.070838,
+      "worked_example": {
+        "run": "benchmark_thicccc_2026-08-16/mogp/seed_0",
+        "canonical": 0.356205,
+        "rejected_holo": 0.478292
+      }
+    }
+  },
+  "clipping_under_canonical_bounds": {
+    "measured_over": "53 archived runs, 4165 pooled rows (2437 distinct objective tuples)",
+    "pooled": {
+      "PfDHFR_Docking": {
+        "n_finite": 4061,
+        "n_zero": 18,
+        "n_one": 18,
+        "obs_min": -11.3,
+        "obs_max": 4.213,
+        "lo": -11.0,
+        "hi": -5.0,
+        "sign": -1
+      },
+      "hDHFR_Docking": {
+        "n_finite": 4061,
+        "n_zero": 48,
+        "n_one": 79,
+        "obs_min": -12.38,
+        "obs_max": 10.73,
+        "lo": -11.0,
+        "hi": -5.0,
+        "sign": 1
+      },
+      "hERG_Toxicity_Prob": {
+        "n_finite": 4165,
+        "n_zero": 0,
+        "n_one": 0,
+        "obs_min": 0.0049995277076959,
+        "obs_max": 0.9993714094161988,
+        "lo": 0.001999363536015153,
+        "hi": 0.9998417496681213,
+        "sign": -1
+      },
+      "Caco2_logPapp": {
+        "n_finite": 4165,
+        "n_zero": 0,
+        "n_one": 0,
+        "obs_min": -7.065454959869385,
+        "obs_max": -3.8692009449005127,
+        "lo": -7.260476112365723,
+        "hi": -3.825927495956421,
+        "sign": 1
+      },
+      "Half_Life_hours": {
+        "n_finite": 4165,
+        "n_zero": 1,
+        "n_one": 6,
+        "obs_min": 0.3763003051280975,
+        "obs_max": 81.63323974609375,
+        "lo": 0.37630030512809753,
+        "hi": 64.84938049316406,
+        "sign": 1
+      }
+    },
+    "deduplicated": {
+      "PfDHFR_Docking": {
+        "n_finite": 2369,
+        "n_zero": 11,
+        "n_one": 10,
+        "obs_min": -11.3,
+        "obs_max": 4.213,
+        "lo": -11.0,
+        "hi": -5.0,
+        "sign": -1
+      },
+      "hDHFR_Docking": {
+        "n_finite": 2369,
+        "n_zero": 33,
+        "n_one": 43,
+        "obs_min": -12.38,
+        "obs_max": 10.73,
+        "lo": -11.0,
+        "hi": -5.0,
+        "sign": 1
+      },
+      "hERG_Toxicity_Prob": {
+        "n_finite": 2437,
+        "n_zero": 0,
+        "n_one": 0,
+        "obs_min": 0.0049995277076959,
+        "obs_max": 0.9993714094161988,
+        "lo": 0.001999363536015153,
+        "hi": 0.9998417496681213,
+        "sign": -1
+      },
+      "Caco2_logPapp": {
+        "n_finite": 2437,
+        "n_zero": 0,
+        "n_one": 0,
+        "obs_min": -7.065454959869385,
+        "obs_max": -3.8692009449005127,
+        "lo": -7.260476112365723,
+        "hi": -3.825927495956421,
+        "sign": 1
+      },
+      "Half_Life_hours": {
+        "n_finite": 2437,
+        "n_zero": 1,
+        "n_one": 5,
+        "obs_min": 0.3763003051280975,
+        "obs_max": 81.63323974609375,
+        "lo": 0.37630030512809753,
+        "hi": 64.84938049316406,
+        "sign": 1
+      }
+    },
+    "hazards": [
+      "hDHFR_Docking: 79 of 4061 pooled finite rows saturate at exactly 1.0. 15 of those are POSITIVE Vina scores (up to +10.73 kcal/mol) - physically non-binding/clashing poses - and because hDHFR is maximize ('want weak human binding') they all normalize to exactly 1.0, i.e. a FAILED dock scores as a PERFECT selectivity result. This is a scientific hazard in the frame, independent of which bound set is chosen.",
+      "PfDHFR_Docking: 18 of 4061 pooled finite rows clip to exactly 0.0 (score > -5, weaker than DOCKING_KCAL_MAX) and 18 saturate at exactly 1.0 (score < -11, stronger than DOCKING_KCAL_MIN).",
+      "Half_Life_hours: 6 pooled rows exceed the library max 64.849 (observed up to 81.633) and saturate at exactly 1.0. These are densified analogs whose ADMET-oracle prediction escapes the library-derived cube. loop._warn_if_docking_saturates warns for docking only; ADMET saturation is NOT warned.",
+      "Half_Life_hours: exactly 1 pooled row normalizes to 0.0 for a FLOAT ROUND-TRIP reason, not a scientific one: the library-minimum molecule is stored in evaluated.csv as 0.3763003051280975 while the bound is 0.37630030512809753, i.e. 5.551115123125783e-17 BELOW the bound, so it clips. Any reimplementation must expect CSV-serialized values to straddle a bound that was derived from a float32 artifact.",
+      "hERG_Toxicity_Prob and Caco2_logPapp: ZERO pooled rows clip at either end."
+    ]
+  },
+  "notes": [
+    "These bounds define the normalized [0,1] maximization frame in which EVERY hypervolume in this project is computed; the reference point is the all-zeros corner (evaluation.fixed_reference_point).",
+    "The two docking bounds are FIXED CONSTANTS (raw kcal/mol), not data-derived; only the three ADMET bounds come from the library.",
+    "The numpy reimplementation must read these frozen numbers rather than recompute them, so a future library change cannot silently move the frame."
+  ]
+}

@@ -1,0 +1,9 @@
+{
+ "_doc": "NOT reproducible; provenance only.",
+ "botorch": "0.18.1",
+ "elapsed_s": 60.66,
+ "numpy": "2.4.6",
+ "platform": "macOS-26.5.1-arm64-arm-64bit",
+ "python": "3.11.15 | packaged by conda-forge | (main, Aug 11 2026, 10:24:21) [Clang 19.1.7 ]",
+ "torch": "2.13.0"
+}

@@ -1,0 +1,207 @@
+{
+  "crn_vs_ind_se": {
+    "CRN": {
+      "mean_relative_se_pct": 15.103373494435331,
+      "median_cross_candidate_corr_of_replicate_deviations": 0.9114721994507962,
+      "median_relative_se_pct": 13.647811811951573,
+      "n_nonzero_candidates": 200,
+      "p90_relative_se_pct": 23.60633605375097
+    },
+    "IND": {
+      "mean_relative_se_pct": 13.36639053271248,
+      "median_cross_candidate_corr_of_replicate_deviations": 0.037056381557022705,
+      "median_relative_se_pct": 12.095013570909943,
+      "n_nonzero_candidates": 200,
+      "p90_relative_se_pct": 20.70601803812709
+    },
+    "claim": "Theory: identical per-candidate variance. The measured medians differ because CRN's cross-candidate correlation (~0.91) stops the median over candidates from averaging down its own estimation error.",
+    "n_mc": 128,
+    "n_replicates": 128
+  },
+  "diversity_filter": {
+    "claim": "The diversity filter is not saturating (so C3 is a real test), and it is the dominant source of batch-to-batch variability: the raw top-20 is perfectly stable across replicates while the DIVERSE top-20 is not.",
+    "diverse_top20_stability": {
+      "CRN_N128": {
+        "greedy_walk_depth_max": 27,
+        "greedy_walk_depth_median": 27,
+        "n_replicates": 16,
+        "pairwise_diverse_top20_overlap_mean": 0.9770833333333333,
+        "pairwise_diverse_top20_overlap_min": 0.95,
+        "pairwise_raw_top20_overlap_mean": 1.0,
+        "pairwise_raw_top20_overlap_min": 1.0
+      },
+      "CRN_N512": {
+        "greedy_walk_depth_max": 27,
+        "greedy_walk_depth_median": 27,
+        "n_replicates": 16,
+        "pairwise_diverse_top20_overlap_mean": 0.9749999999999999,
+        "pairwise_diverse_top20_overlap_min": 0.95,
+        "pairwise_raw_top20_overlap_mean": 1.0,
+        "pairwise_raw_top20_overlap_min": 1.0
+      }
+    },
+    "filter_bites": [
+      {
+        "greedy_walk_depth": 20,
+        "largest_mutually_dissimilar_subset": 141,
+        "n_pairs_above_threshold_0.7": 215,
+        "n_selected": 20,
+        "overlap_selected_with_raw_top20": 20,
+        "trial": 0
+      },
+      {
+        "greedy_walk_depth": 32,
+        "largest_mutually_dissimilar_subset": 135,
+        "n_pairs_above_threshold_0.7": 287,
+        "n_selected": 20,
+        "overlap_selected_with_raw_top20": 13,
+        "trial": 1
+      },
+      {
+        "greedy_walk_depth": 24,
+        "largest_mutually_dissimilar_subset": 129,
+        "n_pairs_above_threshold_0.7": 290,
+        "n_selected": 20,
+        "overlap_selected_with_raw_top20": 17,
+        "trial": 2
+      }
+    ]
+  },
+  "env": {
+    "numpy": "2.4.6"
+  },
+  "gp_call_shape": {
+    "claim": "The Tanimoto Gram is bitwise chunk-invariant; mogp.predict's float32 posterior solve downstream of it is not. So the chunk dependence of the shipped acquisition lives in the GP, not the sampler.",
+    "float32_eps": 1.1920928955078125e-07,
+    "mean_max_abs_diff_vs_chunk25": {
+      "1": 1.951345787176706e-07,
+      "13": 0.0,
+      "25": 0.0,
+      "7": 1.951345787176706e-07
+    },
+    "n_rows_per_predict_call": {
+      "1": 13,
+      "13": 169,
+      "25": 325,
+      "7": 91
+    },
+    "tanimoto_gram_max_abs_diff_vs_chunk25": {
+      "1": 0.0,
+      "13": 0.0,
+      "25": 0.0,
+      "7": 0.0
+    },
+    "var_max_abs_diff_vs_chunk25": {
+      "1": 0.0,
+      "13": 1.5367464611948378e-07,
+      "25": 0.0,
+      "7": 1.5970862410341624e-07
+    }
+  },
+  "numpy_chunk_invariance": {
+    "claim": "bitwise identical at every candidate chunk size",
+    "n_mc": 128,
+    "per_problem": {
+      "rank200": {
+        "1": {
+          "bitwise_identical": true,
+          "max_abs_diff": 0.0
+        },
+        "13": {
+          "bitwise_identical": true,
+          "max_abs_diff": 0.0
+        },
+        "2": {
+          "bitwise_identical": true,
+          "max_abs_diff": 0.0
+        },
+        "200": {
+          "bitwise_identical": true,
+          "max_abs_diff": 0.0
+        },
+        "25": {
+          "bitwise_identical": true,
+          "max_abs_diff": 0.0
+        },
+        "3": {
+          "bitwise_identical": true,
+          "max_abs_diff": 0.0
+        },
+        "64": {
+          "bitwise_identical": true,
+          "max_abs_diff": 0.0
+        },
+        "7": {
+          "bitwise_identical": true,
+          "max_abs_diff": 0.0
+        }
+      },
+      "small25": {
+        "1": {
+          "bitwise_identical": true,
+          "max_abs_diff": 0.0
+        },
+        "13": {
+          "bitwise_identical": true,
+          "max_abs_diff": 0.0
+        },
+        "2": {
+          "bitwise_identical": true,
+          "max_abs_diff": 0.0
+        },
+        "25": {
+          "bitwise_identical": true,
+          "max_abs_diff": 0.0
+        },
+        "3": {
+          "bitwise_identical": true,
+          "max_abs_diff": 0.0
+        },
+        "7": {
+          "bitwise_identical": true,
+          "max_abs_diff": 0.0
+        }
+      }
+    }
+  },
+  "reduction_order": {
+    "claim": "numpy reduces a 2-D array along axis 0 row by row, so mean(axis=0) equals a streaming accumulator BITWISE -- except at Mc == 1, where it switches to pairwise summation over a contiguous vector.",
+    "per_shape": {
+      "N128_M1": {
+        "bitwise_identical": false,
+        "max_rel_diff": 6.350915554183363e-16,
+        "n_trials": 20
+      },
+      "N128_M3": {
+        "bitwise_identical": true,
+        "max_rel_diff": 0.0,
+        "n_trials": 20
+      },
+      "N512_M1": {
+        "bitwise_identical": false,
+        "max_rel_diff": 7.611970658841929e-16,
+        "n_trials": 20
+      },
+      "N512_M200": {
+        "bitwise_identical": true,
+        "max_rel_diff": 0.0,
+        "n_trials": 20
+      },
+      "N512_M25": {
+        "bitwise_identical": true,
+        "max_rel_diff": 0.0,
+        "n_trials": 20
+      },
+      "N512_M5000": {
+        "bitwise_identical": true,
+        "max_rel_diff": 0.0,
+        "n_trials": 3
+      },
+      "N8192_M200": {
+        "bitwise_identical": true,
+        "max_rel_diff": 0.0,
+        "n_trials": 20
+      }
+    }
+  }
+}

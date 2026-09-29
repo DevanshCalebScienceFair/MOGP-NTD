@@ -1,0 +1,50 @@
+{
+  "generated_by": "spec/primitives/capture_primitives.py",
+  "spec": "spec/primitives/SPEC.md",
+  "environment": {
+    "python": "3.11.15",
+    "platform": "macOS-26.5.1-arm64-arm-64bit",
+    "machine": "arm64",
+    "numpy": "2.4.6",
+    "oracles_available": true,
+    "oracle_versions": {
+      "torch": "2.13.0",
+      "gpytorch": "1.15.2",
+      "scipy": "1.17.1"
+    }
+  },
+  "fixtures": [
+    {
+      "npz": "tanimoto_kernel.npz",
+      "sidecar": "tanimoto_kernel.json",
+      "title": "Tanimoto/Jaccard kernel on binary Morgan fingerprints",
+      "n_arrays": 65,
+      "bytes": 338451,
+      "npz_sha256": "3f8e8b9842516c1e1ffb45a6ba72df8d2f9517fd6f6d587eef7ae26364cd23ca"
+    },
+    {
+      "npz": "hyperparameter_transforms.npz",
+      "sidecar": "hyperparameter_transforms.json",
+      "title": "softplus (threshold=20), GreaterThan(1e-4), and which parameter is unconstrained",
+      "n_arrays": 36,
+      "bytes": 9508,
+      "npz_sha256": "fda45befb7c7907fd68be69d2140bf4ab66e01844782e41eccfb73a68e1c81d4"
+    },
+    {
+      "npz": "cholesky_and_solves.npz",
+      "sidecar": "cholesky_and_solves.json",
+      "title": "Cholesky with the escalating jitter ladder, and triangular forward/back substitution",
+      "n_arrays": 104,
+      "bytes": 1234741,
+      "npz_sha256": "c7504a6df857ec1d25b56cb08e7f22262bde87124c4b504cdc1e1f5ab5d1b3c3"
+    },
+    {
+      "npz": "adam.npz",
+      "sidecar": "adam.json",
+      "title": "Adam: 1-indexed step counter, bias correction, eps added to sqrt(v_hat)",
+      "n_arrays": 25,
+      "bytes": 55674,
+      "npz_sha256": "fcdf2b9324f11c17db112baf87fccdd1bd063c70c18035cdcb011daa190963b1"
+    }
+  ]
+}

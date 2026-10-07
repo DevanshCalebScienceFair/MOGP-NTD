@@ -77,6 +77,8 @@ from acquisition import (
     get_active_objectives,
     initial_design_indices,
     keyed_generator,
+    keyed_int_seed,
+    resolve_run_seed,
     DEFAULT_OBJECTIVE_SIGNS,
 )
 import evaluation
@@ -209,12 +211,21 @@ class BOLoop:
         # random draw in a run comes from an explicit numpy Generator that is a
         # pure function of (run seed, iteration, stream name)
         # (``acquisition.keyed_generator``): the initial design (iteration 0),
-        # and at BO step k the ICM's initial W / v_raw and the Sobol' scramble of
-        # the qNEHVI draw. So a draw does not depend on what numpy's global RNG
-        # was seeded with, on how many other draws happened first, or on the order
-        # the stages run in, and this loop never reads or advances the global RNG
-        # (it no longer calls ``np.random.seed``). `_densify` derives its own
-        # explicit seed from `self.seed`, so it is pinned by the same argument.
+        # and at BO step k the ICM's initial W / v_raw, the Sobol' scramble of
+        # the qNEHVI draw and the densify analog shuffle. So a draw does not
+        # depend on what numpy's global RNG was seeded with, on how many other
+        # draws happened first, or on the order the stages run in, and this loop
+        # never reads or advances the global RNG (it no longer calls
+        # ``np.random.seed``).
+        #
+        # ``seed=None`` means "no particular seed": ONE fresh value is drawn from
+        # OS entropy here, at construction, and stored in ``self.seed``. Every
+        # keyed stream above then uses that value, so the run is reproducible by
+        # passing ``loop.seed`` back as ``seed``. It is printed so a log records
+        # it. An explicit seed must be a non-negative integer
+        # (``acquisition.validate_seed``: numpy integers are accepted; bool,
+        # non-integral floats and negatives raise) -- validated once, here, before
+        # anything is loaded.
         #
         # History, so the next reader knows why this is keyed. ``torch.manual_seed
         # (seed)`` used to sit here, not because this file did any torch arithmetic
@@ -225,7 +236,10 @@ class BOLoop:
         # ``np.random.seed(seed)`` and an ambient draw; the keyed streams replace
         # the hidden global with an argument. Results therefore differ from the
         # archived runs' draws (accepted); the distributions do not.
-        self.seed = seed
+        self.seed = resolve_run_seed(seed)
+        if seed is None:
+            print(f"[BOLoop] seed=None: drew run seed {self.seed} from OS entropy; "
+                  f"pass seed={self.seed} to reproduce this run.")
 
         # --- GP training function ---
         # The PRIMARY / headline model is the coregionalized (ICM) GP, which
@@ -431,7 +445,13 @@ class BOLoop:
         analogs = generate_analogs(
             parents,
             n_per_parent=self.densify_per_parent,
-            seed=self.seed + iteration,
+            # The shuffle seed is a pure function of the key (run seed, this
+            # iteration, "densify"): densify.generate_analogs still does its
+            # sort-then-``random.Random(seed).shuffle``, only the seed it is
+            # handed is keyed, not ``self.seed + iteration`` (an additive scheme,
+            # under which (seed 0, iteration 2) and (seed 1, iteration 1) shared
+            # a shuffle).
+            seed=keyed_int_seed(self.seed, iteration, "densify"),
             exclude=self._library_canonical,
         )
         n_proposed = len(analogs)
@@ -564,7 +584,8 @@ class BOLoop:
             self.seed, self.library_size, self.n_init
         )
 
-        print(f"Initializing with {self.n_init} random molecules...")
+        print(f"Initializing with {self.n_init} random molecules "
+              f"(run seed {self.seed})...")
         Y, Y_le, Y_raw, docking = self._evaluate(init_indices)
 
         self.evaluated_indices = list(init_indices)

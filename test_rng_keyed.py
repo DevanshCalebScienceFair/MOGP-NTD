@@ -22,6 +22,13 @@ pin that down:
 
 And the comparison-fairness property the keyed initial design exists to protect:
 every arm that has an initial design draws the IDENTICAL one for a given seed.
+
+Seeds themselves are checked in one place (``acquisition.validate_seed``): an
+explicit seed is a non-negative integer, and ``BOLoop(seed=None)`` draws ONE fresh
+OS-entropy seed at construction and records it in ``loop.seed`` so the run is
+reproducible from it. The densify shuffle is a keyed stream like the others, not
+``seed + iteration``. And the ITERATION word of the key is pinned at the loop
+level: the ICM init and the QMC scramble at BO step k are keyed by ``k``.
 """
 
 import ast
@@ -37,8 +44,12 @@ from acquisition import (
     RNG_STREAMS,
     compute_qnehvi,
     draw_without_replacement,
+    fresh_run_seed,
     initial_design_indices,
     keyed_generator,
+    keyed_int_seed,
+    resolve_run_seed,
+    validate_seed,
 )
 from mogp import TASK_NAMES, DOCKING_TASK_INDICES, OBJECTIVE_SOURCES, train_mogp
 from mogp_core import icm as _icm
@@ -480,6 +491,299 @@ def test_a_whole_run_is_independent_of_the_global_rng(arms_io, name):
 
     c, _, _ = _run(name, 4, global_seed=1, mid_draws=7)
     assert sorted(c.evaluated_indices) != sorted(a.evaluated_indices)
+
+
+# ---------------------------------------------------------------------- #
+# Seeds: one validation point, and seed=None
+# ---------------------------------------------------------------------- #
+# (value, expected exception) for every seed that must be refused. bool and a
+# non-integral float used to be silently truncated by ``int()`` (True -> 1,
+# 1.5 -> 1); None used to die with an unhelpful ``int(None)`` TypeError.
+BAD_SEEDS = [
+    (True, TypeError), (False, TypeError), (np.bool_(True), TypeError),
+    (1.5, ValueError), (0.1, ValueError), (float("nan"), ValueError),
+    (float("inf"), ValueError), (np.float32(2.5), ValueError),
+    (-1, ValueError), (np.int64(-3), ValueError), (-2.0, ValueError),
+    ("7", TypeError), ([1], TypeError), (b"1", TypeError), (None, TypeError),
+]
+# every spelling of the integer 7 (the key they must all equal)
+GOOD_SEEDS = [7, np.int8(7), np.int32(7), np.int64(7), np.uint16(7), 7.0,
+              np.float64(7.0)]
+
+
+@pytest.mark.parametrize("bad,exc", BAD_SEEDS, ids=[repr(b) for b, _ in BAD_SEEDS])
+def test_validate_seed_rejects_what_int_would_silently_change(bad, exc):
+    with pytest.raises(exc, match="non-negative integer"):
+        validate_seed(bad)
+
+
+@pytest.mark.parametrize("good", GOOD_SEEDS, ids=[repr(g) for g in GOOD_SEEDS])
+def test_validate_seed_returns_a_plain_int(good):
+    out = validate_seed(good)
+    assert type(out) is int and out == int(good)
+
+
+def test_zero_is_a_valid_seed():
+    assert validate_seed(0) == 0 and validate_seed(np.int64(0)) == 0
+    assert len(initial_design_indices(0, 50, 5)) == 5
+
+
+@pytest.mark.parametrize("bad,exc", BAD_SEEDS, ids=[repr(b) for b, _ in BAD_SEEDS])
+def test_every_keyed_helper_reuses_the_one_validation(bad, exc):
+    """keyed_generator -> initial_design_indices / keyed_int_seed all refuse a bad
+    seed with the same clear error, rather than each truncating on its own."""
+    with pytest.raises(exc, match="non-negative integer"):
+        keyed_generator(bad, 0, "init_design")
+    with pytest.raises(exc, match="non-negative integer"):
+        initial_design_indices(bad, 100, 5)
+    with pytest.raises(exc, match="non-negative integer"):
+        keyed_int_seed(bad, 1, "densify")
+    # the iteration and a raw stream id are key words too
+    with pytest.raises(exc, match="non-negative integer"):
+        keyed_generator(0, bad, "icm_init")
+    if not isinstance(bad, str):       # a str stream is a NAME, looked up, not a key word
+        with pytest.raises(exc, match="non-negative integer"):
+            keyed_generator(0, 1, bad)
+
+
+def test_the_none_error_says_what_to_do():
+    with pytest.raises(TypeError, match=r"seed=None.*fresh seed.*loop\.seed"):
+        initial_design_indices(None, 100, 5)
+
+
+@pytest.mark.parametrize("good", GOOD_SEEDS, ids=[repr(g) for g in GOOD_SEEDS])
+def test_numpy_integer_and_integral_float_seeds_are_the_same_key(good):
+    """A numpy integer is the SAME key as the Python int, not a near-miss."""
+    assert (initial_design_indices(good, 200, 10)
+            == initial_design_indices(7, 200, 10))
+    assert np.array_equal(keyed_generator(good, 2, "icm_init").random(4),
+                          keyed_generator(7, 2, "icm_init").random(4))
+
+
+def test_compute_qnehvi_validates_its_key(acq_problem):
+    problem, layout = acq_problem
+    for bad, exc in ((True, TypeError), (1.5, ValueError), (-1, ValueError)):
+        with pytest.raises(exc, match="run_seed"):
+            _scores(problem, layout, run_seed=bad, iteration=1)
+        with pytest.raises(exc, match="iteration"):
+            _scores(problem, layout, run_seed=3, iteration=bad)
+    # an acceptable numpy integer is the same key as the int
+    assert np.array_equal(_scores(problem, layout, run_seed=np.int64(3), iteration=1),
+                          _scores(problem, layout, run_seed=3, iteration=1))
+
+
+def test_fresh_run_seed_is_entropy_not_the_global_rng():
+    np.random.seed(0)
+    before = _global_state()
+    a, b = fresh_run_seed(), fresh_run_seed()
+    assert _same_state(before, _global_state())
+    assert a != b                                   # 63 bits of OS entropy
+    for v in (a, b):
+        assert type(v) is int and 0 <= v < 2 ** 63
+        assert validate_seed(v) == v                # fits the key scheme
+        keyed_generator(v, 1, "icm_init").random(2)
+    # resolve_run_seed: None -> fresh, anything else -> validated unchanged
+    assert resolve_run_seed(5) == 5 and type(resolve_run_seed(np.int64(5))) is int
+    assert resolve_run_seed(None) != resolve_run_seed(None)
+    with pytest.raises(TypeError):
+        resolve_run_seed(True)
+
+
+@pytest.mark.parametrize("bad,exc", [b for b in BAD_SEEDS if b[0] is not None],
+                         ids=[repr(b) for b, _ in BAD_SEEDS if b is not None])
+def test_bo_loop_rejects_bad_explicit_seeds(arms_io, bad, exc):
+    with pytest.raises(exc, match="non-negative integer"):
+        loopmod.BOLoop(library_dir="synthetic", seed=bad)
+
+
+def test_bo_loop_normalizes_numpy_and_integral_float_seeds(arms_io):
+    for given in (np.int64(9), np.uint8(9), 9.0, 9):
+        loop = loopmod.BOLoop(library_dir="synthetic", seed=given)
+        assert type(loop.seed) is int and loop.seed == 9
+
+
+def test_bo_loop_seed_none_draws_one_fresh_recorded_seed(arms_io, capsys):
+    """seed=None used to work (np.random.seed(None) drew OS entropy) and the keyed
+    rewrite made it raise ``int(None)``. It must work again, and the seed it drew
+    must be on the object (and in the log) so the run is reproducible from it."""
+    np.random.seed(11)
+    before = _global_state()
+    a = _make_arm("loop", None)
+    b = _make_arm("loop", None)
+    assert _same_state(before, _global_state()), "drawing the seed touched numpy's RNG"
+    for loop in (a, b):
+        assert type(loop.seed) is int and 0 <= loop.seed < 2 ** 63
+    assert a.seed != b.seed                          # two None loops are two runs
+    out = capsys.readouterr().out
+    assert str(a.seed) in out and str(b.seed) in out  # recorded in the log
+    # the drawn seed is the key of every downstream stream: the initial design
+    # is exactly the keyed design of the recorded seed
+    a.initialize()
+    assert a.evaluated_indices == initial_design_indices(a.seed, LIB_N, 6)
+    assert str(a.seed) in capsys.readouterr().out    # initialize logs it too
+
+
+def test_two_none_loops_differ_and_each_replays_from_its_recorded_seed(arms_io):
+    a = _make_arm("loop", None)
+    b = _make_arm("loop", None)
+    a.run()
+    b.run()
+    assert a.seed != b.seed
+    assert sorted(a.evaluated_indices) != sorted(b.evaluated_indices)
+    for original in (a, b):
+        replay = _make_arm("loop", original.seed)    # an EXPLICIT seed this time
+        replay.run()
+        assert replay.evaluated_indices == original.evaluated_indices
+        assert ([h["batch_indices"] for h in replay.history]
+                == [h["batch_indices"] for h in original.history])
+        assert ([h["batch_ehvi_scores"] for h in replay.history]
+                == [h["batch_ehvi_scores"] for h in original.history])
+        np.testing.assert_array_equal(replay.Y_evaluated, original.Y_evaluated)
+
+
+# ---------------------------------------------------------------------- #
+# The densify shuffle is a keyed stream, not ``seed + iteration``
+# ---------------------------------------------------------------------- #
+def _densify_seeds(monkeypatch, seed, iterations, global_seed=0, junk=0):
+    """The ``seed=`` that ``BOLoop._densify`` hands ``densify.generate_analogs`` at
+    each of ``iterations``, with the global RNG put in a chosen state. Everything
+    after the shuffle is cut off (no analogs are returned), so no ADMET oracle."""
+    seen = []
+
+    def spy(parents, n_per_parent=20, seed=0, exclude=frozenset()):
+        seen.append(seed)
+        return []
+
+    monkeypatch.setattr(loopmod, "generate_analogs", spy)
+    loop = _make_arm("loop", seed)
+    loop.densify = True
+    loop._library_canonical = set()
+    loop.get_pareto_front = lambda: {"smiles": ["CCO"]}
+    np.random.seed(global_seed)
+    np.random.random(junk)
+    before = _global_state()
+    for it in iterations:
+        loop._densify(it)
+    assert _same_state(before, _global_state()), "_densify moved the global RNG"
+    return seen
+
+
+def test_densify_shuffle_seed_is_keyed_and_the_additive_collision_is_gone(
+        arms_io, monkeypatch):
+    """The old scheme was ``seed + iteration``, under which (seed 0, iteration 2)
+    and (seed 1, iteration 1) got the same shuffle: the very collision the keyed
+    streams are tested against in ``test_the_key_is_a_tuple_not_a_sum``."""
+    (a,) = _densify_seeds(monkeypatch, 0, [2])
+    (b,) = _densify_seeds(monkeypatch, 1, [1])
+    (c,) = _densify_seeds(monkeypatch, 2, [0])
+    assert len({a, b, c}) == 3
+    assert (a, b, c) != (2, 2, 2)                    # not seed + iteration
+    # and it is exactly the documented key (seed, iteration, "densify")
+    assert a == keyed_int_seed(0, 2, "densify") == keyed_int_seed(0, 2, RNG_STREAMS["densify"])
+    assert type(a) is int and 0 <= a < 2 ** 63
+
+
+def test_densify_shuffle_seed_depends_on_both_key_words(arms_io, monkeypatch):
+    by_iter = _densify_seeds(monkeypatch, 5, [1, 2, 3])
+    assert len(set(by_iter)) == 3                    # the iteration is a key word
+    assert _densify_seeds(monkeypatch, 5, [1]) != _densify_seeds(monkeypatch, 6, [1])
+    assert _densify_seeds(monkeypatch, 5, [1, 2, 3]) == by_iter   # reproducible
+
+
+def test_densify_shuffle_seed_ignores_the_global_rng(arms_io, monkeypatch):
+    a = _densify_seeds(monkeypatch, 5, [1, 2], global_seed=0, junk=0)
+    b = _densify_seeds(monkeypatch, 5, [1, 2], global_seed=987, junk=5000)
+    assert a == b
+
+
+def test_densify_shuffle_keeps_the_same_distribution_and_logic():
+    """``generate_analogs`` is untouched: sort, then ``random.Random(seed).shuffle``.
+    A keyed seed is just another integer for it, so the shuffle is still a uniform
+    permutation (each element equally likely in the first slot) and still
+    deterministic per seed."""
+    from densify import generate_analogs                      # noqa: F401  (import check)
+    import random
+    items = [f"C{i}" for i in range(6)]
+    first = np.zeros(6)
+    trials = 3000
+    for it in range(trials):
+        seed = keyed_int_seed(3, it, "densify")
+        order = list(items)
+        random.Random(seed).shuffle(order)
+        again = list(items)
+        random.Random(seed).shuffle(again)
+        assert order == again
+        first[items.index(order[0])] += 1
+    expected = trials / 6
+    assert (np.abs(first - expected) < 0.2 * expected).all(), first
+
+
+# ---------------------------------------------------------------------- #
+# The ITERATION word of the key, pinned at the loop level
+# ---------------------------------------------------------------------- #
+# ``keyed_generator`` is already shown to separate iterations (above), but that
+# says nothing about whether ``BOLoop.step`` actually PASSES the iteration: a
+# refactor that keyed the ICM init or the QMC scramble on a constant (iteration 0)
+# would give every BO step the same start and the same scramble, and no
+# key-function test would notice. So record what really reaches the two draws at
+# each step of a real (docking-mocked) run.
+N_STEPS = 3
+
+
+def _recording_loop(seed):
+    """A coregionalized BOLoop whose train_fn records the stream it is handed.
+    Returns (loop, log): ``log[k-1]`` is the generator STATE on entry to step k."""
+    log = []
+
+    def train_fn(train_x, train_y, n_iterations=200, lr=0.1, rng=None):
+        log.append(None if rng is None else rng.bit_generator.state)
+        return train_mogp_coregionalized(
+            train_x, train_y, n_iterations=n_iterations, lr=lr, rng=rng)
+
+    loop = loopmod.BOLoop(
+        library_dir="synthetic", seed=seed, n_init=6, batch_size=3,
+        n_iterations=N_STEPS, mogp_train_iters=4, diversity_threshold=0.95,
+        train_fn=train_fn)
+    return loop, log
+
+
+def test_the_icm_init_stream_of_step_k_is_keyed_on_k(arms_io):
+    seed = 13
+    loop, log = _recording_loop(seed)
+    loop.run()
+    assert len(log) == N_STEPS and all(state is not None for state in log)
+    for k, state in enumerate(log, start=1):
+        assert state == keyed_generator(seed, k, "icm_init").bit_generator.state, (
+            f"step {k}: the ICM init stream is not keyed on (seed, {k}, 'icm_init')")
+    # and the steps really do get different starts (a dropped iteration would give
+    # N_STEPS identical states)
+    assert len({repr(state) for state in log}) == N_STEPS
+
+
+def test_the_qmc_scramble_of_step_k_is_keyed_on_k(arms_io, monkeypatch):
+    seed = 13
+    keys = []
+    orig = _core_qnehvi.qnehvi
+
+    def spy(*args, **kwargs):
+        keys.append((kwargs["run_seed"], kwargs["iteration"]))
+        return orig(*args, **kwargs)
+
+    monkeypatch.setattr(acquisition._core_qnehvi, "qnehvi", spy)
+    loop, _ = _recording_loop(seed)
+    loop.run()
+    assert keys == [(seed, k) for k in range(1, N_STEPS + 1)], keys
+
+
+def test_changing_only_the_step_changes_the_draws_the_loop_makes(arms_io):
+    """The behavioural form of the two tests above, with no spies: the same loop
+    on the same data but a different BO step index draws a different ICM start and
+    a different scramble. (Direct: the key words the loop builds.)"""
+    seed = 13
+    icm = [tuple(keyed_generator(seed, k, "icm_init").random(3)) for k in (1, 2, 3)]
+    qmc = [tuple(_core_sobol.qmc_generator(seed, k, RNG_STREAMS["qmc_scramble"]).random(3))
+           for k in (1, 2, 3)]
+    assert len(set(icm)) == 3 and len(set(qmc)) == 3
 
 
 # ---------------------------------------------------------------------- #

@@ -3,11 +3,14 @@ run_ablation.py
 ===============
 
 Multi-seed ablation: **independent** vs **coregionalized (ICM)** GP, head to
-head, on the SAME seeds / library / parameters. Only the GP model differs; the
-grey-box qNEHVI acquisition, the docking oracle and the evaluation frame are
-identical, so any difference in the final hypervolume is attributable to the
-cross-task (PfDHFR/hDHFR) structure the coregionalized model captures and the
-independent model forces to zero.
+head, on the SAME seeds / library / parameters. The GP model is what is varied;
+the grey-box qNEHVI acquisition, the docking oracle and the evaluation frame are
+the same code for both arms. A difference in the final hypervolume is therefore a
+difference between the two models, but not necessarily the PfDHFR/hDHFR
+cross-task correlation alone: the qNEHVI draw is a diagonal posterior (only the
+per-molecule, per-task marginals), so the covariance the coregionalized model
+learns reaches the acquisition only through how it changes the fitted marginal
+means and variances (``mogp_core/PROVENANCE.md``, QN-15 and VER-3).
 
 Because a single BO run is noisy (random init, MC acquisition, stochastic
 docking), one run tells you little. This harness repeats each arm across several
@@ -17,9 +20,18 @@ read from each run's history, i.e. ``evaluation.compute_hypervolume`` — the
 single source of truth shared with every baseline — so the numbers are directly
 comparable.
 
-For each seed, both arms start from the identical random initial molecules (same
-seed -> same ``np.random`` draw) and get the same docking budget
-(``n_init + n_iterations * batch_size``), so the comparison is fair.
+For each seed, both arms start from the identical initial molecules and get the
+same docking budget (``n_init + n_iterations * batch_size``). The shared initial
+design is ``acquisition.initial_design_indices(seed, ...)``, a draw keyed by the
+run seed alone; nothing here seeds or reads numpy's global RNG. The randomness
+after that is keyed too, per ``acquisition.keyed_generator``: at BO step ``k`` the
+Sobol' scramble of the qNEHVI draw has the same key ``(seed, k, 0)`` in both arms,
+and the coregionalized arm additionally draws its initial task-covariance
+``W`` / ``v_raw`` from ``(seed, k, "icm_init")`` (the independent model draws
+none). Sharing a key is not sharing an outcome: at step 1 both arms score the same
+candidates with the same scramble but through different fitted posteriors, and
+once their selected batches differ the evaluated sets and candidate pools differ
+too, so the same scramble is applied to different problems.
 
 Run with::
 

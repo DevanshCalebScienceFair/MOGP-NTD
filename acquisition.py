@@ -48,31 +48,44 @@ OWN-CODE NUMERICAL CORE
 The estimator itself is now this project's own code: ``mogp_core.qnehvi``
 (log-smoothed qNEHVI at q=1), ``mogp_core.boxdecomp`` (the Lacour box
 decomposition of the baseline front) and ``mogp_core.sobol`` (the scrambled
-Sobol' QMC normals), all pure numpy. It is a 1:1 behavioural mirror of the
-BoTorch stack it replaces — ``qLogNoisyExpectedHypervolumeImprovement`` +
-``SobolQMCNormalSampler`` + ``FastNondominatedPartitioning`` — verified against
-live BoTorch on real data (``mogp_core/ACQUISITION_GATE.md``): same-normals
-agreement 1.78e-15, qNEHVI rank correlation 0.999417 (BoTorch vs. ITSELF at
-another Sobol seed is 0.999271), and an identical 5-molecule batch selection.
+Sobol' QMC normals), all pure numpy. It replaced a BoTorch implementation
+(``qLogNoisyExpectedHypervolumeImprovement`` + ``SobolQMCNormalSampler`` +
+``FastNondominatedPartitioning``).
 
-*** THE POSTERIOR CALL SHAPE IS LOAD-BEARING. ***
-That 1.78e-15 is reachable ONLY because this module reproduces BoTorch's
-posterior call shapes exactly (see ``compute_qnehvi``):
+Pure numpy is not the same as derived from the math. When the core was first
+built, some of its conventions were matched to the BoTorch implementation so
+that archived runs could be replayed against it, and
+``mogp_core/ACQUISITION_GATE.md`` (a historical record) measured that agreement
+against live BoTorch: same-normals agreement 1.78e-15, qNEHVI rank correlation
+0.999417 (BoTorch against ITSELF at another Sobol seed: 0.999271). That goal is
+waived: the archived results are superseded, so agreeing with BoTorch is neither
+a requirement nor a justification for any choice in this module. Which choices
+here were taken from the library rather than derived, and which of them move
+results, is tracked row by row in ``mogp_core/PROVENANCE.md``; this docstring
+does not certify any of them.
 
-    BASELINE  mu/var  <- a SEPARATE ``mogp.predict`` on ``X_baseline`` ALONE
-    CANDIDATE mu/var  <- the STACKED ``cat(X_baseline, X)`` layout,
-                         ``(chunk, B + 1, n_fp)`` flattened to one predict call
+THE STACKED CANDIDATE PREDICT (``PROVENANCE.md`` rows QN-23, ICM-35, RP-26)
+``compute_qnehvi`` gets the baseline mu/var from one ``mogp.predict`` on
+``X_baseline`` alone, and each candidate's mu/var from a STACKED predict:
+``cat(X_baseline, x)`` per candidate, ``(chunk, B + 1, n_fp)`` flattened to one
+predict call, keeping only the candidate's own row. That layout copies how
+BoTorch's forward builds the candidate posterior.
 
-The GP is float32 and its output depends on the batch shape it is called with,
-so any other wiring silently costs six orders of magnitude, with no error and no
-warning. Measured on the same fit and the same points:
-
-    baseline SEP   + cand SEP     ->  max_abs 1.1068e-06
-    baseline SEP   + cand STACK   ->  max_abs 1.7764e-15   <-- the ONLY correct wiring
-    baseline STACK + cand STACK   ->  max_abs 1.1529e-07
-
-Do not "simplify" the stacked candidate predict into a plain per-candidate
-predict. It looks equivalent, it type-checks, it runs, and it is wrong.
+It mattered on the previous torch float32 GP, whose output depended on the batch
+shape it was called with; ``ACQUISITION_GATE.md`` measured, against live BoTorch,
+max_abs 1.1068e-06 for baseline-separate + candidate-separate, 1.7764e-15 for
+baseline-separate + candidate-stacked, and 1.1529e-07 for both stacked. It does
+NOT matter on the numpy GP this module calls: each row's posterior marginal
+there depends only on that row and the training set, and the stacked and the
+plain predict agree numerically. The provenance audit measured a max abs
+difference of 8.9e-16 on the mean and 0.0 on the variance (QN-23). Re-checked for
+this edit, with a small fitted model of each kind (the independent GP and the
+coregionalized GP; 40 evaluated molecules, 150 candidates), the stacked and plain
+mean and variance were bitwise equal, and so were the qNEHVI scores at
+``candidate_chunk`` 1, 7, 128 and 150. The stacked predict costs 9-29x the time
+of a plain one (RP-26). It is kept unchanged here only because removing it is a
+separate, open provenance item (audit action `remove`); it is not required for
+correctness, and a plain per-candidate predict is not "wrong".
 
 Two BoTorch adapter classes — ``DockingPosteriorModel`` and
 ``CompositeKnownADMETObjective`` — survive as a TEST ORACLE only. They are off
@@ -121,12 +134,14 @@ N_MC_SAMPLES = 128
 # memory. Docking dominates wall-clock, so the extra Python-level calls are free.
 CANDIDATE_CHUNK = 128
 
-# Estimator / sampler / sample-count. These are not open choices: they are what
-# the archived runs used, read straight off the BoTorch code this module
-# replaces. `qLogNoisyExpectedHypervolumeImprovement` -> estimator="log";
-# `SobolQMCNormalSampler` -> sampler="sobol"; N_MC_SAMPLES -> n_mc=128.
-# spec/qnehvi/SPEC.md prefers exact + iid + 512; that is a REDESIGN and is out of
-# scope here, where the requirement is the same numbers as the archived runs.
+# Estimator / sampler / sample-count. These are the values the archived runs used,
+# read straight off the BoTorch code this module replaced:
+# `qLogNoisyExpectedHypervolumeImprovement` -> estimator="log";
+# `SobolQMCNormalSampler` -> sampler="sobol"; N_MC_SAMPLES -> n_mc=128. They are
+# library-derived choices, not derivations (see mogp_core/PROVENANCE.md), kept as
+# they are because changing the estimator moves the benchmark: spec/qnehvi/SPEC.md
+# prefers exact + iid + 512, which is a REDESIGN and out of scope here. Matching
+# the archived runs is no longer a goal, so that is not why they stay open.
 _ESTIMATOR = "log"
 _SAMPLER = "sobol"
 
@@ -142,11 +157,14 @@ _SOBOL_SEED_HIGH = 1000000
 
 
 # --------------------------------------------------------------------------
-# Keyed randomness: the ONLY way the optimizer draws random numbers
+# Keyed randomness: how the optimizer's own random draws are made
 # --------------------------------------------------------------------------
-# Every random draw in a run -- the initial design, the ICM's initial W / v_raw,
-# the Sobol' scramble -- comes from a `numpy.random.Generator` that is a pure
-# function of the key (run_seed, iteration, stream):
+# Given a run seed, every random draw the own-code arms make -- the initial
+# design, the ICM's initial W / v_raw, the Sobol' scramble, the SEED of the
+# densify shuffle (the shuffle itself is `random.Random(seed).shuffle` in
+# densify.py) and the baselines' own draws (RNG_STREAMS below) -- comes from a
+# `numpy.random.Generator` that is a pure function of the key
+# (run_seed, iteration, stream):
 #
 #     SeedSequence(entropy=(run_seed, iteration, stream)) -> PCG64
 #
@@ -157,6 +175,13 @@ _SOBOL_SEED_HIGH = 1000000
 # of nothing else, it does not depend on what numpy's GLOBAL RNG was seeded with,
 # on how many other draws happened first, or on the order the stages run in, and
 # the loop never reads or advances the global stream at all.
+#
+# What is NOT covered, so nothing here over-claims: (a) two AMBIENT fallbacks
+# remain for ad-hoc direct callers that pass no key -- `_draw_scramble_seed`
+# below and `mogp_core.icm.init_theta(rng=None)` -- and the loop takes neither;
+# (b) the docking oracle (docking.py) fixes its own Vina and conformer seeds and
+# does not use the run seed; (c) the quarantined GP-MOBO arm keeps torch/botorch
+# for its comparator (its own keyed streams are listed below).
 #
 # Stream ids are the third key word. `0` is the Sobol' scramble: it is what
 # `mogp_core.qnehvi.qnehvi` keys its sampler with (its `baseline_stream` default)
@@ -171,18 +196,107 @@ RNG_STREAMS = {
     "greedy_select": 11,    # baseline_greedy's docking set    (iteration = 0)
     "ehvi_mc": 12,          # baseline_gpmobo's EHVI MC noise  (iteration = BO step)
     "hparam_holdout": 13,   # baseline_gpmobo's holdout block  (iteration = 0)
+    "densify": 14,          # loop._densify's analog shuffle   (iteration = BO step)
 }
+
+# A fresh run seed is a 63-bit non-negative int: it fits an int64 (CSV / pandas /
+# JSON-safe) and is far above the number of runs a collision would take.
+_FRESH_SEED_BITS = 63
+
+
+def validate_seed(value, name="seed"):
+    """``value`` as a plain non-negative ``int``, or a clear error.
+
+    THE single validation point for a key word: ``BOLoop`` (through
+    :func:`resolve_run_seed`), :func:`keyed_generator` (so every keyed helper and
+    every arm that uses one) and ``compute_qnehvi`` all call it, so the rules
+    cannot drift apart.
+
+    Accepted: a Python ``int``, any numpy integer type, and a float that is exactly
+    integral and finite (``3.0`` -> ``3``; nothing is lost). Rejected, because
+    ``int()`` would silently change the key: ``bool`` (``True`` would become ``1``;
+    ``TypeError``), a non-integral, NaN or infinite float (``ValueError``), a
+    negative integer (``SeedSequence`` rejects it; ``ValueError``), and anything
+    else, ``None`` and strings included (``TypeError``).
+    """
+    if isinstance(value, (bool, np.bool_)):
+        raise TypeError(
+            f"{name} must be a non-negative integer, got the bool {value!r} "
+            f"(it would silently become {int(value)})."
+        )
+    if isinstance(value, (int, np.integer)):
+        out = int(value)
+    elif isinstance(value, (float, np.floating)):
+        if not float(value).is_integer():          # False for NaN and +-inf too
+            raise ValueError(
+                f"{name} must be a non-negative integer, got the non-integral "
+                f"float {value!r} (it would be silently truncated)."
+            )
+        out = int(value)
+    elif value is None:
+        raise TypeError(
+            f"{name} must be a non-negative integer, got None. BOLoop(seed=None) "
+            "draws a fresh seed from OS entropy at construction and records it in "
+            "`loop.seed`; the keyed helpers need an explicit one "
+            "(`acquisition.resolve_run_seed` does that draw)."
+        )
+    else:
+        raise TypeError(
+            f"{name} must be a non-negative integer, got "
+            f"{type(value).__name__} {value!r}."
+        )
+    if out < 0:
+        raise ValueError(f"{name} must be a non-negative integer, got {out}.")
+    return out
+
+
+def fresh_run_seed():
+    """One new run seed from the operating system's entropy pool.
+
+    ``numpy.random.SeedSequence()`` with no argument pulls 128 bits of fresh OS
+    entropy into ``.entropy``; the low 63 bits are kept, which is a non-negative
+    int that fits the key scheme. It reads and advances no numpy global state, so
+    drawing one does not disturb a caller that seeded ``np.random`` itself.
+    """
+    return int(np.random.SeedSequence().entropy) & ((1 << _FRESH_SEED_BITS) - 1)
+
+
+def resolve_run_seed(seed):
+    """The run seed to use: ``seed`` validated, or a fresh one if it is ``None``.
+
+    ``None`` means "no particular seed": one :func:`fresh_run_seed` is drawn, once,
+    and the caller must record it (``BOLoop`` stores it in ``self.seed``) so the run
+    can be reproduced by passing that value back. Anything else goes through
+    :func:`validate_seed`.
+    """
+    return fresh_run_seed() if seed is None else validate_seed(seed)
 
 
 def keyed_generator(run_seed, iteration, stream):
     """The ``numpy.random.Generator`` for key ``(run_seed, iteration, stream)``.
 
     ``stream`` is a name in :data:`RNG_STREAMS` (or a raw non-negative int, for a
-    caller that owns its own stream id). ``run_seed`` and ``iteration`` must be
-    non-negative integers: ``SeedSequence`` rejects a negative entropy word.
+    caller that owns its own stream id). All three key words go through
+    :func:`validate_seed`: they must be non-negative integers (numpy integer types
+    are fine; ``bool``, non-integral floats, negatives and ``None`` raise).
     """
-    stream_id = RNG_STREAMS[stream] if isinstance(stream, str) else int(stream)
+    run_seed = validate_seed(run_seed, "run_seed")
+    iteration = validate_seed(iteration, "iteration")
+    stream_id = (RNG_STREAMS[stream] if isinstance(stream, str)
+                 else validate_seed(stream, "stream"))
     return _core_qnehvi.acquisition_generator(run_seed, iteration, stream_id)
+
+
+def keyed_int_seed(run_seed, iteration, stream):
+    """A non-negative 63-bit ``int`` that is a pure function of the key.
+
+    For code that takes an integer seed rather than a ``Generator``
+    (``loop.BOLoop._densify`` -> ``densify.generate_analogs`` ->
+    ``random.Random(seed)``). It is the first ``integers`` draw of
+    :func:`keyed_generator` for the same key, so distinct keys give independent
+    seeds and no additive ``seed + iteration`` scheme is involved.
+    """
+    return int(keyed_generator(run_seed, iteration, stream).integers(0, 1 << 63))
 
 
 def draw_without_replacement(generator, pool, size):
@@ -199,11 +313,15 @@ def draw_without_replacement(generator, pool, size):
 def initial_design_indices(run_seed, library_size, n_init):
     """The initial design: ``n_init`` distinct library indices for ``run_seed``.
 
-    THE single definition of the initial design, called by ``loop.BOLoop`` and by
-    every baseline arm. A benchmark's arms are comparable only if, for a given
-    seed, they all start from the SAME ``n_init`` molecules, so that difference is
-    enforced by construction (one function, one key) rather than by every arm
-    happening to seed numpy's global RNG and make the same ``choice`` call.
+    THE single definition of the initial design. It is called by ``loop.BOLoop``,
+    ``baseline_random``, ``baseline_single_obj`` and ``baseline_gpmobo``;
+    ``baseline_greedy`` does NOT call it, because that arm has no initial design
+    (it draws its docking set from the ADMET-filter survivors, with its own keyed
+    stream, ``"greedy_select"``). The arms that do have an initial design are
+    comparable only if, for a given seed, they all start from the SAME ``n_init``
+    molecules, so that is enforced by construction (one function, one key) rather
+    than by every arm happening to seed numpy's global RNG and make the same
+    ``choice`` call. ``run_seed`` is validated by :func:`validate_seed`.
 
     A pure function of ``(run_seed, library_size, n_init)``: key
     ``(run_seed, 0, "init_design")``, iteration 0 being "before the first step".
@@ -507,7 +625,9 @@ def compute_qnehvi(model, likelihood, y_mean, y_std,
             fit and the key and never touches numpy's global RNG. ``run_seed=None``
             is the documented AMBIENT fallback for ad-hoc direct callers: the
             scramble seed is then drawn from the global RNG
-            (``_draw_scramble_seed``), as it always was.
+            (``_draw_scramble_seed``), as it always was. An explicit
+            ``run_seed`` / ``iteration`` must be a non-negative integer
+            (``validate_seed``).
 
     Returns:
         Array of shape ``(M,)`` of qNEHVI scores; higher is more valuable to
@@ -559,25 +679,25 @@ def compute_qnehvi(model, likelihood, y_mean, y_std,
     chunk = max(1, int(candidate_chunk))
 
     # ------------------------------------------------------------------ #
-    # POSTERIOR CALL SHAPES — READ THE MODULE DOCSTRING BEFORE TOUCHING.
+    # POSTERIOR CALL SHAPES (module docstring; PROVENANCE rows QN-23, ICM-35,
+    # RP-26).
     #
-    # The numpy estimator agrees with live BoTorch to 1.78e-15 only when the mu
-    # and var handed to it are the ones BoTorch's own call pattern produces. The
-    # GP is float32 and its output is batch-shape dependent, so:
-    #
-    #   * BASELINE  — ONE SEPARATE predict on X_baseline alone (B rows). This is
-    #     what BoTorch does once, at acquisition construction, to build the box
-    #     decomposition of the current front.
+    #   * BASELINE  — ONE predict on X_baseline alone (B rows). BoTorch does this
+    #     once, at acquisition construction, to build the box decomposition of the
+    #     current front.
     #   * CANDIDATE — the STACKED layout. BoTorch's forward (cache_root=False)
     #     builds X_full = cat(X_baseline, X) of shape (chunk, B + 1, d) and calls
-    #     the posterior ONCE on all chunk * (B + 1) rows, so every candidate's own
-    #     row is predicted alongside `chunk` repeats of the whole baseline. Only
-    #     row B of each block (the candidate itself) is kept.
+    #     the posterior ONCE on all chunk * (B + 1) rows; only row B of each block
+    #     (the candidate itself) is kept. The loop below does the same.
     #
-    # Measured cost of getting this wrong, same fit and same points:
-    #     baseline SEP   + cand SEP     1.1068e-06
-    #     baseline SEP   + cand STACK   1.7764e-15   <-- this wiring
-    #     baseline STACK + cand STACK   1.1529e-07
+    # This copies BoTorch's wiring. It mattered on the old torch float32 GP, which
+    # was batch-shape dependent (ACQUISITION_GATE.md: 1.1068e-06 for the plain
+    # wiring against 1.7764e-15 for this one). On the numpy GP it is numerically
+    # inert: the audit measured 8.9e-16 on the mean and 0.0 on the variance, and
+    # a re-check with a small fit of each GP kind found the stacked and plain
+    # predicts bitwise equal (details in the module docstring). It is 9-29x
+    # slower than a plain predict. It is left as it is only because replacing it
+    # is a separate open item (QN-23 / RP-26); do not read it as load-bearing.
     # ------------------------------------------------------------------ #
     mu_baseline, var_baseline = _predict_docking(
         model, likelihood, y_mean, y_std, X_baseline, dock_task_indices
@@ -618,14 +738,19 @@ def compute_qnehvi(model, likelihood, y_mean, y_std,
     # benchmark rather than port it. Out of scope. Do not repair it in passing.
     #
     # `cand_chunk` bounds peak memory inside the estimator. In mogp_core.qnehvi
-    # it is genuinely bit-neutral (the standard normals do not depend on it and
-    # no reduction crosses a chunk boundary), unlike the chunking of the posterior
-    # calls above, which is not — see the note on CANDIDATE_CHUNK below.
+    # it is bit-neutral (the standard normals do not depend on it and no reduction
+    # crosses a chunk boundary); see also the note on candidate chunking below.
+    #
     # The Sobol' scramble key. Explicit (run_seed, iteration) is the keyed path
     # and reads no global state; only a caller that passes no run_seed falls back
-    # to the ambient draw.
+    # to the ambient draw. Both key words go through `validate_seed`, the same
+    # check `keyed_generator` applies, so a bad key fails here with a clear message
+    # instead of being truncated by `int()` further down.
     if run_seed is None:
         run_seed = _draw_scramble_seed()
+    else:
+        run_seed = validate_seed(run_seed, "run_seed")
+    iteration = validate_seed(iteration, "iteration")
     scores = _core_qnehvi.qnehvi(
         mu_baseline, var_baseline, baseline_admet,
         mu_candidates, var_candidates, candidate_admet,
@@ -645,16 +770,14 @@ def compute_qnehvi(model, likelihood, y_mean, y_std,
         cand_chunk=chunk,
     )
 
-    # A NOTE ON CANDIDATE_CHUNK, corrected. The previous comment here said
-    # chunking is "not bit-identical to a single-shot call, since the quasi-MC
-    # Sobol draws depend on t-batch size". The CONCLUSION is right — measured,
-    # chunk=128 vs chunk=1 differs by 1.1068e-06 — but the stated REASON is
-    # wrong. The base samples are (n_mc, 1, B + 1, 2): the t-batch dimension is
-    # collapsed, so they are identical at any chunk size. The real cause is the
-    # float32 GP: chunking changes the number of rows in the stacked predict
-    # call above, and the GP's output depends on the batch shape it is called
-    # with. The behaviour is kept as it is (chunk 128); only the explanation is
-    # fixed.
+    # A NOTE ON CANDIDATE_CHUNK. The quasi-MC base samples are (n_mc, 1, B + 1, 2):
+    # the t-batch dimension is collapsed, so they are identical at any chunk size.
+    # On the previous torch float32 GP the chunk size still moved the scores
+    # (ACQUISITION_GATE.md: chunk 128 vs chunk 1 differed by 1.1068e-06), because
+    # chunking changes the number of rows in the stacked predict above and that GP's
+    # output depended on the batch shape. On the numpy GP it does not: a re-check
+    # with a small fit of each GP kind gave bitwise-equal scores at candidate_chunk
+    # 1, 7, 128 and 150. The chunk (128) only bounds peak memory.
     return np.asarray(scores, dtype=float)
 
 
@@ -714,9 +837,8 @@ def select_batch(model, likelihood, y_mean, y_std,
             selected.append(int(idx))
             continue
         # Tanimoto similarity of this candidate to every selected molecule.
-        # mogp_core.tanimoto.tanimoto_gram mirrors kernel.TanimotoKernel.forward
-        # including its float32 downcast (measured max|diff| = 0.000e+00 on a
-        # 40x40 real-fingerprint gram). check_binary=False keeps the library's
+        # mogp_core.tanimoto.tanimoto_gram is what kernel.TanimotoKernel.forward
+        # delegates to, float32 downcast included. check_binary=False keeps the library's
         # exact out-of-contract behaviour on a non-binary fingerprint instead of
         # raising, i.e. no new failure mode is introduced here.
         sims = _core_tanimoto.tanimoto_gram(

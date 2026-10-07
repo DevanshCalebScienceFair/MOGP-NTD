@@ -451,7 +451,7 @@ def ligand_efficiency(raw_kcal, heavy_atoms):
     return out
 
 
-def add_selectivity_index(df):
+def add_selectivity_index(df, viable=None, measurement=None):
     """Add the REPORTED-only Selectivity Index columns to a results DataFrame.
 
     ``Selectivity_Index = hDHFR_Docking - PfDHFR_Docking`` (raw whole-molecule
@@ -463,6 +463,54 @@ def add_selectivity_index(df):
     targets are docked).  The DataFrame is MUTATED IN PLACE and returned --
     the archived behaviour, preserved.
 
+    THIS IS THE ONLY PLACE IN THE REPO THAT ASSEMBLES THESE TWO COLUMNS.  Both
+    are written from :func:`selectivity_index`, the one implementation of the
+    arithmetic (the function the archive is pinned against, 89/89 rows bitwise,
+    by ``test_core_hv.test_selectivity_index_bitwise_against_the_archive``), and
+    both are gated by the SAME ``viable`` mask in the SAME statement.  There
+    used to be two assembly sites -- this loop and a second pair of subtractions
+    inside ``evaluation.add_selectivity_index`` -- which is exactly the
+    divergence a single source of truth exists to prevent: the two spellings
+    could be gated differently, and were.  ``evaluation`` now supplies the raw
+    whole-molecule measurement through ``measurement`` and the decision through
+    ``viable``, and assembles nothing itself.
+
+    DOCKING VIABILITY IS AN ARGUMENT, NOT A RULE OWNED HERE.  The rule -- a dock
+    whose best affinity is ``>= evaluation.DOCK_VIABILITY_KCAL_MAX`` found NO
+    binding mode, so its selectivity is undefined rather than large -- lives in
+    exactly one place, ``evaluation.DOCK_VIABILITY_KCAL_MAX`` /
+    ``evaluation.dock_is_viable``.  This package CANNOT read it, measured rather
+    than assumed: adding ``import evaluation`` at module scope here makes a bare
+    ``import mogp_core.objective`` die with "ImportError: cannot import name
+    'SELECTIVITY_COLUMN' from partially initialized module
+    'mogp_core.objective' (most likely due to a circular import)", because
+    ``evaluation`` imports this module at ITS module scope.  A function-local
+    import would dodge the cycle but invert the layering -- this package is
+    numpy + pandas + stdlib and is imported by tools that never load the
+    application -- and re-deriving the threshold here would be a second
+    assignment of it.  So the caller injects the decision instead:
+
+      * ``viable`` -- optional per-row bool mask, length ``len(df)``, as returned
+        by ``evaluation.dock_is_viable(pf) & evaluation.dock_is_viable(h)``.
+        Every row it marks False gets ``NaN`` in BOTH emitted columns.
+      * ``viable=None`` means "no viability information was supplied", which is
+        the pre-viability ARCHIVE MIRROR behaviour and the only thing this
+        default is for.  It is NOT a reporting path: every reporting caller goes
+        through ``evaluation.add_selectivity_index``, which resolves the raw
+        measurement and always passes a mask -- pinned by
+        ``test_selectivity_single_source`` against the AST of ``evaluation.py``,
+        so the ungated default cannot be reached from a reporting path again.
+
+    ``measurement`` -- optional ``(pf_whole, h_whole)`` pair of raw
+    whole-molecule affinities, each ``len(df)`` long, used for
+    ``Selectivity_Index`` INSTEAD of the frame's ``*_Docking`` columns.  This is
+    how ``evaluation`` feeds the ``*_Docking_raw_kcal`` MEASUREMENT in on a
+    post-viability frame, whose ``*_Docking`` columns are the possibly-
+    SUBSTITUTED objective and must never reach this arithmetic.  The
+    ``*_Docking_LE`` columns are read from the frame either way; they are
+    reported-only and never substituted.  ``measurement=None`` reads both pairs
+    from the frame, which is the archive mirror.
+
     No ``Selectivity_Index_kcal`` column is emitted.  ``evaluation.py``'s
     docstring promises one "when the ``*_kcal`` columns exist", and defines
     ``SELECTIVITY_KCAL_COLUMN`` as a self-alias of ``SELECTIVITY_COLUMN``, but
@@ -470,12 +518,41 @@ def add_selectivity_index(df):
     columns, and no archived ``evaluated.csv`` / ``pareto_front.csv`` contains
     one.  SPEC 5.6: follow the measured contract and delete the promise.
     """
-    if "hDHFR_Docking" in df.columns and "PfDHFR_Docking" in df.columns:
-        df[SELECTIVITY_COLUMN] = df["hDHFR_Docking"] - df["PfDHFR_Docking"]
-    if "hDHFR_Docking_LE" in df.columns and "PfDHFR_Docking_LE" in df.columns:
-        df[SELECTIVITY_LE_COLUMN] = (
-            df["hDHFR_Docking_LE"] - df["PfDHFR_Docking_LE"]
-        )
+    gate = None
+    if viable is not None:
+        gate = ~np.asarray(viable, dtype=bool).reshape(-1)
+        if gate.shape[0] != len(df):
+            raise ValueError(
+                f"viable length {gate.shape[0]} != number of rows {len(df)}")
+
+    whole = None
+    if measurement is not None:
+        whole = [np.asarray(v, dtype=np.float64).reshape(-1)
+                 for v in measurement]
+        if len(whole) != 2:
+            raise ValueError(
+                f"measurement must be a (pf, h) pair, got {len(whole)} arrays")
+
+        for v in whole:
+            if v.shape[0] != len(df):
+                raise ValueError(
+                    f"measurement length {v.shape[0]} != number of rows "
+                    f"{len(df)}")
+
+    pf, h = DOCKING_TASK_NAMES
+    for out_col, pf_col, h_col, override in (
+            (SELECTIVITY_COLUMN, pf, h, whole),
+            (SELECTIVITY_LE_COLUMN, pf + LE_SUFFIX, h + LE_SUFFIX, None),
+    ):
+        if override is not None:
+            si = selectivity_index(override[0], override[1])
+        elif pf_col in df.columns and h_col in df.columns:
+            si = selectivity_index(df[pf_col], df[h_col])
+        else:
+            continue
+        if gate is not None:
+            si[gate] = np.nan
+        df[out_col] = si
     return df
 
 

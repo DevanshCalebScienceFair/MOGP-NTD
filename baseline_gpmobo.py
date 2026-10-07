@@ -96,7 +96,7 @@ from acquisition import (
     DEFAULT_OBJECTIVE_SIGNS,
 )
 import evaluation
-from docking import batch_dock_targets, docked_summary, raw_to_ligand_efficiency
+from docking import batch_dock_targets, docked_summary
 
 
 # Objective -> data-source layout, identical to loop.py / the other baselines.
@@ -438,6 +438,11 @@ class GPMOBOBaseline:
         self.evaluated_indices = []
         self.Y_evaluated = np.empty((0, N_OBJECTIVES), dtype=np.float64)
         self.ligand_efficiency = np.empty((0, N_OBJECTIVES), dtype=np.float64)
+        # The RAW MEASUREMENT: best Vina affinity in kcal/mol exactly as the
+        # oracle returned it (docking columns only; NaN elsewhere), row-aligned
+        # to Y_evaluated. NEVER substituted. Viability is a pure function of it
+        # (``evaluation.dock_is_viable``), so no separate flag is stored.
+        self.docking_raw = np.empty((0, N_OBJECTIVES), dtype=np.float64)
         self.history = []
 
         # Indices excluded from the candidate pool (the --hparam-mode holdout
@@ -460,11 +465,25 @@ class GPMOBOBaseline:
         and REPORTED, in ``Y_le``, so a finished front can be re-ranked by LE
         without re-docking.
 
+        This file is QUARANTINED from the numpy port (it keeps torch/botorch/scipy
+        as the external backtest arm), but it is NOT quarantined from the
+        docking-viability rule. It is one of the five sites that build an
+        objective matrix from docking scores, and if it alone kept scoring a
+        dock that found no binding mode as a perfect hDHFR result, the five arms
+        would be optimizing DIFFERENT objectives and the whole comparison would
+        be invalid. So the matrix build delegates to
+        ``evaluation.build_objective_matrices`` like every other arm — the one
+        place the rule lives. Nothing else in this file changes.
+
         Returns:
-            ``(Y, Y_le, docking_by_target)`` where ``Y`` has RAW kcal/mol in the
-            docking columns, ``Y_le`` has LIGAND EFFICIENCY there (NaN
-            elsewhere), and ``docking_by_target`` maps each target name to its
-            ``(k,)`` RAW docking-score vector.
+            ``(Y, Y_le, Y_raw, docking_by_target)``. ``Y`` is the OBJECTIVE
+            matrix: RAW kcal/mol in the docking columns for a viable dock, and
+            that objective's WORST value
+            (``evaluation.worst_objective_value``) where the dock found no
+            binding mode. ``Y_le`` has LIGAND EFFICIENCY there (NaN elsewhere,
+            NaN on a non-viable dock). ``Y_raw`` has the RAW MEASUREMENT there
+            (NaN elsewhere), never substituted. ``docking_by_target`` maps each
+            target name to its ``(k,)`` RAW docking-score vector.
         """
         library_indices = list(library_indices)
         smiles = [self.smiles[i] for i in library_indices]
@@ -472,15 +491,11 @@ class GPMOBOBaseline:
 
         docking_by_target = batch_dock_targets(smiles, DOCKING_TARGETS)
 
-        Y = np.full((len(library_indices), N_OBJECTIVES), np.nan, dtype=np.float64)
-        Y_le = np.full((len(library_indices), N_OBJECTIVES), np.nan, dtype=np.float64)
-        for j, col in LIBRARY_TASKS:
-            Y[:, j] = admet_rows[:, col]
-        for j, target in DOCKING_TASKS:
-            raw = docking_by_target[target]
-            Y[:, j] = raw
-            Y_le[:, j] = [raw_to_ligand_efficiency(r, s) for r, s in zip(raw, smiles)]
-        return Y, Y_le, docking_by_target
+        Y, Y_le, Y_raw = evaluation.build_objective_matrices(
+            admet_rows, smiles, docking_by_target,
+            LIBRARY_TASKS, DOCKING_TASKS, N_OBJECTIVES,
+        )
+        return Y, Y_le, Y_raw, docking_by_target
 
     # ------------------------------------------------------------------ #
     # Reporting math — shared with every other method, never GP-MOBO's own
@@ -662,7 +677,7 @@ class GPMOBOBaseline:
                 print(f"Hyperparameter holdout: evaluating {len(holdout)} "
                       "molecules (excluded from the candidate pool; NOT charged "
                       "to the docking budget — generous to GP-MOBO).")
-                Y_hold, _, _ = self._evaluate(holdout)
+                Y_hold, _, _, _ = self._evaluate(holdout)
                 Y_hold_sel = self._to_selection_frame(Y_hold)
                 finite = np.isfinite(Y_hold_sel).all(axis=1)
                 if finite.any():
@@ -677,11 +692,12 @@ class GPMOBOBaseline:
 
         init_indices = self._random_indices(self.n_init)
         print(f"Initializing with {len(init_indices)} random molecules...")
-        Y, Y_le, docking = self._evaluate(init_indices)
+        Y, Y_le, Y_raw, docking = self._evaluate(init_indices)
 
         self.evaluated_indices = list(init_indices)
         self.Y_evaluated = Y
         self.ligand_efficiency = Y_le
+        self.docking_raw = Y_raw
 
         print(f"Initialized {len(init_indices)} molecules; "
               f"docked {docked_summary(docking, len(init_indices))}.")
@@ -703,10 +719,11 @@ class GPMOBOBaseline:
                 break
             # Evaluate immediately: the next pick must condition on this result,
             # which is exactly what makes q = 1 informationally favourable.
-            Y_new, Y_le_new, _ = self._evaluate([index])
+            Y_new, Y_le_new, Y_raw_new, _ = self._evaluate([index])
             self.evaluated_indices.append(index)
             self.Y_evaluated = np.vstack([self.Y_evaluated, Y_new])
             self.ligand_efficiency = np.vstack([self.ligand_efficiency, Y_le_new])
+            self.docking_raw = np.vstack([self.docking_raw, Y_raw_new])
             selected.append(index)
             acq_values.append(score)
 
@@ -775,8 +792,9 @@ class GPMOBOBaseline:
         return {
             "indices": indices,
             "smiles": [self.smiles[i] for i in indices],
-            "objectives": self.Y_evaluated[rows],          # raw kcal/mol (docking cols)
+            "objectives": self.Y_evaluated[rows],          # OBJECTIVE (substituted)
             "ligand_efficiency": self.ligand_efficiency[rows],
+            "docking_raw": self.docking_raw[rows],         # raw kcal/mol (docking cols)
             "task_names": TASK_NAMES,
         }
 
@@ -806,6 +824,8 @@ class GPMOBOBaseline:
             evaluated_df[name] = self.Y_evaluated[:, j]
         for j, _target in DOCKING_TASKS:
             evaluated_df[f"{TASK_NAMES[j]}_LE"] = self.ligand_efficiency[:, j]
+        evaluation.add_docking_measurement_columns(
+            evaluated_df, self.docking_raw, DOCKING_TASKS)
         evaluation.add_selectivity_index(evaluated_df)
         evaluated_path = os.path.join(output_dir, "evaluated.csv")
         evaluated_df.to_csv(evaluated_path, index=False)
@@ -816,6 +836,8 @@ class GPMOBOBaseline:
             pareto_df[name] = pareto["objectives"][:, j]
         for j, _target in DOCKING_TASKS:
             pareto_df[f"{TASK_NAMES[j]}_LE"] = pareto["ligand_efficiency"][:, j]
+        evaluation.add_docking_measurement_columns(
+            pareto_df, pareto["docking_raw"], DOCKING_TASKS)
         evaluation.add_selectivity_index(pareto_df)
         pareto_path = os.path.join(output_dir, "pareto_front.csv")
         pareto_df.to_csv(pareto_path, index=False)

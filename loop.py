@@ -77,7 +77,7 @@ from acquisition import (
     DEFAULT_OBJECTIVE_SIGNS,
 )
 import evaluation
-from docking import batch_dock_targets, docked_summary, raw_to_ligand_efficiency
+from docking import batch_dock_targets, docked_summary
 
 
 # Objective -> data-source layout, resolved once from TASK_NAMES. Some objectives
@@ -282,11 +282,20 @@ class BOLoop:
 
         # --- Tracking state ---
         self.evaluated_indices = []                           # library indices
+        # The OBJECTIVE matrix: ADMET straight from the library, docking columns
+        # in raw kcal/mol EXCEPT where the dock found no binding mode, which
+        # takes that objective's worst value (evaluation section 2b).
         self.Y_evaluated = np.empty((0, N_OBJECTIVES), dtype=np.float64)
-        # Raw docking kcal/mol (docking columns only; NaN elsewhere), row-aligned
-        # to Y_evaluated. The OPTIMIZED docking columns in Y_evaluated are ligand
-        # efficiency; this keeps the raw kcal for reporting so it is never lost.
+        # REPORTED ligand efficiency (docking columns only; NaN elsewhere),
+        # row-aligned to Y_evaluated. NaN on a non-viable dock.
         self.ligand_efficiency = np.empty((0, N_OBJECTIVES), dtype=np.float64)
+        # The RAW MEASUREMENT: best Vina affinity in kcal/mol exactly as the
+        # oracle returned it (docking columns only; NaN elsewhere), row-aligned
+        # to Y_evaluated. NEVER substituted — this is what guarantees the fix
+        # changes what the objective SAYS and not what was measured. Viability is
+        # a pure function of it (``evaluation.dock_is_viable``), so no separate
+        # flag is stored and the flag can never drift from the number.
+        self.docking_raw = np.empty((0, N_OBJECTIVES), dtype=np.float64)
         self.history = []
 
     # ------------------------------------------------------------------ #
@@ -300,18 +309,29 @@ class BOLoop:
         molecule against EVERY required target (``DOCKING_TARGETS`` — PfDHFR and
         hDHFR), which roughly doubles docking cost. Failed docks stay NaN.
 
-        The docking oracle/cache still return RAW kcal/mol; the OPTIMIZED docking
-        objective is size-corrected LIGAND EFFICIENCY (raw / heavy-atom count, via
-        ``docking.raw_to_ligand_efficiency``), applied here — downstream of the
-        cache — so the GP and hypervolume see LE while the cache stays raw and
-        valid. The raw kcal is retained separately (``Y_le``) for reporting.
+        The whole matrix build is delegated to
+        ``evaluation.build_objective_matrices`` — the SINGLE place the docking
+        viability rule lives — which every baseline arm also calls, so the five
+        arms cannot drift onto different objectives. The docking oracle and its
+        cache stay in RAW kcal/mol; what the OBJECTIVE says about a dock that
+        found no binding mode (affinity ``>= evaluation.DOCK_VIABILITY_KCAL_MAX``)
+        is decided there, downstream of the cache, which is why the cache stays
+        valid.
 
         Returns:
-            A tuple ``(Y, Y_le, docking_by_target)`` where ``Y`` has shape
-            ``(k, N_OBJECTIVES)`` with LIGAND EFFICIENCY in the docking columns,
-            ``Y_le`` has the same shape with RAW kcal/mol in the docking columns
-            (NaN elsewhere), and ``docking_by_target`` maps each target name to
-            its ``(k,)`` RAW docking-score vector.
+            A tuple ``(Y, Y_le, Y_raw, docking_by_target)``, all shape
+            ``(k, N_OBJECTIVES)`` except the last:
+
+              * ``Y``     — the OBJECTIVE matrix. Docking columns hold raw
+                kcal/mol for a viable dock and that objective's WORST value
+                (``evaluation.worst_objective_value``) for a non-viable one.
+              * ``Y_le``  — REPORTED ligand efficiency in the docking columns,
+                NaN elsewhere and NaN on a non-viable dock.
+              * ``Y_raw`` — the RAW MEASUREMENT in the docking columns, NaN
+                elsewhere. Never substituted; written out as the
+                ``*_Docking_raw_kcal`` columns.
+              * ``docking_by_target`` — each target name to its ``(k,)`` RAW
+                docking-score vector.
         """
         library_indices = list(library_indices)
         smiles = [self.smiles[i] for i in library_indices]
@@ -320,18 +340,11 @@ class BOLoop:
         # Dock the batch against every required target (PfDHFR + hDHFR).
         docking_by_target = batch_dock_targets(smiles, DOCKING_TARGETS)
 
-        Y = np.full((len(library_indices), N_OBJECTIVES), np.nan, dtype=np.float64)
-        Y_le = np.full((len(library_indices), N_OBJECTIVES), np.nan, dtype=np.float64)
-        for j, col in LIBRARY_TASKS:
-            Y[:, j] = admet_rows[:, col]
-        for j, target in DOCKING_TASKS:
-            raw = docking_by_target[target]
-            Y[:, j] = raw
-            # Ligand efficiency is REPORTED, not optimized: computable from the
-            # same dock, so a front can be re-ranked by LE without re-docking.
-            # NaN raw / unparseable SMILES propagate to NaN, like a failed dock.
-            Y_le[:, j] = [raw_to_ligand_efficiency(r, s) for r, s in zip(raw, smiles)]
-        return Y, Y_le, docking_by_target
+        Y, Y_le, Y_raw = evaluation.build_objective_matrices(
+            admet_rows, smiles, docking_by_target,
+            LIBRARY_TASKS, DOCKING_TASKS, N_OBJECTIVES,
+        )
+        return Y, Y_le, Y_raw, docking_by_target
 
     def _warn_if_docking_saturates(self, Y_new):
         """Warn if any observed docking LE sits at/below the normalization floor.
@@ -347,6 +360,14 @@ class BOLoop:
         mid-study would break cross-method hypervolume comparability. Widen
         ``evaluation.DOCKING_KCAL_MIN`` yourself, once, for a fresh comparison if
         this fires.
+
+        FEED THIS THE RAW MEASUREMENT, not the objective matrix. The warning is
+        about a MEASURED value saturating the cube, and a non-viable dock's
+        objective value is the substituted ``worst_objective_value`` — for the
+        maximized hDHFR objective that is exactly ``DOCKING_KCAL_MIN``, so
+        passing the objective matrix would make this fire on every failed dock
+        and report a number no instrument produced. ``DOCKING_SATURATION_MARGIN``
+        itself is unchanged.
         """
         if not DOCKING_COLUMNS:
             return
@@ -522,11 +543,12 @@ class BOLoop:
         init_indices = [int(i) for i in init_indices]
 
         print(f"Initializing with {self.n_init} random molecules...")
-        Y, Y_le, docking = self._evaluate(init_indices)
+        Y, Y_le, Y_raw, docking = self._evaluate(init_indices)
 
         self.evaluated_indices = list(init_indices)
         self.Y_evaluated = Y
         self.ligand_efficiency = Y_le
+        self.docking_raw = Y_raw
 
         print(f"Initialized {self.n_init} molecules; "
               f"docked {docked_summary(docking, self.n_init)}.")
@@ -595,13 +617,16 @@ class BOLoop:
             "select_batch returned an already-evaluated molecule"
 
         # --- Dock the selected batch (against every target) ---
-        Y_new, Y_le_new, docking_new = self._evaluate(list(selected_library_indices))
+        Y_new, Y_le_new, Y_raw_new, docking_new = self._evaluate(
+            list(selected_library_indices))
         batch_docked = docked_summary(docking_new, len(selected_library_indices))
-        self._warn_if_docking_saturates(Y_new)
+        # The RAW measurement, not Y_new: see _warn_if_docking_saturates.
+        self._warn_if_docking_saturates(Y_raw_new)
 
         self.evaluated_indices.extend(int(i) for i in selected_library_indices)
         self.Y_evaluated = np.vstack([self.Y_evaluated, Y_new])
         self.ligand_efficiency = np.vstack([self.ligand_efficiency, Y_le_new])
+        self.docking_raw = np.vstack([self.docking_raw, Y_raw_new])
 
         # --- Track Pareto front + hypervolume + size-drift monitor ---
         pareto_mask = self._pareto_mask()
@@ -678,7 +703,8 @@ class BOLoop:
             "indices": indices,
             "smiles": smiles,
             "objectives": objectives,
-            "ligand_efficiency": self.ligand_efficiency[rows],   # raw kcal/mol (docking cols)
+            "ligand_efficiency": self.ligand_efficiency[rows],   # kcal/atom (docking cols)
+            "docking_raw": self.docking_raw[rows],               # raw kcal/mol (docking cols)
             "task_names": TASK_NAMES,
         }
 
@@ -701,9 +727,18 @@ class BOLoop:
         history_path = os.path.join(output_dir, "history.csv")
         history_df.to_csv(history_path, index=False)
 
-        # evaluated.csv — every evaluated molecule with all objectives (docking
-        # columns are ligand efficiency), the RAW docking kcal retained as
-        # ``*_kcal`` columns, plus the reported-only Selectivity Index.
+        # evaluated.csv — every evaluated molecule. Column semantics, which are
+        # NOT interchangeable (see evaluation.add_docking_measurement_columns):
+        #   <task>                the OBJECTIVE (raw kcal for a viable dock, that
+        #                         objective's WORST value where the dock found no
+        #                         binding mode) — what the GP, the front and the
+        #                         hypervolume use, so a replay from this file
+        #                         reproduces history.csv
+        #   <task>_raw_kcal       the MEASUREMENT, exactly as Vina returned it
+        #   <task>_viable         False where no binding mode was found
+        #   <task>_LE             reported ligand efficiency, NaN if non-viable
+        # plus the reported-only Selectivity Index (NaN if either dock
+        # non-viable).
         evaluated_df = pd.DataFrame(
             {"SMILES": [self.smiles[i] for i in self.evaluated_indices]}
         )
@@ -711,19 +746,23 @@ class BOLoop:
             evaluated_df[name] = self.Y_evaluated[:, j]
         for j, _target in DOCKING_TASKS:
             evaluated_df[f"{TASK_NAMES[j]}_LE"] = self.ligand_efficiency[:, j]
+        evaluation.add_docking_measurement_columns(
+            evaluated_df, self.docking_raw, DOCKING_TASKS)
         evaluation.add_selectivity_index(evaluated_df)
         evaluated_path = os.path.join(output_dir, "evaluated.csv")
         evaluated_df.to_csv(evaluated_path, index=False)
 
-        # pareto_front.csv — only the Pareto-optimal molecules, with the raw
-        # docking kcal (``*_kcal``) and the Selectivity Index (hDHFR - PfDHFR;
-        # higher = more parasite-selective).
+        # pareto_front.csv — only the Pareto-optimal molecules, same column
+        # semantics as evaluated.csv above, plus the Selectivity Index
+        # (hDHFR - PfDHFR; higher = more parasite-selective).
         pareto = self.get_pareto_front()
         pareto_df = pd.DataFrame({"SMILES": pareto["smiles"]})
         for j, name in enumerate(TASK_NAMES):
             pareto_df[name] = pareto["objectives"][:, j]
         for j, _target in DOCKING_TASKS:
             pareto_df[f"{TASK_NAMES[j]}_LE"] = pareto["ligand_efficiency"][:, j]
+        evaluation.add_docking_measurement_columns(
+            pareto_df, pareto["docking_raw"], DOCKING_TASKS)
         evaluation.add_selectivity_index(pareto_df)
         pareto_path = os.path.join(output_dir, "pareto_front.csv")
         pareto_df.to_csv(pareto_path, index=False)

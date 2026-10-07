@@ -29,6 +29,36 @@ reader can decide in ~30 seconds whether the docking signal is trustworthy:
      within the library distribution under BOTH raw docking and LE: do real drugs
      rise once size is corrected, or does LE over-correct into tiny fragments?
 
+MEASUREMENT vs OBJECTIVE (read before changing anything here)
+-------------------------------------------------------------
+Every number this script prints is a MEASUREMENT — "what Vina returned for this
+molecule" — and every distribution it measures a percentile against is a
+reference distribution of real binding modes. Two consequences, both enforced in
+code below rather than by convention:
+
+  1. The affinity is read from the ``*_Docking_raw_kcal`` MEASUREMENT column,
+     never from the ``*_Docking`` OBJECTIVE column. Since the docking-viability
+     fix, a dock that found no binding mode has its OBJECTIVE column replaced by
+     that objective's worst value (``evaluation.apply_dock_viability``), so
+     reading the objective column here would print a substituted cube corner as
+     if an instrument had produced it. Old pre-fix CSVs have no raw column and
+     their ``*_Docking`` column IS the raw measurement; ``measured_affinity_column``
+     decides which generation a file is, by column presence.
+  2. Non-viable docks (``evaluation.dock_is_viable`` False) are EXCLUDED from the
+     library reference distribution. A score at or above 0 kcal/mol is absence of
+     a binding mode, not weak binding; leaving it in moves the correlations and
+     the known-active percentiles it is compared against. The exclusion count is
+     printed, so the sample is never silently smaller than it looks.
+
+The exclusion happens in exactly ONE place — ``split_viable``, called once per
+score source inside ``build_sample`` — and every function that consumes a
+reference distribution re-checks the invariant through
+``assert_viable_reference``. So removing the filter does not quietly change a
+correlation by a few hundredths; it raises.
+
+The viability threshold itself appears NOWHERE in this file — everything calls
+``evaluation.dock_is_viable``.
+
 It imports the pipeline's own docking / library code but MODIFIES NOTHING; it is
 a read-only observer that uses the docking cache like every other entry point.
 
@@ -47,6 +77,7 @@ from rdkit import Chem
 from rdkit.Chem import Descriptors, Crippen
 
 import docking
+import evaluation
 from docking_cache import canonicalize_smiles
 from data import load_library
 from validate_known_actives import KNOWN_ACTIVES
@@ -63,9 +94,28 @@ from validate_known_actives import KNOWN_ACTIVES
 from mogp_core.stats import pearson_r, spearman_rho
 
 
-# The docking objective column as written by the pipeline (mogp.TASK_NAMES).
+# The two PfDHFR docking columns a results CSV may carry.
+#
+#   PFDHFR_COLUMN      the OBJECTIVE column (mogp.TASK_NAMES). Since the
+#                      viability fix a non-viable dock's entry here is the
+#                      SUBSTITUTED worst value for this objective's direction
+#                      (-5.0 kcal/mol, PfDHFR being minimized) — a cube corner
+#                      no instrument produced.
+#   PFDHFR_RAW_COLUMN  the MEASUREMENT column, written beside it by
+#                      ``evaluation.add_docking_measurement_columns``. Exactly
+#                      what Vina returned, never substituted.
+#
+# This script reports MEASUREMENTS, so it reads the second whenever a file has
+# it. ``measured_affinity_column`` is the only place that choice is made.
 PFDHFR_COLUMN = "PfDHFR_Docking"
+PFDHFR_RAW_COLUMN = PFDHFR_COLUMN + evaluation.RAW_KCAL_SUFFIX
 DOCK_TARGET = "PfDHFR"
+
+# The sample table's affinity column, named for what it holds: the raw
+# whole-molecule Vina measurement in kcal/mol. It is deliberately NOT called
+# "docking", which would read as the objective and invite the confusion this
+# whole module docstring is about.
+RAW_KCAL_COLUMN = "raw_kcal"
 
 # Default directories that may hold a method's evaluated.csv (loop + baselines +
 # ablation arms). Any of these that exist are scanned for already-docked scores;
@@ -87,6 +137,107 @@ CORR_MODERATE = 0.3
 # set is dominated by sub-fragment-sized molecules, LE is OVER-correcting size
 # rather than debiasing it — the opposite failure mode to a raw size confound.
 FRAGMENT_HEAVY_ATOMS = 15
+
+
+# ---------------------------------------------------------------------- #
+# Measurement vs objective: which column, and which rows
+# ---------------------------------------------------------------------- #
+def measured_affinity_column(df):
+    """Which column of a results frame holds the MEASURED PfDHFR affinity.
+
+    HOW A PRE-FIX FILE IS DISTINGUISHED FROM A POST-FIX ONE: by COLUMN
+    PRESENCE, not by a version stamp, a mtime or a value heuristic — there is no
+    version field in these CSVs, and no value test can tell a measured -5.0 from
+    a substituted one.
+
+      * ``PfDHFR_Docking_raw_kcal`` present -> POST-FIX file. The frame was
+        written by ``evaluation.add_docking_measurement_columns``, so the
+        measurement lives in that column and the ``PfDHFR_Docking`` column
+        beside it may already hold a substituted worst value. Return the raw
+        column.
+      * ``PfDHFR_Docking_raw_kcal`` absent, ``PfDHFR_Docking`` present ->
+        PRE-FIX file. Nothing substituted anything, so its ``PfDHFR_Docking``
+        column IS the unmodified measurement and reading it is exactly right
+        (this is why the fallback is correct, not merely tolerated). Return the
+        objective column.
+      * neither present -> ``None``; the caller skips the file.
+
+    The same two-generation resolution ``evaluation._docking_measurement_from_frame``
+    and ``matrix_report.docking_viability`` already use, restricted to the one
+    target this script docks. The suffix itself is read from
+    ``evaluation.RAW_KCAL_SUFFIX``, so the name cannot drift from the writer.
+
+    Args:
+        df: a ``pandas.DataFrame`` read from an ``evaluated.csv``.
+
+    Returns:
+        The column name to read the measurement from, or ``None``.
+    """
+    if PFDHFR_RAW_COLUMN in df.columns:
+        return PFDHFR_RAW_COLUMN
+    if PFDHFR_COLUMN in df.columns:
+        return PFDHFR_COLUMN
+    return None
+
+
+def split_viable(index_to_raw):
+    """Partition ``{library_index: raw kcal/mol}`` into viable and non-viable.
+
+    THE ONLY viability filter in this file. Every score source funnels through
+    it, so there is one decision point to audit and one to fault-inject, and the
+    predicate is ``evaluation.dock_is_viable`` — the threshold is never written
+    down here.
+
+    A non-viable dock is one whose best Vina affinity is ``>= 0 kcal/mol`` (no
+    favourable pose was found) or non-finite (the dock failed). Neither is a
+    binding affinity, so neither belongs in a distribution of binding
+    affinities. The non-viable half is RETURNED rather than discarded, so the
+    caller can report how many rows were excluded and what they measured.
+
+    Args:
+        index_to_raw: ``{library_index: raw whole-molecule kcal/mol}``.
+
+    Returns:
+        ``(viable, non_viable)``, two dicts of the same shape as the input,
+        together partitioning it.
+    """
+    viable, non_viable = {}, {}
+    for idx, raw in index_to_raw.items():
+        target = viable if bool(evaluation.dock_is_viable(raw)) else non_viable
+        target[idx] = float(raw)
+    return viable, non_viable
+
+
+def assert_viable_reference(sample_df, where):
+    """Fail loudly if a non-viable dock reached a reference distribution.
+
+    ``build_sample`` filters, but a filter that is silently removed moves every
+    correlation and every known-active percentile by a small amount that looks
+    like noise. This re-checks the invariant at each point of USE, so the
+    failure is an exception naming the offending values rather than a plausible
+    wrong number in a write-up.
+
+    Args:
+        sample_df: the sample table, which must carry ``RAW_KCAL_COLUMN``.
+        where: name of the calling report, for the message.
+
+    Raises:
+        AssertionError: if any row's raw affinity is not
+            ``evaluation.dock_is_viable``.
+    """
+    raw = np.asarray(sample_df[RAW_KCAL_COLUMN], dtype=float)
+    viable = evaluation.dock_is_viable(raw)
+    if bool(np.all(viable)):
+        return
+    bad = raw[~viable]
+    raise AssertionError(
+        f"{where}: {bad.size} non-viable dock(s) reached the reference "
+        f"distribution (raw kcal/mol = "
+        f"{', '.join(f'{v:+.3f}' for v in bad[:8])}"
+        f"{', ...' if bad.size > 8 else ''}). A dock with no binding mode is "
+        "absence of evidence, not weak binding, and must not be a reference "
+        "point. build_sample/split_viable should have excluded it."
+    )
 
 
 # ---------------------------------------------------------------------- #
@@ -127,17 +278,30 @@ def _discover_results_dirs():
 
 
 def scores_from_outputs(canon_to_index):
-    """Collect PfDHFR scores from existing ``evaluated.csv`` run outputs.
+    """Collect PfDHFR MEASUREMENTS from existing ``evaluated.csv`` run outputs.
+
+    The affinity is read from whichever column actually holds the measurement —
+    ``measured_affinity_column`` decides, per file, by column presence — so a
+    post-fix file's substituted ``PfDHFR_Docking`` objective value is never
+    mistaken for something Vina returned. A file with neither column is skipped.
 
     Only rows whose (canonicalized) SMILES is in the current library are kept —
     matched by canonical SMILES to a library index — so every collected score
     aligns with a molecule we can compute descriptors for.
 
-    Returns ``(index_to_score, source_dirs)``: a dict library-index -> score, and
-    the list of directories that actually contributed.
+    Viability is NOT applied here: this returns the measurements, and
+    ``build_sample`` makes the single viability decision through
+    ``split_viable``. Non-finite entries are dropped, because a NaN is the
+    absence of a measurement rather than one.
+
+    Returns ``(index_to_raw, source_dirs, column_by_dir)``: a dict
+    library-index -> raw kcal/mol, the list of directories that actually
+    contributed, and ``{directory: column_name_read}`` so the provenance report
+    can state which generation each file was read as.
     """
-    index_to_score = {}
+    index_to_raw = {}
     source_dirs = []
+    column_by_dir = {}
     for directory in _discover_results_dirs():
         path = os.path.join(directory, "evaluated.csv")
         if not os.path.exists(path):
@@ -146,20 +310,24 @@ def scores_from_outputs(canon_to_index):
             df = pd.read_csv(path)
         except Exception:                                        # pragma: no cover
             continue
-        if "SMILES" not in df.columns or PFDHFR_COLUMN not in df.columns:
+        if "SMILES" not in df.columns:
+            continue
+        column = measured_affinity_column(df)
+        if column is None:
             continue
         contributed = False
-        for smiles, score in zip(df["SMILES"].astype(str), df[PFDHFR_COLUMN]):
+        for smiles, score in zip(df["SMILES"].astype(str), df[column]):
             if not np.isfinite(score):
                 continue
             idx = canon_to_index.get(canonicalize_smiles(smiles))
-            if idx is None or idx in index_to_score:
+            if idx is None or idx in index_to_raw:
                 continue
-            index_to_score[idx] = float(score)
+            index_to_raw[idx] = float(score)
             contributed = True
         if contributed:
             source_dirs.append(directory)
-    return index_to_score, source_dirs
+            column_by_dir[directory] = column
+    return index_to_raw, source_dirs, column_by_dir
 
 
 def scores_from_cache(library_smiles, canon_list, skip_indices):
@@ -167,7 +335,13 @@ def scores_from_cache(library_smiles, canon_list, skip_indices):
 
     Consults the persistent docking cache directly (read-only) so molecules docked
     by any previous run are reused without re-docking. Returns a dict
-    library-index -> score for cache HITS (finite affinity) only.
+    library-index -> raw kcal/mol for cache HITS (finite affinity) only.
+
+    The cache stores what the oracle MEASURED — it predates and is untouched by
+    the objective substitution, so there is no column question here. Viability
+    is still not decided here: ``build_sample`` applies ``split_viable`` to this
+    dict exactly as it does to the run-output dict, so a cached ``+4.213``
+    kcal/mol clash cannot enter the reference distribution by the back door.
     """
     cache = docking.get_cache()
     # The cache is keyed on the oracle fingerprint (receptor + box + effort +
@@ -192,7 +366,9 @@ def dock_fresh(library_smiles, indices):
     """Freshly dock the given library indices against PfDHFR (cache ON).
 
     ``dock_target`` writes each result to the shared cache, so a later run reuses
-    them. Returns a dict library-index -> score for the docks that succeeded.
+    them. Returns a dict library-index -> raw kcal/mol for the docks that
+    succeeded, i.e. the MEASUREMENT straight from the oracle; viability is
+    decided once, by ``build_sample``.
     """
     index_to_score = {}
     n = len(indices)
@@ -207,14 +383,21 @@ def dock_fresh(library_smiles, indices):
 
 
 def build_sample(library, n_sample, seed):
-    """Build the docking-score sample, preferring cheap sources over fresh docks.
+    """Build the docking-MEASUREMENT sample, preferring cheap sources over fresh docks.
 
     Order of preference (all avoid re-docking except the last):
         existing run outputs  ->  docking cache  ->  fresh docks to top up.
 
+    Every source yields raw kcal/mol (see each helper), and each one is passed
+    through ``split_viable`` — the single viability filter — before it joins the
+    sample. Non-viable molecules are also removed from the fresh-dock candidate
+    pool, so the top-up cannot re-dock a molecule that was just excluded and the
+    ``--n-sample`` target counts VIABLE molecules.
+
     Returns ``(sample_df, provenance)`` where ``sample_df`` has columns
-    ``[library_index, SMILES, docking, MW, logP, heavy_atoms]`` (rows with an
-    unparseable SMILES dropped), and ``provenance`` is a dict of counts.
+    ``[library_index, SMILES, raw_kcal, MW, logP, heavy_atoms]`` — rows with an
+    unparseable SMILES dropped, and NO non-viable row — and ``provenance`` is a
+    dict of counts plus the exclusion ledger.
     """
     smiles = library["smiles"]
     n_lib = len(smiles)
@@ -226,31 +409,44 @@ def build_sample(library, n_sample, seed):
     for idx, canon in enumerate(canon_list):
         canon_to_index.setdefault(canon, idx)
 
-    # 1) Existing run outputs.
-    out_scores, source_dirs = scores_from_outputs(canon_to_index)
+    # 1) Existing run outputs (measurement column resolved per file).
+    out_raw, source_dirs, column_by_dir = scores_from_outputs(canon_to_index)
     # 2) Docking cache (for molecules not already covered by outputs).
-    cache_scores = scores_from_cache(smiles, canon_list, skip_indices=set(out_scores))
+    cache_raw = scores_from_cache(smiles, canon_list, skip_indices=set(out_raw))
 
+    # THE viability decision, once per source. ``excluded`` keeps the measured
+    # values so the report can name what was dropped instead of just counting.
+    out_scores, out_bad = split_viable(out_raw)
+    cache_scores, cache_bad = split_viable(cache_raw)
     scores = dict(out_scores)
     scores.update(cache_scores)
+    excluded = dict(out_bad)
+    excluded.update(cache_bad)
     n_outputs = len(out_scores)
     n_cache = len(cache_scores)
+    n_excluded_outputs = len(out_bad)
+    n_excluded_cache = len(cache_bad)
 
-    # 3) Fresh docks only if the free scores fall short of the requested sample.
+    # 3) Fresh docks only if the free VIABLE scores fall short of the request.
     n_fresh = 0
+    n_excluded_fresh = 0
     if len(scores) < n_sample:
         rng = np.random.default_rng(seed)
-        remaining = [i for i in range(n_lib) if i not in scores]
+        remaining = [i for i in range(n_lib)
+                     if i not in scores and i not in excluded]
         rng.shuffle(remaining)
         need = n_sample - len(scores)
         to_dock = remaining[:need]
         if to_dock:
-            print(f"\nFree scores ({len(scores)}) < --n-sample ({n_sample}); "
-                  f"docking {len(to_dock)} fresh molecule(s) against {DOCK_TARGET} "
-                  "(cache ON)...")
-            fresh = dock_fresh(smiles, to_dock)
+            print(f"\nFree viable scores ({len(scores)}) < --n-sample "
+                  f"({n_sample}); docking {len(to_dock)} fresh molecule(s) "
+                  f"against {DOCK_TARGET} (cache ON)...")
+            fresh_raw = dock_fresh(smiles, to_dock)
+            fresh, fresh_bad = split_viable(fresh_raw)
             scores.update(fresh)
+            excluded.update(fresh_bad)
             n_fresh = len(fresh)
+            n_excluded_fresh = len(fresh_bad)
 
     # Assemble the sample table with descriptors.
     rows = []
@@ -261,7 +457,9 @@ def build_sample(library, n_sample, seed):
         mw, logp, hac = desc
         rows.append((idx, smiles[idx], score, mw, logp, hac))
     sample_df = pd.DataFrame(
-        rows, columns=["library_index", "SMILES", "docking", "MW", "logP", "heavy_atoms"]
+        rows,
+        columns=["library_index", "SMILES", RAW_KCAL_COLUMN, "MW", "logP",
+                 "heavy_atoms"],
     )
 
     provenance = {
@@ -270,6 +468,12 @@ def build_sample(library, n_sample, seed):
         "n_fresh": n_fresh,
         "n_total": len(sample_df),
         "source_dirs": source_dirs,
+        "measured_columns": column_by_dir,
+        "n_excluded_outputs": n_excluded_outputs,
+        "n_excluded_cache": n_excluded_cache,
+        "n_excluded_fresh": n_excluded_fresh,
+        "n_excluded": len(excluded),
+        "excluded_raw_kcal": sorted(excluded.values(), reverse=True),
     }
     return sample_df, provenance
 
@@ -294,23 +498,29 @@ def report_correlations(sample_df):
     EFFICIENCY (LE = docking / heavy_atoms) block follows immediately so the
     size/lipophilicity confound before vs after the correction sits side by side.
 
+    The affinities are MEASUREMENTS and the sample is viability-filtered
+    (``assert_viable_reference``), so a dock that found no binding mode cannot
+    pull a correlation. That matters most here: a non-viable score sits several
+    kcal/mol outside the [-11, -5] distribution, where a single row has leverage.
+
     Returns ``(corrs, raw_flagged)`` where ``corrs`` is
-    ``{"MW": {"raw": (p, s), "le": (p, s)}, "logP": {...}}`` and ``raw_flagged``
-    is True if any RAW |r| > CORR_STRONG.
+    ``{"MW": {"raw": (p, s), "le": (p, s)}, "logP": {...}, "heavy_atoms": {...}}``
+    and ``raw_flagged`` is True if any RAW MW/logP |r| > CORR_STRONG.
     """
     print("\n" + "=" * 78)
     print("3. SIZE / LIPOPHILICITY CONFOUND — RAW docking vs LIGAND EFFICIENCY")
     print("=" * 78)
 
-    y = sample_df["docking"].to_numpy()
+    assert_viable_reference(sample_df, "report_correlations")
+    y = sample_df[RAW_KCAL_COLUMN].to_numpy()
     n = len(y)
     if n < 3:
         print(f"  Only {n} scored molecule(s); need >=3 for a correlation. "
               "Increase --n-sample or dock more.")
         return {}, False
 
-    print(f"  Docking score = PfDHFR affinity (kcal/mol, more negative = "
-          f"stronger binding).  n = {n}.")
+    print(f"  Docking score = PfDHFR affinity AS MEASURED by Vina (kcal/mol, "
+          f"more negative = stronger binding).  n = {n}.")
     print(f"  A negative r means BIGGER / GREASIER molecules get 'better' "
           "(more negative) scores.\n")
 
@@ -334,7 +544,7 @@ def report_correlations(sample_df):
             print(f"      -> ok: no strong {col} dependence (|r| <= {CORR_STRONG}).")
 
     # --- LIGAND EFFICIENCY (the size-corrected objective we switched to) ---
-    le = (sample_df["docking"] / sample_df["heavy_atoms"]).to_numpy()
+    le = (sample_df[RAW_KCAL_COLUMN] / sample_df["heavy_atoms"]).to_numpy()
     print("\n  Now the SAME descriptors vs LIGAND EFFICIENCY "
           "(LE = docking / heavy_atoms):")
     print("  The fix works if LE's |r| vs MW drops toward 0 — size no longer "
@@ -366,6 +576,29 @@ def report_correlations(sample_df):
                       "a lipophilicity-aware correction (LLE).")
             else:
                 print(f"      -> logP confound now weak (|r| <= {CORR_MODERATE}).")
+
+    # --- heavy_atoms, the descriptor CLAUDE.md's own figures are quoted in ---
+    # CLAUDE.md quotes "paired Spearman(score, heavy_atoms) went -0.726 ->
+    # -0.257, while LE's counter-bias barely moved (+0.891 -> +0.880)". Neither
+    # number was reproducible from a checkout, because no script correlated
+    # against heavy_atoms at all (it was only ever the LE denominator). These
+    # two lines ARE that pair's holo-receptor side, measured here, so the
+    # quoted figures have a live source again. The apo side cannot be measured:
+    # it needs the deleted apo_backup_2026-08-10 receptor (see
+    # validate_size_confound.py, which fails loudly about exactly that).
+    ha = sample_df["heavy_atoms"].to_numpy(dtype=float)
+    ha_raw_p, ha_raw_s = float(pearson_r(ha, y)), float(spearman_rho(ha, y))
+    ha_le_p, ha_le_s = float(pearson_r(ha, le)), float(spearman_rho(ha, le))
+    out["heavy_atoms"] = {"raw": (ha_raw_p, ha_raw_s), "le": (ha_le_p, ha_le_s)}
+    print("\n  heavy_atoms (the descriptor CLAUDE.md's quoted size figures use, "
+          "holo side only):")
+    print(f"  {'docking vs heavy':<16} Pearson r = {ha_raw_p:+.3f}, "
+          f"Spearman rho = {ha_raw_s:+.3f}")
+    print(f"  {'LE vs heavy':<16} Pearson r = {ha_le_p:+.3f}, "
+          f"Spearman rho = {ha_le_s:+.3f}")
+    print("      -> the apo counterparts are NOT measurable here (the apo "
+          "receptor is gone); do not pair these with the apo numbers in "
+          "CLAUDE.md as if both came from this run.")
     return out, flagged
 
 
@@ -385,12 +618,13 @@ def report_ligand_efficiency(sample_df, top_k):
     print(f"4. LIGAND EFFICIENCY (size-debiased):  LE = docking / heavy_atoms")
     print("=" * 78)
 
+    assert_viable_reference(sample_df, "report_ligand_efficiency")
     df = sample_df.copy()
-    df["LE"] = df["docking"] / df["heavy_atoms"]
+    df["LE"] = df[RAW_KCAL_COLUMN] / df["heavy_atoms"]
 
     k = min(top_k, len(df))
     # More negative = better for both raw score and LE.
-    by_score = df.sort_values("docking").head(k)
+    by_score = df.sort_values(RAW_KCAL_COLUMN).head(k)
     by_le = df.sort_values("LE").head(k)
 
     score_set = set(by_score["library_index"])
@@ -413,11 +647,11 @@ def report_ligand_efficiency(sample_df, top_k):
     # these are the "big molecule wins the raw score" cases LE corrects.
     if dropped:
         show = by_score[by_score["library_index"].isin(dropped)] \
-            .sort_values("docking")
+            .sort_values(RAW_KCAL_COLUMN)
         print(f"\n  Raw-score leaders demoted by LE (likely size-driven):")
-        print(f"    {'lib#':>6}{'docking':>10}{'MW':>9}{'heavy':>7}{'LE':>9}")
+        print(f"    {'lib#':>6}{'raw kcal':>10}{'MW':>9}{'heavy':>7}{'LE':>9}")
         for _, r in show.head(8).iterrows():
-            print(f"    {int(r['library_index']):>6}{r['docking']:>10.2f}"
+            print(f"    {int(r['library_index']):>6}{r[RAW_KCAL_COLUMN]:>10.2f}"
                   f"{r['MW']:>9.1f}{int(r['heavy_atoms']):>7}{r['LE']:>9.3f}")
 
     if overlap_frac < 0.5:
@@ -440,6 +674,14 @@ def _percentile_better_than(score, distribution):
     Docking is more-negative-is-better, so this is the fraction of the library
     with a WEAKER (higher) score — i.e. "this molecule out-docks X% of the
     library".
+
+    ``distribution`` MUST already be viability-filtered. Its callers take it
+    from a sample that ``assert_viable_reference`` has checked, which is where
+    that is enforced; it cannot be re-checked here, because this function is
+    also handed LE (per-atom) values, and the kcal/mol viability threshold is
+    not a statement about per-atom numbers. A non-viable row left in would
+    inflate every percentile below it and deflate none — a one-sided error, not
+    noise.
     """
     dist = np.asarray(distribution, dtype=float)
     if dist.size == 0:
@@ -456,20 +698,28 @@ def report_known_actives(sample_df):
     score should RISE under LE once size is corrected — unless LE over-corrects,
     in which case they fall (library winners become tiny fragments).
 
+    DOCKING VIABILITY applies on BOTH sides. The reference distributions are the
+    viability-filtered sample (checked by ``assert_viable_reference``), and an
+    ACTIVE whose own dock found no binding mode is reported with its raw
+    measurement and ``n/a`` percentiles rather than being ranked — a non-viable
+    known active is evidence the docking is broken, not that the drug is weak.
+
     Returns ``(active_rows, best_library_score)``; each row carries both
-    ``percentile`` (raw) and ``le_percentile``.
+    ``percentile`` (raw) and ``le_percentile``, plus a ``viable`` flag.
     """
     print("\n" + "=" * 78)
     print("5. KNOWN CLINICAL ANTIFOLATES vs THE LIBRARY — RAW and LE percentiles")
     print("=" * 78)
 
-    dist = sample_df["docking"].to_numpy()
-    dist_le = (sample_df["docking"] / sample_df["heavy_atoms"]).to_numpy()
+    assert_viable_reference(sample_df, "report_known_actives")
+    dist = sample_df[RAW_KCAL_COLUMN].to_numpy()
+    dist_le = (sample_df[RAW_KCAL_COLUMN] / sample_df["heavy_atoms"]).to_numpy()
     best_lib = float(np.min(dist)) if dist.size else float("nan")
     median_lib = float(np.median(dist)) if dist.size else float("nan")
     best_le = float(np.min(dist_le)) if dist_le.size else float("nan")
-    print(f"  Library sample (n={dist.size}): raw docking best {best_lib:.2f}, "
-          f"median {median_lib:.2f} kcal/mol;  best LE {best_le:.3f}.")
+    print(f"  Library sample (n={dist.size}, viable docks only): raw docking "
+          f"best {best_lib:.2f}, median {median_lib:.2f} kcal/mol;  "
+          f"best LE {best_le:.3f}.")
     print("  pRaw = % of library this drug OUT-DOCKS; pLE = % it OUT-EFFICIENCIES "
           "(both higher = better).\n")
 
@@ -488,15 +738,30 @@ def report_known_actives(sample_df):
                                 "MW": float("nan"), "logP": float("nan"),
                                 "heavy": float("nan"), "LE": float("nan"),
                                 "percentile": float("nan"),
-                                "le_percentile": float("nan")})
+                                "le_percentile": float("nan"),
+                                "viable": False})
             continue
         mw, logp, hac = desc
+        if not bool(evaluation.dock_is_viable(score)):
+            # The measurement is printed; the RANKING is withheld. Percentiles
+            # of a non-existent binding mode are not quantities.
+            print(f"  {a['name']:<15}{score:>9.2f}{mw:>8.1f}{logp:>7.2f}"
+                  f"{hac:>7}{'n/a':>8}{'n/a':>7}{'n/a':>7}"
+                  f"   <- NON-VIABLE dock (no binding mode found)")
+            active_rows.append({"name": a["name"], "score": float(score),
+                                "MW": mw, "logP": logp, "heavy": hac,
+                                "LE": float("nan"),
+                                "percentile": float("nan"),
+                                "le_percentile": float("nan"),
+                                "viable": False})
+            continue
         le = score / hac
         pct = _percentile_better_than(score, dist)
         pct_le = _percentile_better_than(le, dist_le)
         active_rows.append({"name": a["name"], "score": float(score), "MW": mw,
                             "logP": logp, "heavy": hac, "LE": le,
-                            "percentile": pct, "le_percentile": pct_le})
+                            "percentile": pct, "le_percentile": pct_le,
+                            "viable": True})
         print(f"  {a['name']:<15}{score:>9.2f}{mw:>8.1f}{logp:>7.2f}"
               f"{hac:>7}{le:>8.3f}{pct:>6.0f}%{pct_le:>6.0f}%")
 
@@ -514,6 +779,12 @@ def report_known_actives(sample_df):
         elif move < -2:
             print("  Real drugs FALL under LE -> LE is likely over-correcting "
                   "(library 'winners' are tiny fragments, not the real drugs).")
+    n_bad_actives = sum(1 for r in active_rows if not r["viable"])
+    if n_bad_actives:
+        print(f"\n  {n_bad_actives}/{len(active_rows)} known active(s) are "
+              "NON-VIABLE or failed to dock and are excluded from the medians "
+              "above. A clinical antifolate that does not dock is a DOCKING "
+              "problem; investigate before reading anything else here.")
     return active_rows, best_lib
 
 
@@ -527,22 +798,28 @@ def save_figure(sample_df, active_rows, output_path):
     molecules under ligand efficiency, so the size/lipophilicity confound before
     vs after the correction is visible in one figure. Known actives are overlaid
     as labeled stars on every panel.
+
+    Only VIABLE actives are plotted: a star at a positive kcal/mol would be a
+    point on an affinity axis that is not an affinity.
     """
     import matplotlib
     matplotlib.use("Agg")            # headless: write a file, never open a window
     import matplotlib.pyplot as plt
 
+    assert_viable_reference(sample_df, "save_figure")
     fig, axes = plt.subplots(2, 2, figsize=(13, 10.5))
-    sample_le = (sample_df["docking"] / sample_df["heavy_atoms"]).to_numpy()
-    active_ok = [r for r in active_rows if np.isfinite(r["score"])]
+    sample_raw = sample_df[RAW_KCAL_COLUMN].to_numpy()
+    sample_le = (sample_df[RAW_KCAL_COLUMN] / sample_df["heavy_atoms"]).to_numpy()
+    active_ok = [r for r in active_rows
+                 if r["viable"] and np.isfinite(r["score"])]
 
     # (axis, x-column, x-label, sample-y, active-y-key, y-label, title)
     panels = [
         (axes[0, 0], "MW", "Molecular weight (Da)",
-         sample_df["docking"].to_numpy(), "score",
+         sample_raw, "score",
          "PfDHFR docking (kcal/mol)  ↓ stronger", "RAW docking vs MW"),
         (axes[0, 1], "logP", "Crippen logP",
-         sample_df["docking"].to_numpy(), "score",
+         sample_raw, "score",
          "PfDHFR docking (kcal/mol)  ↓ stronger", "RAW docking vs logP"),
         (axes[1, 0], "MW", "Molecular weight (Da)",
          sample_le, "LE",
@@ -613,13 +890,40 @@ def main():
     print("2. ASSEMBLING PfDHFR DOCKING SAMPLE")
     print("=" * 78)
     sample_df, prov = build_sample(library, args.n_sample, args.seed)
-    print(f"\n  Docking-score sample: {prov['n_total']} molecule(s) with "
-          "descriptors —")
+    print(f"\n  Docking-MEASUREMENT sample: {prov['n_total']} viable "
+          "molecule(s) with descriptors —")
     print(f"    {prov['n_outputs']:>5} reused from existing run outputs"
           + (f" ({', '.join(prov['source_dirs'])})" if prov["source_dirs"] else "")
           )
     print(f"    {prov['n_cache']:>5} reused from the docking cache")
     print(f"    {prov['n_fresh']:>5} freshly docked this run (written to the cache)")
+
+    # Which column each run output was read as — the pre-fix / post-fix
+    # decision, stated rather than assumed.
+    for directory, column in sorted(prov["measured_columns"].items()):
+        generation = ("post-fix: measurement column, beside a possibly "
+                      "SUBSTITUTED objective column"
+                      if column == PFDHFR_RAW_COLUMN else
+                      "pre-fix: no measurement column exists, so the objective "
+                      "column IS the measurement")
+        print(f"      {directory}/evaluated.csv -> read '{column}' "
+              f"({generation})")
+
+    # Viability exclusions, always printed — including the zero case, so a
+    # reader can tell "no clashes in this sample" from "nobody checked".
+    print(f"    {prov['n_excluded']:>5} EXCLUDED as non-viable "
+          f"(evaluation.dock_is_viable: no binding mode found) — "
+          f"{prov['n_excluded_outputs']} from outputs, "
+          f"{prov['n_excluded_cache']} from the cache, "
+          f"{prov['n_excluded_fresh']} fresh")
+    if prov["excluded_raw_kcal"]:
+        shown = ", ".join(f"{v:+.3f}" for v in prov["excluded_raw_kcal"][:10])
+        more = ", ..." if len(prov["excluded_raw_kcal"]) > 10 else ""
+        print(f"          excluded raw kcal/mol: {shown}{more}")
+        print("          These are NOT weak binders: a score at or above "
+              "0 kcal/mol means Vina found no")
+        print("          favourable pose at all, so the value is not an "
+              "affinity and cannot be a reference point.")
 
     if prov["n_total"] < 3:
         print("\n  Too few docking scores to analyze. Re-run with a larger "
@@ -660,7 +964,7 @@ def main():
               f"{med_le:.0f}%  (should RISE if size was the confound)")
 
     # Over-correction probe: are the LE leaders implausibly tiny fragments?
-    le_series = sample_df["docking"] / sample_df["heavy_atoms"]
+    le_series = sample_df[RAW_KCAL_COLUMN] / sample_df["heavy_atoms"]
     k = min(args.top_k, len(sample_df))
     le_top = sample_df.assign(_LE=le_series).sort_values("_LE").head(k)
     le_top_heavy = float(le_top["heavy_atoms"].median()) if k else float("nan")

@@ -30,12 +30,18 @@ Or let ``run_all.py`` launch it automatically after a benchmark.
 
 import os
 
+import matplotlib
+matplotlib.use("Agg")           # Streamlit renders via st.pyplot: never a window
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import streamlit as st
 from rdkit import Chem
 from rdkit.Chem import Draw
+
+import evaluation
+import matrix_report
+from dashboard import plane_viability
 
 
 # The four methods in display order: (label, results dir, plot color).
@@ -64,6 +70,65 @@ DOCKING_COL = "PfDHFR_Docking"   # the "best molecule" ranking objective (lower 
 
 HISTORY_FILE = "history.csv"
 PARETO_FILE = "pareto_front.csv"
+
+# ---------------------------------------------------------------------- #
+# Docking viability — this dashboard PLOTS and picks a BEST, so both go
+# through the one shared rule
+# ---------------------------------------------------------------------- #
+# A dock whose best raw Vina affinity is >= ``evaluation.DOCK_VIABILITY_KCAL_MAX``
+# found NO binding mode: absence of evidence, not weak binding. Two places here
+# used to present one as a result, measured on the archived seed-8 fronts of
+# ``benchmark_thicccc_2026-08-16``:
+#
+#   * the default selectivity plane (PfDHFR x, hDHFR y) plotted the Single-Obj BO
+#     front's +10.730 kcal/mol clash and the Greedy front's +4.258 as ordinary
+#     filled method-coloured dots at the very TOP of the y axis — the
+#     "most human-selective" corner — 11.929 and 8.055 kcal/mol above the best
+#     genuine hDHFR value on their own fronts;
+#   * "Best Molecules Found" took ``idxmin`` over the raw PfDHFR column with no
+#     gate, and then printed every objective of the winner as a bare number. On
+#     a front whose PfDHFR docks all clashed, the least-positive clash would be
+#     captioned "Strongest binder".
+#
+# No threshold is defined in this module. Viability comes from
+# ``matrix_report.docking_viability`` (raw from ``*_Docking_raw_kcal`` when a
+# post-fix file has it, from ``*_Docking`` otherwise, then
+# ``evaluation.dock_is_viable``), the plane mask from ``dashboard.plane_viability``
+# so the two dashboards cannot disagree, and the gated pick from
+# ``matrix_report.best_or_absence``. Non-viable points stay on the plot and
+# non-viable values stay in the panel — they are marked, not hidden.
+NO_BINDING_MODE_LABEL = "NO BINDING MODE"
+SELECTIVITY_COL = evaluation.SELECTIVITY_COLUMN
+
+
+def best_binder(df):
+    """``(idx, status, reason)`` for the strongest PfDHFR binder on ``df``.
+
+    The replacement for a bare ``df[DOCKING_COL].idxmin()``. Two changes:
+
+      * the candidate set is gated on ``DOCKING_COL``'s own viability, so a dock
+        that found no binding mode cannot WIN the "strongest binder" caption;
+      * the pick ranks the RAW measurement, because the claim being made is a
+        measurement ("this molecule achieved the strongest affinity") and a
+        substituted worst-case objective value is not one.
+
+    ``idx is None`` comes back with an upper-case status token and a reason from
+    ``matrix_report.best_or_absence``, which the caller must DISPLAY. On a front
+    where every PfDHFR dock clashed there is no strongest binder, and saying so
+    is the result — silently promoting the least-positive clash is the defect.
+    """
+    viability = matrix_report.docking_viability(df)
+    if DOCKING_COL in viability:
+        raw, viable = viability[DOCKING_COL]
+        series = pd.Series(raw, index=df.index)
+        gated = True
+    else:                                     # no docking column at all
+        series = pd.to_numeric(df[DOCKING_COL], errors="coerce")
+        viable = np.ones(len(df), dtype=bool)
+        gated = False
+    sign = 1.0 if DIRECTION[DOCKING_COL] == "higher" else -1.0
+    return matrix_report.best_or_absence(series, viable, sign, DOCKING_COL,
+                                         gated)
 
 
 def load_csv(results_dir, filename):
@@ -216,6 +281,8 @@ def main():
         y_axis = sc2.selectbox("Y objective", options=OBJECTIVE_NAMES, index=1)
 
         fig, ax = plt.subplots(figsize=(8, 6))
+        n_marked = 0
+        marked_in_legend = False
         for label, results_dir, color in METHODS:
             entry = paretos.get(label)
             if entry is None:
@@ -223,14 +290,34 @@ def main():
             df, _color = entry
             if x_axis not in df.columns or y_axis not in df.columns:
                 continue
-            ax.scatter(df[x_axis], df[y_axis], c=color, s=55,
+            # Split on the SHARED predicate, per plotted plane. Non-viable points
+            # are still drawn — the reader must be able to see that the molecule
+            # was docked — but as a grey cross, so an extreme point in the
+            # "best" corner cannot read as a result.
+            ok = plane_viability(df, x_axis, y_axis)
+            ax.scatter(df.loc[ok, x_axis], df.loc[ok, y_axis], c=color, s=55,
                        edgecolors="black", linewidths=0.4, alpha=0.8, label=label)
+            if (~ok).any():
+                n_marked += int((~ok).sum())
+                ax.scatter(df.loc[~ok, x_axis], df.loc[~ok, y_axis],
+                           marker="x", c="#555555", s=80, linewidths=1.6,
+                           alpha=0.95, zorder=5,
+                           label=("_nolegend_" if marked_in_legend
+                                  else "no binding mode — not a result"))
+                marked_in_legend = True
         ax.set_xlabel(f"{x_axis}  ({'↑' if DIRECTION[x_axis] == 'higher' else '↓'})")
         ax.set_ylabel(f"{y_axis}  ({'↑' if DIRECTION[y_axis] == 'higher' else '↓'})")
         ax.set_title("Pareto fronts across methods")
         ax.grid(True, alpha=0.3)
         ax.legend(loc="best", fontsize=9)
         st.pyplot(fig)
+        if n_marked:
+            st.warning(
+                "{} plotted point(s) are marked with a grey × : the dock on an "
+                "axis of this plane found no binding mode ({}). They are shown "
+                "because the molecule WAS docked, but the number is not a "
+                "binding affinity and the point is not a result.".format(
+                    n_marked, matrix_report.viability_rule_text(DOCKING_COL)))
 
     st.divider()
 
@@ -246,7 +333,12 @@ def main():
             if DOCKING_COL not in df.columns or df[DOCKING_COL].isna().all():
                 st.info("No docking scores available.")
                 continue
-            best = df.loc[df[DOCKING_COL].idxmin()]
+            idx, status, reason = best_binder(df)
+            if idx is None:
+                # Absence is a RESULT: say so, never fall back to a clash.
+                st.error(f"{status} — {reason}")
+                continue
+            best = df.loc[idx]
             smiles = best["SMILES"]
             st.code(smiles, language="text")
 
@@ -257,12 +349,43 @@ def main():
                 st.image(Draw.MolToImage(mol, size=(280, 280)),
                          caption="2D structure")
 
+            # The raw MEASUREMENT for this winner, resolved the shared way, so a
+            # docking number is never printed bare: a non-viable dock is flagged
+            # in place of a value that would read as an affinity.
+            viability = matrix_report.docking_viability(df)
+            pos = df.index.get_loc(idx)
             for name in OBJECTIVE_NAMES:
-                if name not in df.columns or pd.isna(best[name]):
+                if name not in df.columns:
+                    st.write(f"**{name}**: n/a")
+                    continue
+                arrow = "↑" if DIRECTION[name] == "higher" else "↓"
+                if name in viability:
+                    raw, viable = viability[name]
+                    if not bool(np.asarray(viable, dtype=bool)[pos]):
+                        shown = ("no measurement — dock failed"
+                                 if not np.isfinite(raw[pos])
+                                 else f"{float(raw[pos]):.3f} kcal/mol measured")
+                        st.write(f"**{name}** ({arrow}): ⛔ "
+                                 f"{NO_BINDING_MODE_LABEL} — {shown}")
+                        continue
+                    st.write(f"**{name}** ({arrow}): {float(raw[pos]):.3f}")
+                    continue
+                if pd.isna(best[name]):
                     st.write(f"**{name}**: n/a")
                 else:
-                    arrow = "↑" if DIRECTION[name] == "higher" else "↓"
                     st.write(f"**{name}** ({arrow}): {float(best[name]):.3f}")
+
+            if SELECTIVITY_COL in df.columns:
+                # SI is a DIFFERENCE of binding free energies, so it is
+                # undefined unless BOTH docks found a mode. An archived front's
+                # stored value predates that gate and can be a finite number
+                # derived from a clash, so the gate is re-applied here rather
+                # than trusting the column.
+                si = best[SELECTIVITY_COL]
+                si_ok = bool(matrix_report.both_docks_viable(df)[pos])
+                st.write(f"**{SELECTIVITY_COL}**: "
+                         + (f"{float(si):.4f}" if si_ok and not pd.isna(si)
+                            else "—  (undefined: a dock found no binding mode)"))
 
 
 if __name__ == "__main__":

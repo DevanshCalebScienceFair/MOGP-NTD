@@ -46,6 +46,7 @@ import argparse
 import numpy as np
 import pandas as pd
 
+import evaluation
 from utils.featurize import smiles_to_morgan
 
 
@@ -143,6 +144,41 @@ def first_recovery_index(active_fp, ordered_fps, threshold):
 # ---------------------------------------------------------------------- #
 # Part 1 — reference potency/selectivity profile
 # ---------------------------------------------------------------------- #
+def gated_selectivity_index(pf_kcal, hd_kcal):
+    """Selectivity Index for raw PfDHFR / hDHFR affinities, VIABILITY-GATED.
+
+    Both the arithmetic and the gate come from
+    ``evaluation.add_selectivity_index``: the raw affinities are handed over
+    under the ``*_Docking_raw_kcal`` names it reads, and the predicate is
+    ``evaluation.dock_is_viable``. The viability threshold is NEVER written down
+    in this file.
+
+    A non-viable dock (``>= 0 kcal/mol``, or an outright failure) means no
+    binding mode was found, so the DIFFERENCE of the two binding free energies
+    is undefined and the index is ``NaN`` — the same choice
+    ``evaluation.add_selectivity_index`` already makes for every optimizer arm.
+    The raw affinities are still printed, beside their viability flags; what
+    changes is that a clash cannot produce a selectivity number.
+
+    Args:
+        pf_kcal: raw PfDHFR Vina affinity/affinities in kcal/mol.
+        hd_kcal: raw hDHFR Vina affinity/affinities in kcal/mol, same shape.
+
+    Returns:
+        ``(si, pf_viable, hd_viable)`` as 1-D arrays.
+    """
+    pf = np.asarray(pf_kcal, dtype=float).ravel()
+    hd = np.asarray(hd_kcal, dtype=float).ravel()
+    probe = pd.DataFrame({
+        "PfDHFR_Docking" + evaluation.RAW_KCAL_SUFFIX: pf,
+        "hDHFR_Docking" + evaluation.RAW_KCAL_SUFFIX: hd,
+    })
+    evaluation.add_selectivity_index(probe)
+    si = probe[evaluation.SELECTIVITY_COLUMN].to_numpy(dtype=float)
+    return si, evaluation.dock_is_viable(pf), evaluation.dock_is_viable(hd)
+
+
+
 def reference_profiles(actives, skip_docking=False):
     """Print hERG + PfDHFR/hDHFR docking + Selectivity Index for each active.
 
@@ -168,11 +204,10 @@ def reference_profiles(actives, skip_docking=False):
         print(f"    {a['name']:<15} {a['source']}")
     print()
 
-    header = (f"{'compound':<15}{'hERG':>8}{'PfDHFR':>10}{'hDHFR':>10}"
-              f"{'SelIdx':>10}")
-    print(header)
-    print("-" * len(header))
-
+    # Two passes, so the Selectivity Index can be derived by ONE call into
+    # evaluation rather than restated per row. Pass 1 docks and predicts; pass 2
+    # gates and prints. "ok" carries the two viability flags beside the raw
+    # affinities they describe, so the raw measurement is never hidden.
     for a in actives:
         a["fp"] = _fingerprint(a["smiles"])
 
@@ -183,22 +218,60 @@ def reference_profiles(actives, skip_docking=False):
         except Exception as exc:                                  # noqa: BLE001
             print(f"  (hERG prediction failed for {a['name']}: {exc})")
 
-        pf = hd = si = float("nan")
+        pf = hd = float("nan")
         if not skip_docking:
             try:
                 pf = float(dock_target(a["smiles"], target="PfDHFR"))
                 hd = float(dock_target(a["smiles"], target="hDHFR"))
-                si = hd - pf              # positive -> parasite-selective
             except Exception as exc:                              # noqa: BLE001
                 print(f"  (docking failed for {a['name']}: {exc})")
 
-        a["herg"], a["pfdhfr"], a["hdhfr"], a["selectivity_index"] = herg, pf, hd, si
-        print(f"{a['name']:<15}{herg:>8.3f}{pf:>10.2f}{hd:>10.2f}{si:>10.2f}")
+        a["herg"], a["pfdhfr"], a["hdhfr"] = herg, pf, hd
+
+    # The whole Selectivity Index column, gated, in one delegated call.
+    # Computing it inline as ``hd - pf`` is the defect this gate removes.
+    si_all, pf_viable, hd_viable = gated_selectivity_index(
+        [a["pfdhfr"] for a in actives], [a["hdhfr"] for a in actives])
+
+    header = (f"{'compound':<15}{'hERG':>8}{'PfDHFR':>10}{'hDHFR':>10}"
+              f"{'ok':>5}{'SelIdx':>10}")
+    print(header)
+    print("-" * len(header))
+
+    for a, si, pv, hv in zip(actives, si_all, pf_viable, hd_viable):
+        a["selectivity_index"] = float(si)
+        a["pfdhfr_viable"] = bool(pv)
+        a["hdhfr_viable"] = bool(hv)
+        ok = ("Y" if pv else "n") + ("Y" if hv else "n")
+        si_s = f"{si:>10.2f}" if np.isfinite(si) else f"{'n/a':>10}"
+        print(f"{a['name']:<15}{a['herg']:>8.3f}{a['pfdhfr']:>10.2f}"
+              f"{a['hdhfr']:>10.2f}{ok:>5}{si_s}")
 
     print("\n  Selectivity Index = hDHFR - PfDHFR docking (kcal/mol). Positive "
           "means\n  the compound binds the PARASITE enzyme more tightly than the "
           "human one\n  -> selective. These are the reference points the loop "
           "should rediscover.")
+    # The threshold in this note is READ from evaluation, so the explanation
+    # cannot drift from the rule it explains.
+    n_bad = int((~(pf_viable & hd_viable)).sum())
+    note = [
+        "",
+        f"  DOCKING VIABILITY (evaluation.dock_is_viable): "
+        f"{len(actives) - n_bad}/{len(actives)} actives viable on both targets.",
+    ]
+    if skip_docking:
+        note.append("  (--skip-docking: nothing was docked, so nothing is "
+                    "viable.)")
+    note += [
+        "  'ok' is (PfDHFR, hDHFR). 'n' means the dock found NO binding mode",
+        f"  (affinity >= {evaluation.DOCK_VIABILITY_KCAL_MAX:g} kcal/mol, or an "
+        f"outright failure), so the DIFFERENCE",
+        "  of the two binding free energies is undefined and SelIdx reads n/a",
+        "  rather than a number. The raw affinity is still shown. A non-viable",
+        "  known active would be evidence the DOCKING is broken, not that the",
+        "  compound is selective.",
+    ]
+    print("\n".join(note))
     return actives
 
 

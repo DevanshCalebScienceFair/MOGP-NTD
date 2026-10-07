@@ -28,6 +28,15 @@ check, so measuring against it would only confirm that Vina respects sterics.
 
 Read-only with respect to the sweep: reads pareto_front.csv from the run
 directories and writes a single new file, leads_annotated.csv.
+
+DOCKING VIABILITY. Every Selectivity Index this script touches — both the one it
+RANKS BY when selecting the top-N pooled Pareto molecules and the one it WRITES
+for each annotated lead — goes through ``evaluation.add_selectivity_index``,
+which is ``NaN`` whenever either dock found no binding mode
+(``evaluation.dock_is_viable`` False). Nothing here restates the threshold. See
+``gated_selectivity_index`` for the reasoning; the raw affinities are always kept
+and written, in ``PfDHFR_kcal``/``hDHFR_kcal``, with ``PfDHFR_viable`` /
+``hDHFR_viable`` beside them.
 """
 
 import argparse
@@ -40,6 +49,7 @@ import pandas as pd
 from rdkit import Chem, RDLogger
 
 import docking
+import evaluation
 
 RDLogger.DisableLog("rdApp.*")
 
@@ -73,6 +83,83 @@ RECOGNITION_MAX_KCAL = -8.0       # potency floor for a real lead
 RECOGNITION_MIN_CONTACTS = 1      # tiebreaker: must touch the catalytic Asp54
 SIZE_EXCLUSION_OFFSITE = 4.0      # A off-site in hDHFR = not recognition there
 WEAK_KCAL = -7.5                  # above this is not a binder worth calling a lead
+
+
+# Column names this script uses for the two raw affinities it docks itself.
+# They are NOT the TASK_NAMES objective columns: these are always the raw
+# measurement, never a substituted objective value, which is why the viability
+# flags below are derived from them directly.
+PF_KCAL_COLUMN = "PfDHFR_kcal"
+HD_KCAL_COLUMN = "hDHFR_kcal"
+PF_VIABLE_COLUMN = "PfDHFR_viable"
+HD_VIABLE_COLUMN = "hDHFR_viable"
+
+
+def gated_selectivity_index(pf_kcal, hd_kcal):
+    """Selectivity Index for raw PfDHFR / hDHFR affinities, VIABILITY-GATED.
+
+    Delegates BOTH halves of the answer to ``evaluation``:
+
+      * the arithmetic and the gate come from
+        ``evaluation.add_selectivity_index``, by handing it the raw affinities
+        under the ``*_Docking_raw_kcal`` names it reads;
+      * the predicate itself is ``evaluation.dock_is_viable``.
+
+    The viability threshold is therefore never written down in this file, and a
+    future change to ``evaluation.DOCK_VIABILITY_KCAL_MAX`` reaches this script
+    without anybody editing it.
+
+    WHAT A NON-VIABLE DOCK REPORTS, and why. The Selectivity Index is a
+    DIFFERENCE OF BINDING FREE ENERGIES. When one of the two binding modes was
+    never found, that difference is undefined — not large, not small — so it is
+    ``NaN``, exactly as ``evaluation._docking_measurement_from_frame`` /
+    ``evaluation.add_selectivity_index`` already decided for every optimizer
+    arm. Two consequences matter here:
+
+      * ``sort_values(..., ascending=False)`` puts ``NaN`` LAST, so an SI-ranked
+        lead table can never again be topped by a steric clash. That is the
+        whole point: the published ``leads_annotated.csv`` was topped at rank 1
+        (SI 8.2000, hDHFR +5.694) and rank 2 (SI 6.8412, hDHFR +0.3932) by
+        molecules that never docked.
+      * the raw affinities are UNTOUCHED and still written out, with their
+        viability flags, so a reader sees the measurement and why it was not
+        ranked. Nothing is hidden; only the RANKING changes.
+
+    Args:
+        pf_kcal: raw PfDHFR Vina affinities in kcal/mol.
+        hd_kcal: raw hDHFR Vina affinities in kcal/mol, same shape.
+
+    Returns:
+        ``(si, pf_viable, hd_viable)`` — float64 Selectivity Index (``NaN``
+        where either side is non-viable) and the two bool viability masks.
+    """
+    pf = np.asarray(pf_kcal, dtype=float).ravel()
+    hd = np.asarray(hd_kcal, dtype=float).ravel()
+    probe = pd.DataFrame({
+        "PfDHFR_Docking" + evaluation.RAW_KCAL_SUFFIX: pf,
+        "hDHFR_Docking" + evaluation.RAW_KCAL_SUFFIX: hd,
+    })
+    evaluation.add_selectivity_index(probe)
+    si = probe[evaluation.SELECTIVITY_COLUMN].to_numpy(dtype=float)
+    return si, evaluation.dock_is_viable(pf), evaluation.dock_is_viable(hd)
+
+
+def add_viability_columns(df):
+    """Recompute ``Selectivity_Index`` and the two viability flags, in place.
+
+    Called on every frame this script writes or re-reads, so the gate holds even
+    for a file whose ``Selectivity_Index`` column was written by pre-fix code (or
+    hand-edited): viability is always recomputed from the raw affinity columns
+    with ``evaluation.dock_is_viable``, never read from a stored flag.
+    """
+    si, pf_viable, hd_viable = gated_selectivity_index(
+        df[PF_KCAL_COLUMN].to_numpy(dtype=float),
+        df[HD_KCAL_COLUMN].to_numpy(dtype=float),
+    )
+    df[PF_VIABLE_COLUMN] = pf_viable
+    df[HD_VIABLE_COLUMN] = hd_viable
+    df[evaluation.SELECTIVITY_COLUMN] = si
+    return df
 
 
 def _pdb_atoms(path, record, resname=None, resi=None, chain="A", names=None):
@@ -181,7 +268,16 @@ def classify(row):
 
 
 def pooled_leads(sweep_dir, top_n):
-    """Top ``top_n`` distinct pooled Pareto molecules by selectivity index."""
+    """Top ``top_n`` distinct pooled Pareto molecules by selectivity index.
+
+    This is the SELECTION gate — the one that decides which molecules get
+    annotated at all. The pooled ``Selectivity_Index`` is RECOMPUTED through
+    ``evaluation.add_selectivity_index`` before sorting rather than trusted as
+    read, because the archived ``pareto_front.csv`` files predate the viability
+    rule and carry a raw difference in that column. Recomputing means a
+    non-viable dock sorts LAST (``NaN``) on an old front as well as a new one,
+    so a clash cannot be selected as a lead in the first place.
+    """
     frames = [pd.read_csv(p) for p in
               glob.glob(os.path.join(sweep_dir, "runs", "**", "pareto_front.csv"),
                         recursive=True)]
@@ -190,7 +286,17 @@ def pooled_leads(sweep_dir, top_n):
     df = pd.concat(frames, ignore_index=True)
     df["canonical"] = [Chem.MolToSmiles(m) if (m := Chem.MolFromSmiles(s)) else s
                        for s in df["SMILES"]]
-    df = (df.sort_values("Selectivity_Index", ascending=False)
+    # Re-derive SI (and the LE companion) with the viability gate applied. On a
+    # frame with no resolvable docking columns this is a no-op fallback inside
+    # evaluation, so a front that predates the docking objectives still works.
+    evaluation.add_selectivity_index(df)
+    n_gated = int(df[evaluation.SELECTIVITY_COLUMN].isna().sum())
+    if n_gated:
+        print(f"  {n_gated}/{len(df)} pooled Pareto rows have a NON-VIABLE dock "
+              f"on at least one target; their Selectivity Index is NaN and they "
+              f"sort last, so they cannot be selected as leads.")
+    df = (df.sort_values(evaluation.SELECTIVITY_COLUMN, ascending=False,
+                         na_position="last")
             .drop_duplicates("canonical"))
     return df.head(top_n).reset_index(drop=True)
 
@@ -207,6 +313,10 @@ def main():
     path = os.path.join(args.sweep_dir, "leads_annotated.csv")
     if args.reclassify_only:
         out = pd.read_csv(path)
+        # Re-derive the gate from the raw affinities the file carries, so
+        # --reclassify-only repairs a pre-fix (or hand-edited) SI column instead
+        # of propagating it.
+        add_viability_columns(out)
         out["mechanism"] = out.apply(classify, axis=1)
         _report(out, path, args.sweep_dir)
         return
@@ -226,9 +336,18 @@ def main():
         rows.append({
             "SMILES": smi,
             "heavy_atoms": mol.GetNumHeavyAtoms(),
-            "PfDHFR_kcal": pf["score"],
-            "hDHFR_kcal": hd["score"],
-            "Selectivity_Index": hd["score"] - pf["score"],
+            # The raw measurement, exactly as Vina returned it. Never
+            # substituted, never clipped, never dropped.
+            PF_KCAL_COLUMN: pf["score"],
+            HD_KCAL_COLUMN: hd["score"],
+            # Placeholders. Both viability flags and the Selectivity Index are
+            # filled in by add_viability_columns() below, which routes them
+            # through evaluation. Computing the SI inline here as
+            # ``hd["score"] - pf["score"]`` is exactly the defect that let a
+            # steric clash top this table; do not put it back.
+            PF_VIABLE_COLUMN: None,
+            HD_VIABLE_COLUMN: None,
+            evaluation.SELECTIVITY_COLUMN: np.nan,
             "Asp54_contacts": pf["contacts"],
             "Glu30_contacts": hd["contacts"],
             "PfDHFR_centroid_dist": pf["centroid_dist"],
@@ -240,16 +359,45 @@ def main():
             print(f"  {i+1}/{len(leads)}")
 
     out = pd.DataFrame(rows)
+    add_viability_columns(out)
     out["mechanism"] = out.apply(classify, axis=1)
     path = os.path.join(args.sweep_dir, "leads_annotated.csv")
     _report(out, path, args.sweep_dir)
 
 
 def _report(out, path, sweep_dir):
-    """Write the annotated CSV and print the mechanism breakdown."""
+    """Write the annotated CSV and print the mechanism breakdown.
+
+    This is the ONLY function that writes ``leads_annotated.csv``, so the
+    viability gate is re-derived here as well as at each call site: a future
+    caller that forgets still cannot write an ungated Selectivity Index.
+    ``add_viability_columns`` recomputes from the raw affinity columns, so
+    calling it twice is idempotent.
+    """
+    add_viability_columns(out)
     out = out.sort_values(["mechanism", "PfDHFR_kcal"], ascending=[True, True])
     out.to_csv(path, index=False)
     n = len(out)
+
+    # Disclose the gate before anything derived from it is printed. The raw
+    # affinities are shown, not hidden — what changes is that they do not RANK.
+    both_viable = (out[PF_VIABLE_COLUMN].to_numpy(dtype=bool)
+                   & out[HD_VIABLE_COLUMN].to_numpy(dtype=bool))
+    n_non_viable = int((~both_viable).sum())
+    print("\n" + "=" * 78)
+    print("DOCKING VIABILITY (evaluation.dock_is_viable)")
+    print("=" * 78)
+    print(f"  {n - n_non_viable}/{n} rows viable on BOTH targets; "
+          f"{n_non_viable} non-viable.")
+    if n_non_viable:
+        print("  Non-viable rows keep their raw affinities below and are still "
+              "written to\n  the CSV, but their Selectivity Index is NaN, so "
+              "they sort LAST and cannot\n  top an SI ranking:")
+        print(f"    {'PfDHFR':>9}{'hDHFR':>9}{'Pf ok':>7}{'hD ok':>7}  SMILES")
+        for _, r in out[~both_viable].iterrows():
+            print(f"    {r[PF_KCAL_COLUMN]:>9.3f}{r[HD_KCAL_COLUMN]:>9.3f}"
+                  f"{str(bool(r[PF_VIABLE_COLUMN])):>7}"
+                  f"{str(bool(r[HD_VIABLE_COLUMN])):>7}  {r.SMILES}")
 
     print("\n" + "=" * 78)
     print(f"MECHANISM BREAKDOWN — top {n} pooled Pareto molecules by SI")
@@ -262,10 +410,23 @@ def _report(out, path, sweep_dir):
     # Reported separately from the mutually exclusive classes above: a molecule
     # can recognize PfDHFR *and* be size-excluded from hDHFR, and the label
     # order gives it RECOGNITION. This is the raw prevalence of the mechanism.
-    offsite = int((out["hDHFR_centroid_dist"] > SIZE_EXCLUSION_OFFSITE).sum())
+    offsite_mask = out["hDHFR_centroid_dist"] > SIZE_EXCLUSION_OFFSITE
+    offsite = int(offsite_mask.sum())
     print(f"\n  Off-site in hDHFR (>{SIZE_EXCLUSION_OFFSITE} A centroid), "
           f"regardless of class: {offsite}/{n} ({100.0 * offsite / n:.0f}%)")
     print(f"  ^ the defensible statement of \"high SI is size exclusion\"")
+    # An off-site CENTROID is evidence of size exclusion only where the hDHFR
+    # dock actually found a binding mode. A non-viable hDHFR dock has a pose
+    # file but no binding mode, so its centroid distance is not evidence of
+    # anything. Reported alongside rather than instead of the figure above, so
+    # the published number stays comparable.
+    offsite_viable = int((offsite_mask
+                          & out[HD_VIABLE_COLUMN].astype(bool)).sum())
+    n_hd_viable = int(out[HD_VIABLE_COLUMN].astype(bool).sum())
+    if n_hd_viable:
+        print(f"    of which the hDHFR dock was VIABLE: {offsite_viable}/"
+              f"{n_hd_viable} ({100.0 * offsite_viable / n_hd_viable:.0f}% of "
+              f"rows with a real hDHFR binding mode)")
 
     rec = out[out["mechanism"] == "RECOGNITION"].sort_values("PfDHFR_kcal")
     print("\n" + "=" * 78)
@@ -274,11 +435,17 @@ def _report(out, path, sweep_dir):
     if rec.empty:
         print("  none")
     else:
-        print(f"{'PfDHFR':>8}{'hDHFR':>8}{'SI':>7}{'cent':>7}{'Asp54':>7}"
-              f"{'hDcent':>8}{'HA':>5}  SMILES")
+        # "ok" carries the two viability flags beside the raw affinities they
+        # describe, so a reader never has to infer why an SI is blank.
+        print(f"{'PfDHFR':>8}{'hDHFR':>8}{'ok':>5}{'SI':>7}{'cent':>7}"
+              f"{'Asp54':>7}{'hDcent':>8}{'HA':>5}  SMILES")
         for _, r in rec.iterrows():
-            print(f"{r.PfDHFR_kcal:>8.2f}{r.hDHFR_kcal:>8.2f}"
-                  f"{r.Selectivity_Index:>+7.2f}{r.PfDHFR_centroid_dist:>7.2f}"
+            ok = ("Y" if bool(r[PF_VIABLE_COLUMN]) else "n") + \
+                 ("Y" if bool(r[HD_VIABLE_COLUMN]) else "n")
+            si = float(r[evaluation.SELECTIVITY_COLUMN])
+            si_s = f"{si:>+7.2f}" if np.isfinite(si) else f"{'n/a':>7}"
+            print(f"{r.PfDHFR_kcal:>8.2f}{r.hDHFR_kcal:>8.2f}{ok:>5}"
+                  f"{si_s}{r.PfDHFR_centroid_dist:>7.2f}"
                   f"{int(r.Asp54_contacts):>7}{r.hDHFR_centroid_dist:>8.2f}"
                   f"{int(r.heavy_atoms):>5}  {r.SMILES}")
     print(f"\nwrote {path}")

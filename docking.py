@@ -110,6 +110,43 @@ COFACTOR_RESNAMES = {"NDP"}
 # makes the persistent docking cache below sound.
 DEFAULT_VINA_SEED = 42
 
+# Wall-clock ceiling on ONE Vina subprocess, in seconds. Expiry is a docking
+# FAILURE and follows the identical path as every other failure (see
+# ``dock_target``): warn, record STATUS_FAIL in the cache, return None, which
+# ``batch_dock_target`` leaves as NaN in the objective matrix.
+#
+# WHY A TIMEOUT AT ALL. Every other failure route already yields NaN: a non-zero
+# Vina exit (``check=True`` -> CalledProcessError), an unparseable stdout table
+# (``_parse_best_affinity`` -> ValueError), a failed conformer embed. A HUNG Vina
+# did not — ``subprocess.run`` without ``timeout`` waits forever, and the next
+# campaign is unattended and multi-hour, so one wedged child process stalls the
+# whole run with no diagnostic and no partial result.
+#
+# WHY 600 s. Measured, not guessed, from the only archived sweep case that forced
+# real docks for every molecule (``matrix_results_holo/logs/harness-seeds-nocache.log``,
+# run with ``--no-cache``; 560 Vina invocations, 47.5 min total wall clock). Its
+# per-method totals give the per-dock mean directly, since each arm docked
+# 70 molecules x 2 targets = 140 times:
+#     Greedy Filter   6.7 min / 140 =  2.87 s per dock   (no GP: nearly all docking)
+#     Single-Obj BO   8.2 min / 140 =  3.51 s per dock
+#     Random Search   8.7 min / 140 =  3.73 s per dock
+#     MOGP           24.0 min / 140 = 10.29 s per dock   (dominated by GP training
+#                                                         + the qNEHVI candidate scan,
+#                                                         not by Vina)
+# So a typical dock on this hardware is ~3 s, and 600 s is ~200x that. The margin
+# is deliberately enormous in the other direction too: killing a legitimately slow
+# dock would silently convert a real measurement into a NaN, which is a worse
+# failure than a long wait. At 600 s a single dock would consume 21% of the entire
+# 4-arm, 560-dock benchmark on its own — that is unambiguously pathological, not
+# merely slow. Search effort is fixed (``DEFAULT_EXHAUSTIVENESS = 8``) and the box
+# is a fixed 20 A cube, so per-dock cost varies only with ligand size, which the
+# library caps at 44 heavy atoms / MW 599.8.
+#
+# NOT part of ``oracle_fingerprint``, on purpose: a timeout cannot change the
+# score of a dock that completes, so folding it into the cache key would
+# invalidate every cached affinity in the repo for no scientific reason.
+DOCKING_TIMEOUT_SECONDS = 600
+
 # ---------------------------------------------------------------------- #
 # Persistent docking cache. Keyed by (canonical SMILES, target); shared across
 # every method and seed so overlapping library molecks are docked at most once.
@@ -542,8 +579,21 @@ def dock_target(smiles, target=DEFAULT_TARGET, n_poses=9,
     Returns:
         The best binding affinity as a float (kcal/mol, more negative = stronger
         binding), or ``None`` if docking fails for any reason (warning printed).
-        A cached failure returns ``None`` without re-docking (clear the cache to
-        retry it).
+        Every failure route behaves identically — non-zero Vina exit,
+        unparseable stdout, failed ligand prep, and a Vina that exceeds
+        ``DOCKING_TIMEOUT_SECONDS`` — and all of them become NaN in the
+        objective matrix via ``batch_dock_target``. A cached failure returns
+        ``None`` without re-docking (clear the cache to retry it), which applies
+        to a timed-out dock too.
+
+        A RETURNED NUMBER IS NOT NECESSARILY A BINDING AFFINITY. Vina always
+        prints a best pose, so a molecule for which no favourable binding mode
+        exists comes back with a near-zero or POSITIVE score. That is absence of
+        evidence, not weak binding, and this function deliberately does not
+        decide the question: it reports the measurement. Whether a score counts
+        as a found binding mode is ``evaluation.dock_is_viable``, and what the
+        objective says about a non-viable dock is
+        ``evaluation.apply_dock_viability``.
     """
     spec = _target_spec(target)
 
@@ -607,9 +657,16 @@ def dock_target(smiles, target=DEFAULT_TARGET, n_poses=9,
             "--seed", str(seed),
             "--out", out_pdbqt,
         ]
-        # check=True turns a non-zero Vina exit into CalledProcessError, which is
-        # caught below and reported as a docking failure.
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        # check=True turns a non-zero Vina exit into CalledProcessError, and
+        # timeout= turns a hung Vina into TimeoutExpired; both are subclasses of
+        # Exception, so both land in the single ``except`` below and are reported
+        # as a docking failure (warn -> cache STATUS_FAIL -> return None -> NaN),
+        # exactly like every other failure route. ``subprocess.run`` kills the
+        # child and reaps it before raising, and the ``finally`` block still
+        # removes the temp files. TimeoutExpired stringifies as "Command '[...]'
+        # timed out after 600 seconds", so the warning identifies itself.
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True,
+                                timeout=DOCKING_TIMEOUT_SECONDS)
 
         affinity = _parse_best_affinity(result.stdout)
         if caching:

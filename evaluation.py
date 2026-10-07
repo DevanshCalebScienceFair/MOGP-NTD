@@ -263,10 +263,51 @@ def _save_bounds(bounds, bounds_path):
         json.dump(_bounds_to_dict(bounds), f, indent=2)
 
 
+def _verify_default_bounds(payload, bounds_path):
+    """Raise unless ``payload`` is the settled frame (``spec/bounds/SETTLEMENT.md``).
+
+    The root ``evaluation_bounds.json`` is the canonical frame, pinned by
+    ``mogp_core.objective.BOUNDS_PAYLOAD_SHA256`` (the sha256 of its canonical
+    numeric payload, formatting-independent, no tolerance). Production used to
+    read it with no check, so an edited or regenerated file moved every
+    normalized value and every hypervolume silently. The hash function is
+    ``mogp_core.objective``'s own, not a copy. The import is local only to keep
+    this check beside the loader; ``mogp_core.objective`` is already imported at
+    module scope above, and it never imports this module back.
+    """
+    from mogp_core.objective import (
+        BOUNDS_PAYLOAD_SHA256,
+        _canonical_payload_sha256,
+    )
+    try:
+        digest = _canonical_payload_sha256(
+            list(payload["task_names"]), list(payload["signs"]),
+            dict(payload["bounds"]))
+    except (KeyError, TypeError) as exc:
+        digest = f"<no canonical payload: {exc!r}>"
+    if digest != BOUNDS_PAYLOAD_SHA256:
+        raise ValueError(
+            f"objective bounds payload sha256 mismatch in {bounds_path}: file "
+            f"has {digest}, the settled frame is {BOUNDS_PAYLOAD_SHA256} "
+            "(mogp_core.objective.BOUNDS_PAYLOAD_SHA256). The bounds define the "
+            "normalization frame, so a drifted file silently changes every "
+            "reported hypervolume. Restore evaluation_bounds.json from "
+            "spec/bounds/objective_bounds.frozen.json; see "
+            "spec/bounds/SETTLEMENT.md."
+        )
+
+
 def _load_bounds(bounds_path):
-    """Load bounds from ``bounds_path`` into a ``(N_OBJECTIVES, 2)`` array."""
+    """Load bounds from ``bounds_path`` into a ``(N_OBJECTIVES, 2)`` array.
+
+    When ``bounds_path`` is the default ``BOUNDS_PATH`` its payload hash must
+    equal the settled frame's (``_verify_default_bounds``). Any other path (the
+    tests' own temporary bounds) is loaded as given, unchecked.
+    """
     with open(bounds_path) as f:
         payload = json.load(f)
+    if os.path.realpath(bounds_path) == os.path.realpath(BOUNDS_PATH):
+        _verify_default_bounds(payload, bounds_path)
     table = payload["bounds"]
     bounds = np.zeros((N_OBJECTIVES, 2), dtype=float)
     for j, name in enumerate(TASK_NAMES):

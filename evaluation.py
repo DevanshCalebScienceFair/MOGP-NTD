@@ -71,8 +71,13 @@ NUMERICAL CORE
 The arithmetic is own-code pure numpy: normalization, the reference point, the
 non-dominated filter and the hypervolume indicator all come from ``mogp_core``
 (``mogp_core.objective``, ``mogp_core.pareto``, ``mogp_core.hypervolume``), not
-from torch/botorch. ``mogp_core`` is a 1:1 behavioural mirror derived in
-``spec/hv/SPEC.md``, and the swap is measured, not assumed:
+from torch/botorch. ``mogp_core`` is the project's own pure-numpy code (no
+torch, botorch or scipy import). Several of its conventions were originally
+matched to the previous botorch-based implementation so that archived runs could
+be replayed; that goal is waived (the archived results are superseded), and which
+conventions are still shaped by it is tracked in ``mogp_core/PROVENANCE.md``. The
+measurements below were taken under that earlier replay goal and are kept as a
+record of it:
 
   * ``mogp_core.objective.normalize_frame`` is BITWISE identical to the previous
     ``normalize`` on all 20,305 archived normalized cells (worst |diff| 0.0;
@@ -118,14 +123,17 @@ of scope here.
 """
 
 import os
+import sys
 import json
 
 import numpy as np
 
 from mogp_core.hypervolume import hypervolume as _core_hypervolume
 from mogp_core.objective import (
+    BOUNDS_PAYLOAD_SHA256,
     SELECTIVITY_COLUMN,
     SELECTIVITY_LE_COLUMN,
+    _canonical_payload_sha256,
     active_objectives,
     add_selectivity_index as _core_add_selectivity_index,
     fixed_reference_point as _core_fixed_reference_point,
@@ -188,12 +196,39 @@ SELECTIVITY_KCAL_COLUMN = SELECTIVITY_COLUMN
 BOUNDS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                            "evaluation_bounds.json")
 
+# The file at BOUNDS_PATH is the PINNED frame (``mogp_core.objective.
+# BOUNDS_PAYLOAD_SHA256``, ``spec/bounds/SETTLEMENT.md``): it is read and
+# verified, never overwritten with different numbers. A recompute from the
+# library that does not hash to the pin is parked in a file of this name, next to
+# the canonical one, for a deliberate re-freeze.
+PROPOSED_BOUNDS_NAME = "evaluation_bounds.proposed.json"
+
+# Exit status of ``python evaluation.py`` when the library-derived bounds are not
+# the pinned frame (``rebuild_library.py`` keys off it).
+EXIT_BOUNDS_FRAME_CHANGED = 3
+
+
+class BoundsFrameChangedError(ValueError):
+    """The library-derived bounds are not the pinned frame.
+
+    Raised by ``compute_objective_bounds`` instead of overwriting the canonical
+    file. ``derived_sha256`` / ``pinned_sha256`` are the canonical payload hashes
+    of the candidate and of the pinned frame; ``proposed_path`` is where the
+    candidate was written.
+    """
+
+    def __init__(self, message, derived_sha256, pinned_sha256, proposed_path):
+        super().__init__(message)
+        self.derived_sha256 = derived_sha256
+        self.pinned_sha256 = pinned_sha256
+        self.proposed_path = proposed_path
+
 
 # ---------------------------------------------------------------------- #
 # 1. Objective bounds (computed once, then persisted + reused everywhere)
 # ---------------------------------------------------------------------- #
 def compute_objective_bounds(library_dir="data/library",
-                             bounds_path=BOUNDS_PATH,
+                             bounds_path=None,
                              docking_min=DOCKING_KCAL_MIN, docking_max=DOCKING_KCAL_MAX,
                              force=False):
     """Return per-objective ``(min, max)`` bounds used for normalization.
@@ -208,17 +243,37 @@ def compute_objective_bounds(library_dir="data/library",
     verbatim (unless ``force``), which is what guarantees run-to-run identical
     hypervolumes.
 
+    The default path ``BOUNDS_PATH`` holds the pinned frame and is never
+    overwritten with different numbers, with or without ``force``. Whenever the
+    library is (re)computed for that path the result is compared with
+    ``mogp_core.objective.BOUNDS_PAYLOAD_SHA256``: equal, the bounds are returned
+    (the file is written only if it is missing or does not already hold the
+    pinned payload); different, the candidate is written to
+    ``evaluation_bounds.proposed.json`` next to the canonical file, the canonical
+    file is left as it was, and ``BoundsFrameChangedError`` is raised. A library
+    with different ADMET ranges is a new frame, adopted deliberately through
+    ``spec/bounds/SETTLEMENT.md``, never by regenerating the file.
+
     Args:
         library_dir: Cached library directory (for the ADMET bounds).
-        bounds_path: JSON file to read/write the persisted bounds.
+        bounds_path: JSON file to read/write the persisted bounds. ``None`` (the
+            default) means the module's ``BOUNDS_PATH`` at call time. Any other
+            path (the tests' own temporary bounds) is written as given.
         docking_min, docking_max: Fixed docking range in raw whole-molecule
             kcal/mol.
-        force: Recompute and overwrite ``bounds_path`` even if it exists.
+        force: Recompute even if ``bounds_path`` exists, and (for a non-default
+            path) overwrite it. See above for the default path.
 
     Returns:
         ``np.ndarray`` of shape ``(N_OBJECTIVES, 2)``, row j = ``[min, max]`` for
         objective j in ``TASK_NAMES`` order.
+
+    Raises:
+        BoundsFrameChangedError: the library-derived bounds for the default path
+            are not the pinned frame.
     """
+    if bounds_path is None:
+        bounds_path = BOUNDS_PATH
     if not force and os.path.exists(bounds_path):
         return _load_bounds(bounds_path)
 
@@ -241,7 +296,10 @@ def compute_objective_bounds(library_dir="data/library",
         bounds[j, 0] = float(docking_min)
         bounds[j, 1] = float(docking_max)
 
-    _save_bounds(bounds, bounds_path)
+    if _is_default_bounds_path(bounds_path):
+        _persist_default_bounds(bounds, bounds_path)
+    else:
+        _save_bounds(bounds, bounds_path)
     return bounds
 
 
@@ -263,6 +321,75 @@ def _save_bounds(bounds, bounds_path):
         json.dump(_bounds_to_dict(bounds), f, indent=2)
 
 
+def _is_default_bounds_path(bounds_path):
+    """True if ``bounds_path`` is the file at the module's ``BOUNDS_PATH``.
+
+    Compared by ``os.path.realpath`` on both sides, so a relative name, a
+    ``./name`` spelling and a symlink to the default file all count as the
+    default file. ``BOUNDS_PATH`` is read at call time. This is the single
+    definition of "the default path" for both the load check and the write guard.
+    """
+    return os.path.realpath(bounds_path) == os.path.realpath(BOUNDS_PATH)
+
+
+def proposed_bounds_path():
+    """Where a non-pinned recompute is parked: next to the canonical file."""
+    return os.path.join(os.path.dirname(os.path.realpath(BOUNDS_PATH)),
+                        PROPOSED_BOUNDS_NAME)
+
+
+def _payload_digest(payload):
+    """Canonical payload sha256 of a bounds document, or a marker if it has none."""
+    try:
+        return _canonical_payload_sha256(
+            list(payload["task_names"]), list(payload["signs"]),
+            dict(payload["bounds"]))
+    except (KeyError, TypeError) as exc:
+        return f"<no canonical payload: {exc!r}>"
+
+
+def _file_holds_pinned_payload(path):
+    """True if the JSON file at ``path`` exists and hashes to the pinned frame."""
+    try:
+        with open(path) as f:
+            return _payload_digest(json.load(f)) == BOUNDS_PAYLOAD_SHA256
+    except (OSError, ValueError):
+        return False
+
+
+def _persist_default_bounds(bounds, bounds_path):
+    """Write library-derived ``bounds`` to the DEFAULT path only if they are the pin.
+
+    Library-derived bounds that hash to ``BOUNDS_PAYLOAD_SHA256`` are the pinned
+    frame: the file is (re)written only when it is missing or does not already
+    hold that payload. Anything else goes to ``proposed_bounds_path()`` and
+    ``BoundsFrameChangedError`` is raised; the file at ``bounds_path`` is not
+    opened for writing.
+    """
+    payload = _bounds_to_dict(bounds)
+    digest = _payload_digest(payload)
+    if digest == BOUNDS_PAYLOAD_SHA256:
+        if not _file_holds_pinned_payload(bounds_path):
+            _save_bounds(bounds, bounds_path)
+        return
+    proposed = proposed_bounds_path()
+    _save_bounds(bounds, proposed)
+    raise BoundsFrameChangedError(
+        "the library-derived objective bounds are NOT the pinned frame.\n"
+        f"  library-derived payload sha256: {digest}\n"
+        f"  pinned payload sha256:          {BOUNDS_PAYLOAD_SHA256} "
+        "(mogp_core.objective.BOUNDS_PAYLOAD_SHA256)\n"
+        f"  {bounds_path} was left untouched.\n"
+        f"  The candidate was written to {proposed}.\n"
+        "A library with different ADMET ranges is a NEW normalization frame: every "
+        "hypervolume reported against it is on a different scale from the pinned "
+        "one, so it is adopted deliberately and never by regenerating the "
+        "canonical file. To adopt it, read spec/bounds/SETTLEMENT.md and re-freeze "
+        "with spec/bounds/freeze_bounds.py.",
+        derived_sha256=digest, pinned_sha256=BOUNDS_PAYLOAD_SHA256,
+        proposed_path=proposed)
+
+
 def _verify_default_bounds(payload, bounds_path):
     """Raise unless ``payload`` is the settled frame (``spec/bounds/SETTLEMENT.md``).
 
@@ -271,20 +398,9 @@ def _verify_default_bounds(payload, bounds_path):
     numeric payload, formatting-independent, no tolerance). Production used to
     read it with no check, so an edited or regenerated file moved every
     normalized value and every hypervolume silently. The hash function is
-    ``mogp_core.objective``'s own, not a copy. The import is local only to keep
-    this check beside the loader; ``mogp_core.objective`` is already imported at
-    module scope above, and it never imports this module back.
+    ``mogp_core.objective``'s own, not a copy.
     """
-    from mogp_core.objective import (
-        BOUNDS_PAYLOAD_SHA256,
-        _canonical_payload_sha256,
-    )
-    try:
-        digest = _canonical_payload_sha256(
-            list(payload["task_names"]), list(payload["signs"]),
-            dict(payload["bounds"]))
-    except (KeyError, TypeError) as exc:
-        digest = f"<no canonical payload: {exc!r}>"
+    digest = _payload_digest(payload)
     if digest != BOUNDS_PAYLOAD_SHA256:
         raise ValueError(
             f"objective bounds payload sha256 mismatch in {bounds_path}: file "
@@ -306,7 +422,7 @@ def _load_bounds(bounds_path):
     """
     with open(bounds_path) as f:
         payload = json.load(f)
-    if os.path.realpath(bounds_path) == os.path.realpath(BOUNDS_PATH):
+    if _is_default_bounds_path(bounds_path):
         _verify_default_bounds(payload, bounds_path)
     table = payload["bounds"]
     bounds = np.zeros((N_OBJECTIVES, 2), dtype=float)
@@ -924,12 +1040,20 @@ def add_selectivity_index(df):
                                        measurement=(pf_raw, h_raw))
 
 
-if __name__ == "__main__":
-    # Build/refresh and display the shared bounds, then a tiny self-check that
-    # the same evaluated set yields the same hypervolume regardless of row order
-    # (a stand-in for "regardless of which method produced it").
-    bounds = compute_objective_bounds(force=True)
-    print(f"Persisted objective bounds to {BOUNDS_PATH}:")
+def main():
+    # Recompute the bounds from the library and display them, then a tiny
+    # self-check that the same evaluated set yields the same hypervolume
+    # regardless of row order (a stand-in for "regardless of which method
+    # produced it"). The pinned file at BOUNDS_PATH is never overwritten with
+    # different numbers: a library whose bounds are not the pinned frame ends in
+    # ``EXIT_BOUNDS_FRAME_CHANGED`` with the candidate in the proposed file.
+    try:
+        bounds = compute_objective_bounds(force=True)
+    except BoundsFrameChangedError as exc:
+        print(f"BOUNDS FRAME CHANGED\n{exc}", file=sys.stderr)
+        raise SystemExit(EXIT_BOUNDS_FRAME_CHANGED)
+    print(f"Library-derived objective bounds (equal to the pinned frame; "
+          f"canonical file {BOUNDS_PATH}):")
     for name, (lo, hi) in zip(TASK_NAMES, bounds):
         print(f"  {name:<22} [{lo:.4f}, {hi:.4f}]")
     print(f"\nFixed reference point (normalized): {FIXED_REFERENCE_POINT}")
@@ -963,3 +1087,7 @@ if __name__ == "__main__":
     print(f"\nHypervolume: {hv_a:.6f}  (row-reversed: {hv_b:.6f})")
     assert abs(hv_a - hv_b) < 1e-12, "hypervolume must be order-invariant"
     print("SELF-CHECK PASSED")
+
+
+if __name__ == "__main__":
+    main()

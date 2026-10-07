@@ -19,14 +19,26 @@ default ``evaluation.BOUNDS_PATH``. These tests pin the files, pin that behaviou
 and never write to a repo file: tampered copies live in ``tmp_path`` and the
 default path is redirected with ``monkeypatch``.
 
+The write side is guarded the same way. ``compute_objective_bounds(force=True)``
+used to overwrite the canonical file with library-derived numbers, after which the
+very next load raised a hash mismatch. On the default path it now writes only the
+pinned payload; a library whose bounds hash differently is parked in
+``evaluation_bounds.proposed.json`` next to the canonical file and raises
+``BoundsFrameChangedError``. Those tests redirect ``evaluation.BOUNDS_PATH`` to a
+copy in ``tmp_path`` and fake the library, so the real file is never a target;
+the autouse fixture below fails any test that changes it or its proposed sibling.
+
 The payload hash below is spelled out again here (``_payload_sha256``) from the
 documented canonical form, so the file checks do not lean on the function whose
 job is to be checked; one test pins that the two spellings agree.
 """
 
 import hashlib
+import inspect
 import json
 import os
+import shutil
+import subprocess
 
 import numpy as np
 import pytest
@@ -68,6 +80,25 @@ def _copy_to(tmp_path, name, doc):
     path = tmp_path / name
     path.write_text(json.dumps(doc, indent=2))
     return str(path)
+
+
+def _read_bytes(path):
+    with open(path, "rb") as f:
+        return f.read()
+
+
+REAL_PROPOSED = os.path.join(REPO, evaluation.PROPOSED_BOUNDS_NAME)
+
+
+@pytest.fixture(autouse=True)
+def _real_bounds_files_are_never_touched():
+    """No test here may change the real canonical file or its proposed sibling."""
+    def snapshot():
+        return (_read_bytes(ROOT_PATH),
+                _read_bytes(REAL_PROPOSED) if os.path.exists(REAL_PROPOSED) else None)
+    before = snapshot()
+    yield
+    assert snapshot() == before
 
 
 # ---------------------------------------------------------------------- #
@@ -230,3 +261,327 @@ def test_the_rejected_snapshot_loads_unchecked_from_its_own_path():
     holo = _load(HOLO_PATH)
     for j, name in enumerate(evaluation.TASK_NAMES):
         assert got[j].tolist() == holo["bounds"][name]
+
+
+# ---------------------------------------------------------------------- #
+# The write guard: force=True must never overwrite the pinned frame
+# ---------------------------------------------------------------------- #
+def _fake_library(monkeypatch, bounds):
+    """Make ``compute_objective_bounds`` see a library whose ADMET min/max are
+    ``bounds`` (``{objective name: [lo, hi]}``). The docking rows never come from
+    data, so only the three ADMET objectives matter."""
+    import data
+    cols = list(data.ADMET_COLUMNS)
+    admet = np.array([[bounds[c][0] for c in cols],
+                      [bounds[c][1] for c in cols]], dtype=float)
+    monkeypatch.setattr(data, "load_library",
+                        lambda library_dir="data/library": {"admet_scores": admet})
+
+
+def _differing_bounds():
+    """The canonical bounds with the hERG range replaced: a different frame."""
+    table = _load(ROOT_PATH)["bounds"]
+    table["hERG_Toxicity_Prob"] = [0.0, 1.0]
+    return table
+
+
+@pytest.fixture
+def canonical_copy(tmp_path, monkeypatch):
+    """A byte-for-byte copy of the canonical file, installed as the DEFAULT path."""
+    path = str(tmp_path / "evaluation_bounds.json")
+    shutil.copyfile(ROOT_PATH, path)
+    monkeypatch.setattr(evaluation, "BOUNDS_PATH", path)
+    return path
+
+
+def _proposed_of(canonical):
+    return os.path.join(os.path.dirname(canonical), evaluation.PROPOSED_BOUNDS_NAME)
+
+
+def test_default_argument_is_resolved_at_call_time():
+    """``bounds_path=BOUNDS_PATH`` would freeze the REAL file into the signature,
+    so a redirected ``evaluation.BOUNDS_PATH`` would not redirect a bare
+    ``compute_objective_bounds(force=True)`` and the guard (which compares against
+    the redirected path) would see the real file as a "custom" one."""
+    default = inspect.signature(
+        evaluation.compute_objective_bounds).parameters["bounds_path"].default
+    assert default is None
+
+
+def test_force_with_differing_bounds_leaves_the_canonical_file_byte_identical(
+        canonical_copy, monkeypatch):
+    before = _read_bytes(canonical_copy)
+    differing = _differing_bounds()
+    assert _payload_sha256({**_load(ROOT_PATH), "bounds": differing}) != PIN
+    _fake_library(monkeypatch, differing)
+
+    with pytest.raises(evaluation.BoundsFrameChangedError) as exc:
+        evaluation.compute_objective_bounds(force=True)     # bare: default path
+
+    assert _read_bytes(canonical_copy) == before            # BYTE identical
+    proposed = _proposed_of(canonical_copy)
+    assert os.path.realpath(exc.value.proposed_path) == os.path.realpath(proposed)
+    cand = _load(proposed)
+    assert cand["bounds"]["hERG_Toxicity_Prob"] == [0.0, 1.0]
+    assert _payload_sha256(cand) == exc.value.derived_sha256 != PIN
+    assert exc.value.pinned_sha256 == PIN
+    # The canonical file still loads, and still IS the settled frame.
+    assert evaluation.compute_objective_bounds().tobytes() \
+        == evaluation._load_bounds(ROOT_PATH).tobytes()
+
+
+def test_the_frame_changed_error_is_actionable(canonical_copy, monkeypatch):
+    _fake_library(monkeypatch, _differing_bounds())
+    with pytest.raises(ValueError) as exc:                  # it IS a ValueError
+        evaluation.compute_objective_bounds(force=True)
+    msg = str(exc.value)
+    assert PIN in msg                                       # the pinned hash
+    assert exc.value.derived_sha256 in msg                  # the candidate's hash
+    assert _proposed_of(canonical_copy) in msg              # where the candidate is
+    assert canonical_copy in msg                            # which file was spared
+    assert "SETTLEMENT.md" in msg
+    assert "freeze_bounds.py" in msg
+
+
+def test_proposed_file_is_next_to_the_canonical_one(canonical_copy):
+    assert os.path.realpath(evaluation.proposed_bounds_path()) \
+        == os.path.realpath(_proposed_of(canonical_copy))
+    assert evaluation.PROPOSED_BOUNDS_NAME == "evaluation_bounds.proposed.json"
+
+
+# The ways the default file can be spelled. Each must be recognised as the default
+# file by ``os.path.realpath``; compared with ``==`` none of the first three would
+# match the absolute ``BOUNDS_PATH``, and force=True would overwrite the pinned file.
+def _spell(kind, canonical):
+    d = os.path.dirname(canonical)
+    if kind == "relative":
+        return "evaluation_bounds.json"
+    if kind == "dot-slash":
+        return "./evaluation_bounds.json"
+    if kind == "dotdot":
+        return os.path.join("..", os.path.basename(d), "evaluation_bounds.json")
+    if kind == "symlink":
+        link = os.path.join(d, "link_to_the_default.json")
+        os.symlink(canonical, link)
+        return link
+    assert kind == "absolute"
+    return canonical
+
+
+SPELLINGS = ["absolute", "relative", "dot-slash", "dotdot", "symlink"]
+
+
+@pytest.mark.parametrize("kind", SPELLINGS)
+def test_default_file_is_recognised_under_every_spelling(kind, canonical_copy, monkeypatch):
+    monkeypatch.chdir(os.path.dirname(canonical_copy))
+    assert evaluation._is_default_bounds_path(_spell(kind, canonical_copy))
+
+
+def test_other_files_are_not_the_default_file(canonical_copy, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "sub").mkdir()
+    shutil.copyfile(ROOT_PATH, tmp_path / "sub" / "evaluation_bounds.json")   # same name
+    shutil.copyfile(ROOT_PATH, tmp_path / "custom_bounds.json")
+    assert not evaluation._is_default_bounds_path("sub/evaluation_bounds.json")
+    assert not evaluation._is_default_bounds_path("custom_bounds.json")
+    assert not evaluation._is_default_bounds_path(str(tmp_path / "missing.json"))
+
+
+@pytest.mark.parametrize("kind", SPELLINGS)
+def test_force_is_refused_under_every_spelling_of_the_default_path(
+        kind, canonical_copy, monkeypatch):
+    monkeypatch.chdir(os.path.dirname(canonical_copy))
+    before = _read_bytes(canonical_copy)
+    _fake_library(monkeypatch, _differing_bounds())
+    path = _spell(kind, canonical_copy)
+
+    with pytest.raises(evaluation.BoundsFrameChangedError):
+        evaluation.compute_objective_bounds(bounds_path=path, force=True)
+
+    assert _read_bytes(canonical_copy) == before
+    assert os.path.exists(_proposed_of(canonical_copy))
+    if kind == "symlink":
+        assert os.path.islink(path)                         # not replaced by a file
+
+
+@pytest.mark.parametrize("kind", SPELLINGS)
+def test_load_verification_follows_the_same_spelling_rule(kind, tmp_path, monkeypatch):
+    doc = _load(ROOT_PATH)
+    doc["bounds"]["Half_Life_hours"][1] += 1.0
+    tampered = _copy_to(tmp_path, "evaluation_bounds.json", doc)
+    monkeypatch.setattr(evaluation, "BOUNDS_PATH", tampered)
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(ValueError, match="sha256 mismatch"):
+        evaluation._load_bounds(_spell(kind, tampered))
+
+
+def test_force_with_bounds_equal_to_the_pin_does_not_touch_the_file(
+        canonical_copy, monkeypatch):
+    before = _read_bytes(canonical_copy)
+    mtime = os.stat(canonical_copy).st_mtime_ns
+    _fake_library(monkeypatch, _load(ROOT_PATH)["bounds"])
+    monkeypatch.setattr(evaluation, "_save_bounds", lambda *a, **k: pytest.fail(
+        "an already-pinned canonical file must not be rewritten"))
+
+    got = evaluation.compute_objective_bounds(force=True)
+
+    assert got.tobytes() == evaluation._load_bounds(ROOT_PATH).tobytes()
+    assert _read_bytes(canonical_copy) == before
+    assert os.stat(canonical_copy).st_mtime_ns == mtime
+    assert not os.path.exists(_proposed_of(canonical_copy))
+
+
+def test_force_with_bounds_equal_to_the_pin_repairs_a_drifted_file(
+        canonical_copy, monkeypatch):
+    doc = _load(canonical_copy)
+    doc["bounds"]["Caco2_logPapp"][0] -= 0.5
+    with open(canonical_copy, "w") as f:
+        json.dump(doc, f, indent=2)
+    with pytest.raises(ValueError, match="sha256 mismatch"):
+        evaluation.compute_objective_bounds()               # drifted: refused
+    _fake_library(monkeypatch, _load(ROOT_PATH)["bounds"])
+
+    evaluation.compute_objective_bounds(force=True)         # library IS the pin
+
+    assert _payload_sha256(_load(canonical_copy)) == PIN
+    assert not os.path.exists(_proposed_of(canonical_copy))
+
+
+def test_a_missing_default_file_is_never_created_with_non_pinned_bounds(
+        canonical_copy, monkeypatch):
+    """The guard covers every write to the default path, not only force=True."""
+    os.remove(canonical_copy)
+    _fake_library(monkeypatch, _differing_bounds())
+    with pytest.raises(evaluation.BoundsFrameChangedError):
+        evaluation.compute_objective_bounds()               # no force
+    assert not os.path.exists(canonical_copy)
+    assert os.path.exists(_proposed_of(canonical_copy))
+
+
+def test_a_missing_default_file_is_rebuilt_when_the_library_is_the_pin(
+        canonical_copy, monkeypatch):
+    os.remove(canonical_copy)
+    _fake_library(monkeypatch, _load(ROOT_PATH)["bounds"])
+    evaluation.compute_objective_bounds()
+    assert _payload_sha256(_load(canonical_copy)) == PIN
+
+
+def test_force_on_a_custom_path_still_overwrites_it(canonical_copy, tmp_path, monkeypatch):
+    """Only the default path is pinned: tests and callers that point
+    ``bounds_path`` elsewhere keep today's behaviour (write, overwrite on force)."""
+    default_before = _read_bytes(canonical_copy)
+    custom = str(tmp_path / "custom_bounds.json")
+    with open(custom, "w") as f:
+        f.write("stale")
+    differing = _differing_bounds()
+    _fake_library(monkeypatch, differing)
+
+    got = evaluation.compute_objective_bounds(bounds_path=custom, force=True)
+
+    assert got[2].tolist() == [0.0, 1.0]
+    assert _load(custom)["bounds"]["hERG_Toxicity_Prob"] == [0.0, 1.0]
+    assert evaluation._load_bounds(custom)[2].tolist() == [0.0, 1.0]
+    # Without force an existing custom file is read, not rewritten.
+    assert evaluation.compute_objective_bounds(bounds_path=custom)[2].tolist() == [0.0, 1.0]
+    assert _read_bytes(canonical_copy) == default_before
+    assert not os.path.exists(_proposed_of(canonical_copy))
+
+
+def test_evaluation_main_exits_with_the_frame_changed_status(
+        canonical_copy, monkeypatch, capsys):
+    """``python evaluation.py`` calls ``main()``: on a non-pinned library it must
+    spare the canonical file, print the actionable message, and exit with the
+    status ``rebuild_library.py`` keys off."""
+    before = _read_bytes(canonical_copy)
+    _fake_library(monkeypatch, _differing_bounds())
+
+    with pytest.raises(SystemExit) as exit_info:
+        evaluation.main()
+
+    assert exit_info.value.code == evaluation.EXIT_BOUNDS_FRAME_CHANGED
+    err = capsys.readouterr().err
+    assert "SETTLEMENT.md" in err and "freeze_bounds.py" in err and PIN in err
+    assert _read_bytes(canonical_copy) == before
+    assert os.path.exists(_proposed_of(canonical_copy))
+
+
+def test_evaluation_main_runs_through_when_the_library_is_the_pin(
+        canonical_copy, monkeypatch, capsys):
+    before = _read_bytes(canonical_copy)
+    _fake_library(monkeypatch, _load(ROOT_PATH)["bounds"])
+    evaluation.main()
+    assert "SELF-CHECK PASSED" in capsys.readouterr().out
+    assert _read_bytes(canonical_copy) == before
+
+
+# ---------------------------------------------------------------------- #
+# rebuild_library.py: a new frame is reported, not a confusing crash
+# ---------------------------------------------------------------------- #
+def _fake_evaluation_run(monkeypatch, returncode, stderr=""):
+    import rebuild_library
+    monkeypatch.setattr(
+        rebuild_library.subprocess, "run",
+        lambda *a, **k: subprocess.CompletedProcess(
+            a, returncode, stdout="SELF-CHECK PASSED\n", stderr=stderr))
+    return rebuild_library
+
+
+def test_rebuild_library_reports_a_changed_frame_instead_of_failing(
+        canonical_copy, tmp_path, monkeypatch, capsys):
+    rebuild = _fake_evaluation_run(monkeypatch, evaluation.EXIT_BOUNDS_FRAME_CHANGED,
+                                   stderr="BOUNDS FRAME CHANGED\nsee SETTLEMENT.md")
+    monkeypatch.setattr(rebuild, "BOUNDS_PATH", canonical_copy)
+    backup = str(tmp_path / "backup.json")
+    shutil.copyfile(ROOT_PATH, backup)
+    with open(_proposed_of(canonical_copy), "w") as f:      # what evaluation.py wrote
+        json.dump(evaluation._bounds_to_dict(
+            np.array([_differing_bounds()[n] for n in evaluation.TASK_NAMES])), f)
+    before = _read_bytes(canonical_copy)
+
+    old, new, frame_changed = rebuild.report_bounds(backup)
+
+    out = capsys.readouterr().out
+    assert frame_changed is True
+    assert old["hERG_Toxicity_Prob"] == _load(ROOT_PATH)["bounds"]["hERG_Toxicity_Prob"]
+    assert new["hERG_Toxicity_Prob"] == [0.0, 1.0]          # from the proposed file
+    assert "SETTLEMENT.md" in out and "NOT modified" in out
+    assert _read_bytes(canonical_copy) == before
+
+
+def test_rebuild_library_unchanged_frame_and_real_failures(
+        canonical_copy, tmp_path, monkeypatch):
+    rebuild = _fake_evaluation_run(monkeypatch, 0)
+    monkeypatch.setattr(rebuild, "BOUNDS_PATH", canonical_copy)
+    backup = str(tmp_path / "backup.json")
+    shutil.copyfile(ROOT_PATH, backup)
+    old, new, frame_changed = rebuild.report_bounds(backup)
+    assert frame_changed is False and new == old
+
+    rebuild = _fake_evaluation_run(monkeypatch, 1, stderr="Traceback ...")
+    with pytest.raises(SystemExit, match="evaluation.py failed"):
+        rebuild.report_bounds(backup)
+
+
+# ---------------------------------------------------------------------- #
+# app.py: the control panel shows the verified frame, not whatever is on disk
+# ---------------------------------------------------------------------- #
+def test_app_reads_the_bounds_through_the_verified_loader(tmp_path, monkeypatch):
+    pytest.importorskip("streamlit")
+    import app
+    assert app.BOUNDS_PATH == evaluation.BOUNDS_PATH        # the pipeline's own file
+
+    good = str(tmp_path / "evaluation_bounds.json")
+    shutil.copyfile(ROOT_PATH, good)
+    monkeypatch.setattr(evaluation, "BOUNDS_PATH", good)
+    monkeypatch.setattr(app, "BOUNDS_PATH", good)
+    assert app.current_bounds() == _load(ROOT_PATH)["bounds"]
+
+    doc = _load(ROOT_PATH)
+    doc["bounds"]["hERG_Toxicity_Prob"] = [0.0, 1.0]
+    with open(good, "w") as f:
+        json.dump(doc, f, indent=2)
+    with pytest.raises(ValueError, match="sha256 mismatch"):
+        app.current_bounds()                                # not shown as the frame
+
+    os.remove(good)
+    assert app.current_bounds() is None

@@ -44,11 +44,14 @@ import streamlit as st
 
 # Reused rendering from the existing dashboard — NOT reimplemented.
 import dashboard_compare as dc
+import evaluation
 from data import HEAVY_ATOM_FLOOR
 
 REPO = os.path.dirname(os.path.abspath(__file__))
 RUNS_DIR = os.path.join(REPO, "runs")
-BOUNDS_PATH = os.path.join(REPO, "evaluation_bounds.json")
+# The same file the pipeline reads (``evaluation.BOUNDS_PATH``), so the verified
+# loader below treats it as the default, pinned path.
+BOUNDS_PATH = evaluation.BOUNDS_PATH
 BUILD_MARKER = os.path.join(REPO, "data", "library", ".run_all_build_size")
 SMILES_CSV = os.path.join(REPO, "data", "library", "smiles.csv")
 
@@ -210,10 +213,17 @@ def library_facts(_bust):
 
 
 def current_bounds():
+    """``{objective: [min, max]}`` from the bounds file, or None if it is absent.
+
+    Read through ``evaluation._load_bounds``, the pipeline's own verified loader:
+    a file that is not the pinned frame (``spec/bounds/SETTLEMENT.md``) raises
+    ``ValueError`` instead of being displayed as if it were the frame every
+    hypervolume is computed against.
+    """
     if not os.path.exists(BOUNDS_PATH):
         return None
-    with open(BOUNDS_PATH) as fh:
-        return json.load(fh)
+    table = evaluation._load_bounds(BOUNDS_PATH)
+    return {name: table[j].tolist() for j, name in enumerate(evaluation.TASK_NAMES)}
 
 
 def bounds_warning_for(results_dir):
@@ -596,13 +606,19 @@ def sidebar_guardrails(facts):
                            f"load. Floor = `data.HEAVY_ATOM_FLOOR` = {facts['floor']}.")
     st.sidebar.caption(f"Build marker (ChEMBL pull size): **{facts['marker']}**")
 
-    bounds = current_bounds()
+    try:
+        bounds = current_bounds()
+    except ValueError as exc:
+        st.sidebar.error(f"evaluation_bounds.json failed verification against the "
+                         f"pinned frame, so it is not shown (the pipeline's own "
+                         f"loader rejects it the same way). {exc}")
+        bounds = None
     if bounds:
         with st.sidebar.expander("evaluation_bounds.json"):
             st.caption(f"sha256 `{(bounds_hash() or '')[:12]}…`")
             st.dataframe(pd.DataFrame(
                 [{"objective": k, "min": v[0], "max": v[1]}
-                 for k, v in bounds["bounds"].items()]),
+                 for k, v in bounds.items()]),
                 hide_index=True)
             st.caption("Hypervolumes are normalized against these bounds. Results "
                        "produced under different bounds are NOT comparable.")

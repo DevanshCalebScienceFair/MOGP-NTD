@@ -21,8 +21,12 @@ and then reports the things that actually matter after a resize:
     (``data.HEAVY_ATOM_FLOOR``) will drop;
   * how many molecules in the NEW library already have cached docking scores
     (the cache is keyed by canonical SMILES and is NEVER cleared here);
-  * OLD vs NEW ADMET objective bounds, which shift with the library and make
-    hypervolumes across the two libraries incomparable.
+  * the pinned ADMET objective bounds vs the bounds the rebuilt library gives.
+    The pinned ``evaluation_bounds.json`` is NEVER overwritten here: library
+    bounds that differ from it are a NEW normalization frame, parked in
+    ``evaluation_bounds.proposed.json`` for a deliberate re-freeze
+    (``spec/bounds/SETTLEMENT.md``), and hypervolumes across the two frames are
+    incomparable.
 
 The docking cache is opened READ-ONLY. Nothing in this script deletes it.
 
@@ -54,6 +58,7 @@ from data import (
     pull_molecules,
 )
 from docking_cache import canonicalize_smiles
+import evaluation
 
 LIBRARY_DIR = "data/library"
 BUILD_MARKER = os.path.join(LIBRARY_DIR, ".run_all_build_size")
@@ -231,21 +236,31 @@ def report_docking_cache(smiles):
 
 
 def report_bounds(old_bounds_path):
-    """Regenerate evaluation_bounds.json and print OLD vs NEW side by side."""
-    _rule("5. EVALUATION BOUNDS (regenerated -- hypervolume scale CHANGES)")
+    """Recompute the library bounds and print PINNED vs LIBRARY-DERIVED side by side.
+
+    ``python evaluation.py`` never overwrites the pinned ``evaluation_bounds.json``
+    (``evaluation.compute_objective_bounds``). If the rebuilt library's bounds are
+    not the pinned frame it exits with ``evaluation.EXIT_BOUNDS_FRAME_CHANGED``
+    after writing the candidate to ``evaluation.proposed_bounds_path()``; that
+    is reported here, with the table taken from the candidate, not treated as a
+    failure. Returns ``(old, new, frame_changed)``.
+    """
+    _rule("5. EVALUATION BOUNDS (library-derived vs the pinned frame)")
 
     old = None
     if os.path.exists(old_bounds_path):
         with open(old_bounds_path) as fh:
             old = json.load(fh)["bounds"]
 
-    print("Running `python evaluation.py` to recompute + persist bounds...\n")
+    print("Running `python evaluation.py` to recompute the bounds from the "
+          "rebuilt library...\n")
     proc = subprocess.run(
         [sys.executable, "evaluation.py"],
         capture_output=True, text=True,
         env={**os.environ, "KMP_DUPLICATE_LIB_OK": "TRUE"},
     )
-    if proc.returncode != 0:
+    frame_changed = proc.returncode == evaluation.EXIT_BOUNDS_FRAME_CHANGED
+    if proc.returncode != 0 and not frame_changed:
         print(proc.stdout[-2000:])
         print(proc.stderr[-2000:])
         raise SystemExit("evaluation.py failed -- bounds NOT regenerated.")
@@ -253,10 +268,18 @@ def report_bounds(old_bounds_path):
         if "SELF-CHECK" in line or "sign check" in line:
             print(f"  {line.strip()}")
 
-    with open(BOUNDS_PATH) as fh:
+    if frame_changed:
+        # The pinned file was left alone; the library-derived numbers are in the
+        # proposed file. Say exactly what evaluation.py said.
+        print(proc.stderr.strip() + "\n")
+        new_path = evaluation.proposed_bounds_path()
+    else:
+        new_path = BOUNDS_PATH
+    with open(new_path) as fh:
         new = json.load(fh)["bounds"]
 
-    print(f"\n  {'objective':<22} {'OLD (601 mol)':<28} {'NEW':<28} shifted?")
+    print(f"  {'objective':<22} {'PINNED (canonical)':<28} "
+          f"{'LIBRARY-DERIVED':<28} differs?")
     print("  " + "-" * 86)
     for name in new:
         n_lo, n_hi = new[name]
@@ -268,9 +291,14 @@ def report_bounds(old_bounds_path):
             o_str, shifted = "(absent)", True
         print(f"  {name:<22} {o_str:<28} [{n_lo:.4f}, {n_hi:.4f}]"
               f"{'':<8}{'YES' if shifted else 'no'}")
-    print("\n  (Docking bounds are a FIXED ligand-efficiency range, so only the "
-          "3 ADMET\n   objectives move with the library.)")
-    return old, new
+    print("\n  (Docking bounds are a FIXED raw-kcal range, so only the 3 ADMET\n"
+          "   objectives move with the library.)")
+    if frame_changed:
+        print(f"\n  evaluation_bounds.json was NOT modified. The library-derived "
+              f"bounds are in {new_path}.")
+    else:
+        print("\n  The library-derived bounds equal the pinned frame.")
+    return old, new, frame_changed
 
 
 def report_load(floor=HEAVY_ATOM_FLOOR):
@@ -351,7 +379,7 @@ def main():
     admet_stats = report_admet_completeness(pull_size, n_final)
     heavy_stats = report_heavy_atoms(smiles)
     cache_stats = report_docking_cache(smiles)
-    old_bounds, new_bounds = report_bounds(old_bounds_path)
+    old_bounds, new_bounds, frame_changed = report_bounds(old_bounds_path)
 
     # --- 7. Marker -----------------------------------------------------------
     with open(BUILD_MARKER, "w") as fh:
@@ -373,22 +401,32 @@ def main():
           "all 4 known actives survive")
     print(f"  Total wall-clock: {time.time() - t0:.0f}s")
 
+    if not frame_changed:
+        print("\n  The library-derived bounds equal the pinned frame, so this "
+              "rebuild does not\n  change the normalization scale of any "
+              "hypervolume.")
+        return
+
     print("\n" + "!" * 72)
-    print("  HYPERVOLUMES ARE NOT COMPARABLE ACROSS THIS REBUILD")
+    print("  BOUNDS FRAME NOT ADOPTED: THE REBUILT LIBRARY IS A NEW FRAME")
     print("!" * 72)
-    print("  evaluation.py derives the hERG / Caco2 / Half_Life bounds from the")
-    print("  WHOLE library, and those bounds just changed (see section 5). Every")
-    print("  hypervolume is computed against those bounds, so numbers from the")
-    print(f"  old {old_n_disk}-molecule library are on a DIFFERENT SCALE than any")
-    print("  number produced from now on. They cannot be compared or plotted")
-    print("  together.")
+    print("  The hERG / Caco2 / Half_Life ranges of the rebuilt library are not the")
+    print("  pinned frame (see section 5). evaluation_bounds.json was NOT modified;")
+    print(f"  the candidate is in {evaluation.proposed_bounds_path()}.")
+    print("  Until a new frame is adopted on purpose (spec/bounds/SETTLEMENT.md,")
+    print("  spec/bounds/freeze_bounds.py), every run still normalizes with the")
+    print("  PINNED bounds, and ADMET values outside the pinned ranges clip to the")
+    print("  edge of the [0, 1] cube.")
     print("")
-    print("  Before comparing anything, clear and re-run the result dirs:")
+    print(f"  If the new frame is adopted, hypervolumes from the old {old_n_disk}-"
+          "molecule library")
+    print("  are on a DIFFERENT SCALE than any number produced afterwards, and the")
+    print("  two cannot be compared or plotted together. Then clear and re-run the")
+    print("  result dirs against the new bounds:")
     print("      rm -rf results baseline_random_results baseline_greedy_results \\")
     print("             baseline_single_obj_results benchmark_seeds_results")
-    print("  Re-run every method against the NEW library so all four sit on the")
-    print("  same bounds. The docking cache is preserved, so molecules already")
-    print("  docked will not be re-docked.")
+    print("  The docking cache is preserved, so molecules already docked will not be")
+    print("  re-docked.")
 
 
 if __name__ == "__main__":

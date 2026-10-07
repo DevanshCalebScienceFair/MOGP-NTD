@@ -1,7 +1,10 @@
 """Tanimoto (Jaccard) Gram matrix on binary Morgan fingerprints — pure numpy.
 
-Behavioural mirror of ``kernel.TanimotoKernel.forward`` (gpytorch), per
-``spec/primitives/SPEC.md`` section 1.
+The Tanimoto kernel's numerical core.  ``kernel.TanimotoKernel.forward``
+delegates here.  The conventions below were originally matched to the earlier
+gpytorch-based kernel to replay archived runs (``spec/primitives/SPEC.md``
+section 1); that goal is waived and their provenance is tracked in
+``mogp_core/PROVENANCE.md``.
 
     k(x, y) = <x, y> / max(|x|_1 + |y|_1 - <x, y>, eps)     clipped to [0, 1]
 
@@ -82,11 +85,15 @@ def assert_binary(X, name: str = "fingerprints") -> None:
 def check_no_zero_fingerprint(X, name: str = "fingerprints") -> None:
     """Raise if any row of ``X`` has no on-bits.
 
-    Not called by :func:`tanimoto_gram` — the archived behaviour keeps the zero
-    row (``k(0, 0) = 0``, a PSD-but-singular Gram that the jitter ladder then
-    absorbs) and this module reproduces that.  Offered for a caller that would
-    rather treat an all-zero fingerprint as the featurization failure it is
-    (SPEC.md 1.5), since such a molecule cannot be predicted at all.
+    Not called by :func:`tanimoto_gram` — the old kernel kept the zero row
+    (``k(0, 0) = 0``, a PSD-but-singular Gram) and this module reproduces that.
+    The GPs built on it stay positive definite because their noise terms
+    (``tau_t >= 2e-4`` in ``mogp_core.gp``, ``d_t >= 2e-4`` in
+    ``mogp_core.icm``) sit on the diagonal; neither adds a jitter (the Cholesky
+    jitter ladder that once existed was removed in ``b9e5f66``).  Offered for a
+    caller that would rather treat an all-zero fingerprint as the featurization
+    failure it is (SPEC.md 1.5), since such a molecule cannot be predicted at
+    all.
     """
     a = np.asarray(X)
     sums = a.reshape(-1, a.shape[-1]).sum(axis=-1)

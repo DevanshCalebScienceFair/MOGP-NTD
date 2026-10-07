@@ -1,8 +1,20 @@
 """Non-dominated box decomposition of the region above a reference point.
 
-A pure-numpy mirror of botorch's ``FastNondominatedPartitioning`` — the object
-``qLogNEHVI`` reaches transitively from ``acquisition.py``.  Nothing here imports
-torch, gpytorch, botorch, scipy or sklearn; only numpy and the standard library.
+A pure-numpy box decomposition that fills the role botorch's
+``FastNondominatedPartitioning`` plays for ``qLogNEHVI``; ``mogp_core.qnehvi``
+(reached from ``acquisition.py``) is its consumer.  Nothing here imports torch,
+gpytorch, botorch, scipy or sklearn; only numpy and the standard library.
+
+Provenance.  The module was first written to reproduce botorch's cell set row
+for row, so that archived runs could be replayed, and some conventions below
+were taken from botorch's behaviour rather than dictated by the mathematics: the
+column in which the literal ``+inf`` upper bounds appear, the strict reference
+filter, the order in which front rows are inserted, and the ``1e10`` / ``1e8``
+log clamp.  Reproducing botorch or the archived runs is no longer a goal.  Where
+a choice has a ledger row, its origin and status are in ``PROVENANCE.md`` beside
+this file: ``QN-13`` (the log clamp), ``BD-6`` and ``AQ-M5`` (insertion order,
+``canonical_cells``) and ``AQ-M4`` (this header).  The decomposition itself is
+the published algorithm cited next.
 
 The mathematics is Lacour, Klamroth & Fonseca (2017), *A box decomposition
 algorithm to compute the hypervolume indicator* (Comput. Oper. Res. 79, 347-360),
@@ -39,21 +51,22 @@ them only through
     HVI(y) = vol( N(P) ∩ [ref, y] )
            = sum_k prod_j ( min(y_j, upper_kj) - lower_kj )^+          (*)
 
-Deliberately preserved botorch behaviours
------------------------------------------
+Botorch conventions kept in this module
+---------------------------------------
 * Upper bounds are literal ``+inf``, always in column 0 and sometimes elsewhere,
   exactly as botorch's partitioning emits them.  ``BOTORCH_LOG_CLAMP_DOUBLE =
-  1e10`` (and ``1e8`` for single precision) reproduces the unexplained clamp that
-  botorch's *log* acquisition applies afterwards
+  1e10`` (and ``1e8`` for single precision) is the clamp that botorch's *log*
+  acquisition applies afterwards
   (``botorch/acquisition/multi_objective/logei.py:447``); ``clamp_upper_bounds``
-  applies it.  It is a magic number with no derivation in botorch's source and it
-  is mirrored here rather than tidied to 1.0.
+  applies it.  It is a magic number with no derivation in botorch's source and
+  it is kept here rather than tidied to 1.0; the ledger notes that no cap at all
+  is the mathematically correct value (``QN-13``, audit action ``remove``).
 * The reference filter is STRICT ``>``, never ``>=`` (botorch has a ``TODO``
   beside it).  A front point with a coordinate exactly equal to the reference is
   dropped.  It changes no volume but it does change the cell set.
 * An empty front collapses to the single cell ``[ref, +inf)^m``, which turns
   qNEHVI into plain expected hypervolume of the candidate.  That is botorch's
-  behaviour at every ``m``, and it is reproduced, not corrected.
+  behaviour at every ``m`` as well, and it is kept as is.
 * ``m == 2`` is NOT given a separate closed-form code path.  botorch dispatches
   ``m == 2`` to ``compute_non_dominated_hypercell_bounds_2d``, which places
   ``+inf`` on column 1 instead of column 0; the generic recursion here matches
@@ -119,6 +132,7 @@ def insert(
     New bounds are appended in the order the spec pins down for row-for-row
     comparison against botorch: the surviving old bounds (``Abar``) first, then
     the new ones grouped by ``j`` ascending and, within a group, in ``A``'s order.
+    The order has no mathematical meaning (``AQ-M5``).
     """
     m = bounds.shape[1]
 
@@ -236,10 +250,11 @@ def equation2_cells(
 
 
 def pareto_front(Y: np.ndarray, ref: np.ndarray, deduplicate: bool = True) -> np.ndarray:
-    """Extract the front botorch would decompose around.
+    """Extract the front to decompose around (the one botorch would use).
 
     ``Y`` is ``(n, m)`` in the maximization frame.  Returns the surviving rows in
-    their original row order, which is botorch's insertion order at ``m >= 3``.
+    their original row order, which is botorch's insertion order at ``m >= 3``
+    and is kept for row-for-row comparison with it (``BD-6``).
 
     Three steps, in botorch's order:
 
@@ -369,10 +384,11 @@ def clamp_upper_bounds(upper: np.ndarray, double: bool = True) -> np.ndarray:
 
     ``cell_upper_bounds.clamp_max(1e10 if dtype is double else 1e8)``
     (``logei.py:447``; ``analytic.py:179`` repeats it).  Both constants are
-    unexplained in botorch's source and are mirrored here rather than replaced by
-    the mathematically tidier 1.0.  For the exact non-log formula (*) the choice
-    is bitwise irrelevant, because the upper bound only ever enters as
-    ``min(y_j, upper_j)`` and no objective value exceeds 1.0 in this frame.
+    unexplained in botorch's source and are copied here rather than replaced by
+    the mathematically tidier 1.0 (``QN-13``).  For the exact non-log formula
+    (*) the choice is bitwise irrelevant, because the upper bound only ever
+    enters as ``min(y_j, upper_j)`` and no objective value exceeds 1.0 in this
+    frame.
     """
     cap = BOTORCH_LOG_CLAMP_DOUBLE if double else BOTORCH_LOG_CLAMP_SINGLE
     return np.minimum(np.asarray(upper, dtype=np.float64), cap)

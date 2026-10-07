@@ -5,13 +5,21 @@ This module builds a multi-output GP on top of the project's existing pieces:
   * Morgan fingerprints (``utils/featurize.py``) as the molecular representation.
   * A Tanimoto similarity kernel (``mogp_core.tanimoto``, this project's own
     implementation) as the GP covariance over those fingerprints.
-  * The ADMET oracle (``admet_oracle.ADMETOracle``) that supplies the
-    regression/classification targets to learn.
+  * The ADMET oracle (``admet_oracle.ADMETOracle``), whose predictions are the
+    three ADMET objectives.  Those are known exactly, so the GP does not model
+    them (see below).
 
 The numerics run on ``mogp_core.gp`` — pure numpy, no torch / gpytorch /
-botorch / scipy.  ``mogp_core.gp`` is a 1:1 behavioural mirror of the gpytorch
-model this module used to build, quirks included, so the archived campaigns'
-numbers are reproduced rather than re-derived.
+botorch / scipy.  The model structure and several conventions in
+``mogp_core.gp`` (the per-task-plus-shared noise parameterisation, the
+all-zero raw initialisation, the 1e-4 noise floors, exactly 200 Adam steps at
+lr 0.1, the ``N*T`` loss divisor, NaN-propagating standardization, the
+noise-inclusive predictive variance) were adopted from the previous
+gpytorch/botorch-based implementation of this module so that archived campaigns
+could be reproduced.  That goal has been waived; the archived results are
+superseded.  The origin and status of each such choice is tracked in
+``mogp_core/PROVENANCE.md`` (``GT-4``, ``GT-5``, ``GT-8``, ``GT-12``,
+``GT-25``, ``GT-36``, ``GT-41``, ``RP-41``, ``VER-9``).
 
 The MOGP is a GREY-BOX model: it places one scaled-Tanimoto GP on each
 **docking** objective (``DOCKING_TASK_INDICES``) and returns their means and
@@ -26,8 +34,10 @@ THE PER-TASK GPs ARE **NOT** INDEPENDENT — docstring correction (2026-09-27)
 ---------------------------------------------------------------------------
 Earlier revisions of this docstring, and ``MOGPModel``'s, described the model as
 "batch-independent" / "one independent scaled-Tanimoto GP per objective".  That
-is wrong, and it was wrong for every archived run.  The likelihood is
-``MultitaskGaussianLikelihood``, whose per-task noise is::
+is wrong, and it was wrong for every archived run.  The likelihood was
+gpytorch's ``MultitaskGaussianLikelihood`` (there is no likelihood object now;
+``mogp_core.gp`` carries the same noise model in ``theta``), whose per-task
+noise is::
 
     tau_t = sigma2 + d_t
 
@@ -38,10 +48,13 @@ decomposes additively over tasks but the *optimization* does not separate.  The
 tasks are conditionally independent given the hyperparameters and coupled
 through them.
 
-``mogp_core.gp`` preserves the shared-noise model exactly — it is what the
-archived numbers were produced with — and ``spec/gp/SPEC.md`` §3.1, §6 records
-the derivation and the measurement.  The model is unchanged; only this
-description is corrected.  Note also that ``sigma2`` and ``d_t`` are not
+``mogp_core.gp`` keeps the shared-noise model exactly as the previous
+implementation had it, and ``spec/gp/SPEC.md`` §3.1, §6 describes the
+parameterisation and the measurement.  The parameterisation is gpytorch's
+``MultitaskGaussianLikelihood`` one rather than a derived choice (``RP-41``,
+``VER-9`` in ``mogp_core/PROVENANCE.md``), and whether to keep it is an open
+owner decision (``GT-4``).  The model is unchanged; only this description was
+corrected.  Note also that ``sigma2`` and ``d_t`` are not
 separately identifiable (``(sigma2, d) -> (sigma2 + e, d - e)`` leaves every
 ``tau_t`` and the loss exactly unchanged), so only ``tau_t`` is meaningful.
 
@@ -73,9 +86,15 @@ from utils.featurize import smiles_to_morgan, batch_smiles_to_morgan
 # three ADMET objectives (hERG, Caco2, Half_Life) are cheap and precomputed for
 # the whole library (data.py). Each name maps to its evaluation-time source in
 # OBJECTIVE_SOURCES below, and to its optimization direction in
-# acquisition.DEFAULT_OBJECTIVE_SIGNS (order-aligned with this list). Objectives
-# whose ADMET scores are out of domain arrive as NaN and are simply not observed
-# yet — the GP/acquisition/Pareto path handles a dynamic objective count.
+# acquisition.DEFAULT_OBJECTIVE_SIGNS (order-aligned with this list). The
+# objective count is dynamic: a docking column is all-NaN until it has been
+# docked, and the GP/acquisition/Pareto path leaves such a column out
+# (acquisition.get_active_objectives). The ADMET columns do NOT arrive as NaN:
+# data.py DROPS every molecule that is outside any ADMET applicability domain or
+# has a NaN ADMET score before the library is cached, so each library molecule
+# carries all three ADMET values. (NaN in the ADMET entries of train_mogp's
+# y_mean / y_std and in predict's ADMET columns means "not modelled by the GP",
+# not "missing".)
 TASK_NAMES = [
     "PfDHFR_Docking",
     "hDHFR_Docking",
@@ -176,7 +195,9 @@ class MOGPModel:
     The raw parameters start at exactly zero, which is what the gpytorch model's
     default initialization gave (``raw_outputscale``, ``raw_constant``,
     ``raw_task_noises`` and ``raw_noise`` all initialize to 0.0), so a freshly
-    constructed model is numerically the same prior it always was.
+    constructed model is numerically the same prior it always was.  That
+    all-zero start is the library default, not a chosen value (``GT-8`` in
+    ``mogp_core/PROVENANCE.md``).
 
     ``train_mogp`` no longer returns an instance of this class — it returns a
     ``mogp_core.gp.GPState``, which is serializable and carries the fitted
@@ -340,8 +361,10 @@ def train_mogp(train_x, train_y, n_iterations=200, lr=0.1):
     population std (``ddof=0``); NaN PROPAGATES so a column with even one NaN row
     gets NaN statistics and the WHOLE objective is dropped rather than the NaN
     rows (the docking columns are all-NaN until docked, which is what makes the
-    active objective set dynamic); and the grey-box mask is applied AFTER the
-    statistics, so the three ADMET columns are always NaN regardless of value.
+    active objective set dynamic; whether to keep this is an open owner decision,
+    ``GT-36`` in ``mogp_core/PROVENANCE.md``); and the grey-box mask is applied
+    AFTER the statistics, so the three ADMET columns are always NaN regardless of
+    value.
     """
     state, likelihood, y_mean, y_std = _gp.train_mogp(
         train_x, train_y, n_iterations=n_iterations, lr=lr,
@@ -388,7 +411,7 @@ def _predict_backend(model):
 
 
 def predict(model, likelihood, y_mean, y_std, X_new):
-    """Predict ADMET targets and uncertainty for new molecules.
+    """Predict the modelled (docking) objectives and their uncertainty.
 
     Args:
         model: A trained model from :func:`train_mogp` (a
@@ -413,10 +436,11 @@ def predict(model, likelihood, y_mean, y_std, X_new):
     ``variance`` is the noise-inclusive MARGINAL variance ``var_f + tau_t``, NOT
     the latent-f variance.  That is what this function has always returned — it
     passed the latent posterior through the likelihood — and ``spec/gp/SPEC.md``
-    §9.2 settles it by measurement, so ``observation_noise=True`` is passed
+    §9.2 records the measurement, so ``observation_noise=True`` is passed
     explicitly here rather than left to a default.  The gap is the whole of
     ``tau_t``.  Whether the acquisition *should* consume the latent variance
-    instead is a live scientific question and deliberately NOT decided here.
+    instead is a live scientific question and deliberately NOT decided here
+    (``GT-41``, ``RP-31``, ``AQ-M1`` in ``mogp_core/PROVENANCE.md``).
 
     Every row is computed independently, so splitting or stacking the query has
     no numerical effect: predicting ``M`` rows in one call, in chunks, or one at

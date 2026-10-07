@@ -1,9 +1,20 @@
 """Independent multi-output exact GP with a Tanimoto kernel — pure numpy.
 
-Behavioural mirror of ``mogp.py`` (``MOGPModel`` / ``train_mogp`` / ``predict``),
-per ``spec/gp/SPEC.md``.  Nothing here is a redesign: every quirk of the
-gpytorch/botorch path that the archived campaigns were produced with is
-reproduced on purpose, including the ones a textbook would call wrong.
+The numerical backend of ``mogp.py`` (``MOGPModel`` / ``train_mogp`` /
+``predict``), per ``spec/gp/SPEC.md``.
+
+Provenance.  This module was first written as a behavioural mirror of the
+gpytorch/botorch-based model the archived campaigns were produced with.  The
+model structure and many conventions below (the per-task-plus-shared noise
+parameterisation, the ``1e-4`` noise floors, the all-zero raw start, the
+200-step Adam budget, the ``N*T`` loss divisor, NaN-propagating
+standardization, the noise-inclusive predictive variance) were adopted from that
+implementation.  Reproducing the archived runs is no longer a goal: the archived
+results are superseded.  So where this file says "mirror" or "preserved", read
+it as a record of how a choice was arrived at, not of the standard it is held
+to.  The origin and status of each such choice is tracked in ``PROVENANCE.md``
+beside this file (``GT-4``, ``GT-5``, ``GT-8``, ``GT-12``, ``GT-25``,
+``GT-26``, ``GT-30``, ``GT-36``, ``GT-41``, ``GT-44``, ``GT-M2``, ``VER-9``).
 
 The model (SPEC §3, §4)
 ----------------------
@@ -21,16 +32,17 @@ vector layout (fixed once, used by every function here) is::
     theta[2T  : 3T] = w_t   raw_task_noises     d_t    = 1e-4 + softplus(w_t)
     theta[3T]       = v     raw_noise  SHARED   sigma2 = 1e-4 + softplus(v)
 
-Load-bearing behaviours preserved verbatim
-------------------------------------------
-* **The MLL divisor is ``N*T``, not ``N``** (SPEC §5.2).  gpytorch's
+Behaviours inherited from the gpytorch implementation, kept as they were
+------------------------------------------------------------------------
+* **The MLL divisor is ``N*T``, not ``N``** (SPEC §5.2; ``GT-12``).  gpytorch's
   ``ExactMarginalLogLikelihood`` divides by the event shape's element count.
   Every loss value and every gradient carries that factor.
-* **The shared global noise couples the tasks** (SPEC §6).  ``dloss/dv`` sums
-  ``dell_t/dtau_t`` over *all* tasks; the likelihood decomposes additively but
-  the optimization does not separate, so this is NOT ``T`` independent GPs.
-  ``mogp.MOGPModel``'s docstring says otherwise and is wrong (SPEC §10.3); this
-  module follows the measurement, not the docstring.
+* **The shared global noise couples the tasks** (SPEC §6; ``GT-4``).
+  ``dloss/dv`` sums ``dell_t/dtau_t`` over *all* tasks; the likelihood
+  decomposes additively but the optimization does not separate, so this is NOT
+  ``T`` independent GPs.  ``mogp.MOGPModel``'s docstring used to say otherwise
+  (SPEC §10.3) and has since been corrected; this module follows the
+  measurement.
 * **``sigma2`` and ``d_t`` are not separately identifiable** (SPEC §6.1): the map
   ``(sigma2, d) -> (sigma2 + e, d - e)`` leaves every ``tau_t`` and the loss
   EXACTLY unchanged.  Assert on ``tau_t``, never on the split.
@@ -38,27 +50,31 @@ Load-bearing behaviours preserved verbatim
   (SPEC §9.2, measured), on the de-standardized scale.  ``observation_noise``
   defaults to ``True`` to preserve that; passing ``False`` returns the latent
   ``var_f`` the EHVI mathematics actually wants.  The default is NOT flipped here
-  — that is the acquisition cluster's call (SPEC §12 #5).
+  — that is the acquisition cluster's call (SPEC §12 #5) and an open owner
+  decision (``GT-41``).
 * **NaN standardization is NaN-propagating and drops the whole column** (SPEC
   §10): one NaN row out of thirty discards 29 good observations of that
-  objective.  Deliberate; the docking columns are all-NaN until docked.
+  objective.  The docking columns are all-NaN until docked, which is the case
+  this convention serves; whether to keep it is an open owner decision
+  (``GT-36``).
 * **``ddof = 0``** in ``y_std`` (population std).  ``pandas.Series.std`` defaults
   to ``ddof=1`` and would shift every standardized target by ~1.7%.
 * **No jitter** (SPEC §2.2, §13).  ``tau_t >= 2e-4`` *is* the jitter and it is a
   fitted parameter; adding a separate jitter term changes the model silently.
   :func:`cholesky` therefore performs the unjittered factorization only, and
   raises if the matrix does not factor.
-* **200 Adam steps, unconditionally**, ``lr=0.1``, from all-zero raw parameters.
-  No schedule, no convergence check, no early stop.  The fit is not converged
-  and is not meant to be.
+* **200 Adam steps, unconditionally**, ``lr=0.1``, from all-zero raw parameters
+  (``GT-25``, ``GT-8``).  No schedule, no convergence check, no early stop.  The
+  fit is not run to convergence; whether it should be is an open owner decision.
 
 Where the library stops being exact (SPEC §11) — CORRECTED 2026-09-27
 --------------------------------------------------------------------
 SPEC §11 and an earlier version of this docstring stated, as measured fact, that
 gpytorch is exact at ``N*T <= 800`` and stochastic above it.  **That is only true
-in a process where botorch has not been imported, and the production pipeline
-always imports botorch**, so the repo never actually runs in the regime the old
-claim described.  The corrected statement:
+in a process where botorch has not been imported, and the pipeline as it stood at
+``3c6573c`` (the last commit before the numpy port) always imported botorch**, so
+that pipeline never ran in the regime the old claim described.  The corrected
+statement:
 
 * The route is chosen from **live, process-global, mutable** settings, not from a
   fixed size.  For the marginal log-likelihood, ``linear_operator`` 0.6.1
@@ -99,38 +115,57 @@ claim described.  The corrected statement:
   ``4.70e-03`` (800/on) and ``0.0`` (4096/on) at ``N*T = 820``, and ``2.39e-03``
   (800/on) / ``2.24e-03`` (4096/on) / ``0.0`` (either, off) at ``N*T = 4098``.
   The fast flags dominate; the size only matters while they are on.
-* The same applies to ``mogp.predict``'s ``fast_pred_var()``.  At ``N=410, T=2``
-  the randomized LOVE root is biased by a measured ``3.93e-02`` absolute /
-  ``2.09e-02`` relative against the same call without ``fast_pred_var`` under
-  vanilla gpytorch; after ``import botorch`` the same comparison is ``7.15e-07``
-  absolute / ``3.81e-07`` relative, i.e. the biased path is not taken at all.
-* **Which regime the repo runs in:** ``evaluation.py`` imports
-  ``botorch.utils.multi_objective.hypervolume`` at module scope and
-  ``acquisition.py`` imports botorch too, and ``loop.py`` / ``run.py`` /
-  ``baseline_*.py`` import those.  Every production run therefore executes with
+* The same applied to the gpytorch-based ``mogp.predict``'s ``fast_pred_var()``.
+  At ``N=410, T=2`` the randomized LOVE root is biased by a measured
+  ``3.93e-02`` absolute / ``2.09e-02`` relative against the same call without
+  ``fast_pred_var`` under vanilla gpytorch; after ``import botorch`` the same
+  comparison is ``7.15e-07`` absolute / ``3.81e-07`` relative, i.e. the biased
+  path is not taken at all.
+* **Which regime applied, and which applies now.**  At ``3c6573c``,
+  ``evaluation.py`` imported ``botorch.utils.multi_objective.hypervolume`` and
+  ``acquisition.py`` imported botorch, both at module scope, and ``loop.py``
+  imported ``acquisition``.  Every run of that pipeline therefore executed with
   the fast paths **off**, i.e. exact Cholesky at every size, no stochastic
-  Lanczos log-determinant and no LOVE bias.  The SPEC §11.2 warning that "above
-  ``N*T = 800`` the repo's training run is not reproducible at all" does not
-  describe any process this repo actually starts.
+  Lanczos log-determinant and no LOVE bias, and the SPEC §11.2 warning that
+  "above ``N*T = 800`` the repo's training run is not reproducible at all" did
+  not describe any process that pipeline started.  That is no longer the
+  pipeline: at HEAD neither ``evaluation.py`` nor ``acquisition.py`` imports
+  botorch at module scope (``acquisition.py`` imports it lazily, inside
+  ``_build_botorch_adapters``, for callers that want the test oracle), and
+  importing ``loop``, ``evaluation``, ``acquisition``, ``mogp``,
+  ``mogp_coregionalized`` and ``kernel`` loads none of ``torch``, ``gpytorch``,
+  ``botorch`` or ``linear_operator`` (checked 2026-10-07).  There is no library
+  GP in the runtime path now, so this library-regime analysis matters only to
+  code that imports those libraries on purpose: the differential oracle tests,
+  the ``spec/*/capture_*.py`` scripts and the GP-MOBO comparator.  An earlier
+  version of this docstring stated, in the present tense, that every production
+  entry point imports botorch; that was false at HEAD (ledger ``GT-M2``) and is
+  corrected here.
 * This module is exact at every size in either regime, so nothing here changes.
   :data:`MAX_CHOLESKY_SIZE` and :func:`oracle_is_exact` are kept because the
   archived fixtures in ``spec/gp/fixtures/`` were captured by ``capture_gp.py``
   in a **vanilla-gpytorch** process, and 800 is the boundary that applied there.
   They are a record of the capture conditions, **not** a live reading — see
-  :func:`oracle_is_exact` for the exact caveat.
+  :func:`oracle_is_exact` for the exact caveat.  They are library-regime
+  records kept in production code (``GT-44``, audit action ``remove``, open).
 
 Oracle coverage: where there is no library witness
 --------------------------------------------------
 The float64 Tanimoto Gram that this whole module rests on — every loss, every
 gradient and every trained ``theta`` is computed from ``gram(X, X,
 dtype=np.float64)`` — has **no library witness at all**, and cannot have one.
-``kernel.TanimotoKernel.forward`` begins ``x1 = x1.to(torch.float32)``, so the
-library kernel silently downcasts and returns float32 for a float64 input
-(measured: input ``torch.float64`` -> output ``torch.float32``).  gpytorch simply
-cannot be asked for the float64 Gram.  What is actually witnessed:
+The gpytorch ``TanimotoKernel`` (``kernel.TanimotoKernel.forward`` at
+``3c6573c``) began ``x1 = x1.to(torch.float32)``, so the library kernel silently
+downcasts and returns float32 for a float64 input (measured: input
+``torch.float64`` -> output ``torch.float32``).  gpytorch simply cannot be asked
+for the float64 Gram.  What is actually witnessed:
 
-* **float32**: bitwise identical to the live ``kernel.TanimotoKernel`` (max abs
-  diff exactly ``0.0``), in ``test_core_primitives.test_tanimoto_live_oracle_is_bit_exact``.
+* **float32**: bitwise identical to the gpytorch ``TanimotoKernel`` as of
+  ``3c6573c`` (max abs diff exactly ``0.0``), in
+  ``test_core_primitives.test_tanimoto_live_oracle_is_bit_exact``, which rebuilds
+  that class (transcribed from the ``3c6573c`` source) and runs it.
+  ``kernel.TanimotoKernel`` at HEAD is a numpy adapter over
+  ``mogp_core.tanimoto``, so it is not an independent witness.
 * **float64**: checked only against numpy references — ``capture_gp.tanimoto_gram``
   (a reimplementation of the same formula) and a sha256 of the float64 C-order
   bytes.  That is self-consistency against a second numpy expression of the same
@@ -185,8 +220,8 @@ __all__ = [
 
 
 # --------------------------------------------------------------------------
-# Constants.  Mirrors of the repo's own, duplicated rather than imported
-# because ``mogp.py`` imports torch and this package may not.
+# Constants.  Copies of ``mogp.py``'s own, duplicated rather than imported
+# because ``mogp.py`` imports this package (importing it back would be circular).
 # --------------------------------------------------------------------------
 
 #: ``mogp.TASK_NAMES`` — the single source of truth for objective order.
@@ -214,11 +249,12 @@ N_ADAM_STEPS = _optim.DEFAULT_N_ITERATIONS
 #: which is what ``spec/gp/capture_gp.py`` ran under.  Compared against the JOINT
 #: operator size ``N*T``, not ``N`` (SPEC §11.2, measured).
 #:
-#: NOT a live reading, and NOT the value the repo runs at: ``import botorch``
-#: rewrites ``max_cholesky_size._global_value`` to 4096 and turns the
-#: fast-computations defaults off, and every production entry point imports
-#: botorch (measured; see the module docstring).  Treat this as the capture-time
-#: constant it is; read ``linear_operator.settings`` if you need the live value.
+#: NOT a live reading, and not the value a process that has imported botorch
+#: sees: ``import botorch`` rewrites ``max_cholesky_size._global_value`` to 4096
+#: and turns the fast-computations defaults off (measured; the pre-numpy
+#: pipeline imported botorch, the numpy pipeline does not -- see the module
+#: docstring).  Treat this as the capture-time constant it is; read
+#: ``linear_operator.settings`` if you need the live value.
 MAX_CHOLESKY_SIZE = 800
 
 #: ``model.named_parameters()`` order, for splitting a flat gradient.
@@ -250,8 +286,9 @@ def oracle_is_exact(n_train: int, n_tasks: int) -> bool:
                     or  N*T <= max_cholesky_size.value()
 
     ``import botorch`` sets ``log_prob`` off and ``max_cholesky_size`` to 4096
-    permanently, so in any process that has imported botorch — which is every
-    production entry point in this repo — the library is exact at **every** size
+    permanently, so in any process that has imported botorch — which the
+    pre-numpy pipeline always did (see the module docstring) — the library is
+    exact at **every** size
     and this function is pessimistic: it returns ``False`` at ``N*T > 800`` where
     the live library is in fact exact.  Measured: at ``N*T = 820`` the spread over
     8 identical MLL calls is ``3.87e-03`` without botorch and ``0.0`` with it.
@@ -352,10 +389,10 @@ def gram(x1, x2, dtype=np.float64, check_binary: bool = True):
     any fingerprint with at least one on-bit — no diagonal special-case.
 
     ORACLE COVERAGE.  The ``dtype=np.float32`` result is bitwise identical to the
-    live ``kernel.TanimotoKernel`` (max abs diff exactly ``0.0``).  The
-    ``dtype=np.float64`` result — the default, and the one every loss and gradient
-    in this module is built from — has **no library witness**:
-    ``TanimotoKernel.forward`` opens with ``x1 = x1.to(torch.float32)``, so a
+    gpytorch ``TanimotoKernel`` as of ``3c6573c`` (max abs diff exactly ``0.0``).
+    The ``dtype=np.float64`` result — the default, and the one every loss and
+    gradient in this module is built from — has **no library witness**:
+    that kernel's ``forward`` opened with ``x1 = x1.to(torch.float32)``, so a
     float64 input comes back float32 (measured) and gpytorch cannot be asked for
     the float64 Gram.  float64 is checked only against a second numpy expression
     of the same formula plus a byte hash, which is self-consistency, not an

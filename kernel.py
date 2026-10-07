@@ -6,22 +6,33 @@ thin adapter that keeps :class:`TanimotoKernel`'s name, its
 ``forward(x1, x2, diag=False, **params)`` signature and its numerical contract
 exactly as they were.
 
+Provenance.  The conventions this adapter keeps (the ``float32`` cast before the
+matmul, ``eps = 1e-8`` on the denominator, the ``clip(0, 1)``, the ``float32``
+output for any input dtype, the broadcasting ``diag=True`` branch) were adopted
+from the previous gpytorch-based implementation so that archived runs could be
+reproduced.  That goal has been waived: the archived results are superseded.
+These are inherited conventions, not choices re-derived from the mathematics;
+the one ledger row that bears on them is ``AQ-M2`` in
+``mogp_core/PROVENANCE.md`` (the ``float32`` rounding of the Gram, as it
+reaches the ``< 0.7`` diversity test in ``acquisition.select_batch``).
+
 What changed and what deliberately did not
 ------------------------------------------
-* **Numerics: bitwise identical.**  ``mogp_core.tanimoto.tanimoto_gram`` is a
-  1:1 mirror of the old gpytorch implementation — same ``float32`` cast *before*
-  the matmul, same ``eps = 1e-8`` on the *denominator*, same ``clip(0, 1)``.
-  Measured against the previous implementation on a 40x40 real-fingerprint
-  Gram: ``max|diff| = 0.0`` exactly (and the same for the rectangular, batched,
-  int8-input and all-zero-row cases).
+* **Numerics: bitwise identical.**  ``mogp_core.tanimoto.tanimoto_gram``
+  reproduces the old gpytorch implementation's arithmetic — same ``float32``
+  cast *before* the matmul, same ``eps = 1e-8`` on the *denominator*, same
+  ``clip(0, 1)``.  Measured against the previous implementation on a 40x40
+  real-fingerprint Gram: ``max|diff| = 0.0`` exactly (and the same for the
+  rectangular, batched, int8-input and all-zero-row cases).
 * **Return type: numpy ndarray, not ``torch.Tensor``.**  That is the one
   intended, documented interface change.  ``.squeeze(0)``, ``.max()``,
   ``float(...)`` and ``[i:j]`` all still work, which is everything the repo's
   call sites use.
 * **``float64`` input still returns ``float32``.**  The old code opened with
   ``x1.to(torch.float32)``; the cast is preserved (``dtype=np.float32`` below),
-  so a float64 fingerprint matrix is still silently downcast.  This is not a
-  bug to fix here: every archived number was produced through that downcast.
+  so a float64 fingerprint matrix is still silently downcast.  That is the old
+  code's behaviour, kept so the contract does not change; the archived numbers
+  were produced through that downcast.
 * **``check_binary=False`` is passed on purpose.**  ``mogp_core.tanimoto``
   defaults to *rejecting* count fingerprints, because the Tanimoto formula is
   only the Jaccard index on ``{0, 1}`` vectors.  The shipped kernel clamped
@@ -29,7 +40,7 @@ What changed and what deliberately did not
   numerical effect** on binary input (it only raises or passes), and the repo's
   featurizer emits strictly binary int8, so nothing measurable turns on it —
   but raising where the old code returned a number would be a behaviour change,
-  and behaviour is frozen.
+  and this adapter was written to keep the old contract.
 * **The ``diag=True`` branch keeps its latent breakage.**  It is verified dead in
   the repo's train / predict path.  For equal row counts it delegates to
   ``mogp_core.tanimoto.tanimoto_diag`` (bitwise).  For UNEQUAL row counts the
@@ -94,10 +105,10 @@ class TanimotoKernel:
                 # The only case whose result was ever meaningful.
                 return _tanimoto.tanimoto_diag(a, b, eps=eps, dtype=np.float32,
                                                check_binary=False)
-            # DEAD and latently broken, preserved verbatim: the old code
+            # DEAD and latently broken, kept as the old code behaved: it
             # broadcast instead of extracting a diagonal, so an x2 with one row
             # returns N values where the contract says 1. mogp_core rejects
-            # this; reproducing it here keeps the behaviour frozen.
+            # this; reproducing it here keeps this adapter's old contract.
             dt = np.float32
             a = a.astype(dt, copy=False)
             b = b.astype(dt, copy=False)

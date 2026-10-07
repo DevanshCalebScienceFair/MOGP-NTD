@@ -139,7 +139,6 @@ if REPO not in sys.path:
     sys.path.insert(0, REPO)
 
 from mogp_core import gp                                      # noqa: E402
-from mogp_core import linalg as mlin                          # noqa: E402
 from mogp_core import tanimoto as mtan                        # noqa: E402
 from mogp_core import transforms as mtr                       # noqa: E402
 

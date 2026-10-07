@@ -9,9 +9,16 @@ objective, never predicted. So this is a **2-task ICM** over
 ``PfDHFR_Docking`` / ``hDHFR_Docking``.
 
 The numerics run on ``mogp_core.icm`` — pure numpy, no torch / gpytorch /
-botorch / scipy. ``mogp_core.icm`` is a 1:1 behavioural mirror of the gpytorch
-ICM this module used to build, quirks included, so the archived campaigns'
-numbers are reproduced rather than re-derived.
+botorch / scipy. The model structure and several conventions in
+``mogp_core.icm`` (the ``W W^T + diag(softplus(v_raw))`` task covariance, the
+``N(0, 1)`` start for ``W`` and ``v_raw`` redrawn at every refit, all-zero
+noise and mean starts, the shared ``sigma2``, the ``1e-4`` noise floors, exactly
+200 Adam steps at lr 0.1, the ``N*K`` loss divisor, the noise-inclusive
+predictive variance) were adopted from the gpytorch ICM this module used to
+build, so that archived campaigns could be reproduced. That goal has been
+waived; the archived results are superseded. The origin and status of each such
+choice is tracked in ``mogp_core/PROVENANCE.md`` (``ICM-07`` to ``ICM-13``,
+``ICM-15``, ``ICM-16``, ``ICM-33``, ``RP-47``, ``RP-48``).
 
 It is kept side by side with the multi-output ``mogp.MOGPModel`` for an
 ablation:
@@ -31,8 +38,8 @@ positive coupling is exactly the biological correlation the ICM exploits, and is
 why the *selective* (strong-PfDHFR / weak-hDHFR) corner of the Pareto front is
 hard to reach with an uncorrelated model.
 
-Model construction mirrors the standard multitask ICM recipe the gpytorch
-version assembled, now built directly in ``mogp_core.icm``:
+Model construction follows the multitask ICM recipe the gpytorch version
+assembled, now built directly in ``mogp_core.icm``:
 
   * data covariance:  Tanimoto kernel over fingerprints (``mogp_core.tanimoto``)
   * task covariance:  ``B = W W^T + diag(softplus(v_raw))``, ``W`` of shape (K, R)
@@ -160,7 +167,7 @@ class MOGPCoregionalized:
         factor. Note the ``softplus``: the old docstring here said ``B B^T +
         diag(v)``, omitting it, while the gpytorch code it described
         (``IndexKernel._eval_covar_matrix``) applied it. The code, not the
-        docstring, is what is mirrored (``spec/icm/SPEC.md`` D2).
+        docstring, is what the formula above states (``spec/icm/SPEC.md`` D2).
 
         A non-diagonal result means the model has captured cross-objective
         correlation (for the grey-box docking pair, the PfDHFR/hDHFR coupling).
@@ -207,13 +214,15 @@ def train_mogp_coregionalized(train_x, train_y, n_iterations=200, lr=0.1, rank=1
         call site (loop.py) needs no change, and ``predict_coregionalized``
         ignores the second slot.
 
-    ``W`` and ``v_raw`` are redrawn at every call from ``rng`` (see above),
-    mirroring the fresh draw ``IndexKernel`` did at every construction. The 200 Adam
+    ``W`` and ``v_raw`` are redrawn at every call from ``rng`` (see above), as
+    gpytorch's ``IndexKernel`` drew fresh values at every construction
+    (``ICM-11``, ``RP-47`` in ``mogp_core/PROVENANCE.md``). The 200 Adam
     steps are unconditional, with no schedule and no early stop: ``spec/icm``
     §7.3 shows the step count is acting as early-stopping regularization and is
     load-bearing, because the true MLE is a degenerate boundary solution with a
     numerically singular ``B``, perfect task correlation and both noises on the
-    ``1e-4`` floor.
+    ``1e-4`` floor. Whether that is the right protocol is an open owner decision
+    (``RP-48``, ``ICM-13``, ``ICM-15``).
     """
     return _icm.train_mogp_coregionalized(
         train_x, train_y, n_iterations=n_iterations, lr=lr, rank=rank,
@@ -254,7 +263,9 @@ def predict_coregionalized(model, likelihood, y_mean, y_std, X_new):
     ``variance`` is the noise-inclusive MARGINAL variance ``var_latent + d_t``,
     NOT the latent variance — that is what this function has always returned,
     because it passed the latent posterior through the likelihood. The default is
-    made explicit here rather than inherited.
+    made explicit here rather than inherited. Whether the acquisition should
+    consume it is an open owner decision (``ICM-33`` in
+    ``mogp_core/PROVENANCE.md``).
 
     Every row is computed independently, so splitting or stacking the query has
     no numerical effect: predicting ``M`` rows in one call, in chunks, or one at a
@@ -267,8 +278,9 @@ def predict_coregionalized(model, likelihood, y_mean, y_std, X_new):
     (``posterior_covariance`` / ``posterior_block_covariance``), which is what
     would be needed to stop ``acquisition.py`` rebuilding the joint from the
     marginals with a forced-diagonal covariance and discarding the cross-task
-    correlation the ICM exists to learn. Closing that gap is a deliberate
-    scientific change, not a port, and is NOT made here.
+    correlation the ICM exists to learn (``ICM-34`` / ``QN-15`` in
+    ``mogp_core/PROVENANCE.md``). Closing that gap is a deliberate scientific
+    change, not a port, and is NOT made here.
 
     Like ``mogp.predict``, this accepts EITHER model: gpytorch's
     ``likelihood(model(X))`` dispatched on the module, so the two spellings of

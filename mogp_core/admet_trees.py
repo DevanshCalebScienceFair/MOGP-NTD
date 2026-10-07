@@ -1,18 +1,41 @@
 """Pure-numpy predictor for the three exported HistGradientBoosting ADMET models.
 
-This is a 1:1 behavioural mirror of ``admet_oracle.ADMETOracle``'s numerical
-core: the sklearn ``HistGradientBoosting{Regressor,Classifier}`` forward pass,
-the per-objective inverse link, the oracle's target transform, and the per-model
-Tanimoto applicability-domain (AD) gate.  It imports **only numpy and the Python
-standard library** -- no torch, gpytorch, botorch, scipy or sklearn.
+``admet_oracle.ADMETOracle`` evaluates its three forests with this module
+(``ADMETTreeModel.load`` / ``raw_predict`` / ``post_link``, reached through the
+oracle's ``_ForestPredictor`` facade, plus ``train_features``).  What it
+implements is the forward pass of the fitted additive tree ensembles -- ``F0``
+plus the sum of the trees' leaf values, as sklearn's
+``HistGradientBoosting{Regressor,Classifier}`` computes it -- the
+per-objective inverse link, the oracle's target transform, and the per-model
+Tanimoto applicability-domain (AD) gate.  The oracle keeps its own
+``_max_tanimoto`` and target transform; the copies of those steps here
+(``ADMETTreeModel.max_tanimoto`` / ``out_of_domain`` and ``ADMETTreeOracle``)
+are not called by production code, and ``test_core_admet.py`` uses them to
+cross-check the oracle.  It imports **only numpy and the Python standard
+library** -- no torch, gpytorch, botorch, scipy or sklearn.
+
+Provenance.  This module was first written as a behavioural mirror of sklearn's
+forward pass and of the pre-export ``ADMETOracle``, so that the cached library
+and archived runs could be reproduced bit for bit.  Several choices here are
+therefore sklearn's or the old oracle's, not derived: the node-record field set
+and the NaN-routing machinery (``ADM-12``, ``ADM-15``), the hard-label tie rule
+(``ADM-13``), the histogram bin thresholds the export keeps (``ADM-30``), the
+``0.20`` AD cut-off (``ADM-19``), and the raw sigmoid of an uncalibrated boosted
+score used as P(blocker) (``ADM-37``).  Bit-for-bit agreement with sklearn or
+with the archive is no longer a goal.  The origin and status of each choice is
+in ``PROVENANCE.md`` beside this file (``ADM-1``, ``ADM-2``, ``ADM-12``,
+``ADM-13``, ``ADM-15``, ``ADM-19``, ``ADM-27``, ``ADM-30``, ``ADM-37``).
 
 RDKit is *not* replaced: fingerprints still come from
 ``utils.featurize.batch_smiles_to_morgan``.  This module consumes the resulting
 ``(n, 2048)`` 0/1 matrix.
 
-Everything here follows ``spec/admet/SPEC.md``, which was derived by reading the
-fitted objects.  The behavioural commitments that a "simplification" would
-silently break, and which are therefore locked down by ``test_core_admet.py``:
+Everything here follows ``spec/admet/SPEC.md``, which was written by reading the
+fitted objects.  Per the provenance audit, only its sections 3.1, 3.2 and 3.7
+are derivations in the sense of the provenance rule; parts of the rest record
+sklearn's arrangement and bitwise-match choices (``ADM-2``).  The behavioural
+commitments that a "simplification" would silently break, and which are
+therefore locked down by ``test_core_admet.py``:
 
 * **Shrinkage is already baked into the stored leaf values.**  ``learning_rate``
   (0.1) must NOT be applied at predict time.
@@ -36,14 +59,19 @@ silently break, and which are therefore locked down by ``test_core_admet.py``:
   so 766 distinct molecules would leave the library.
 
 Deliberately NOT changed, though the spec notes them: nothing in this layer is
-"improved", regularized or re-scaled relative to the archived behaviour.
+"improved", regularized or re-scaled relative to the pre-export oracle's
+behaviour.  That says what was kept, not that each kept choice is right: the AD
+cut-off, the frozen forests and the uncalibrated hERG sigmoid are open owner
+decisions (``ADM-19``, ``ADM-27``, ``ADM-37``).
 
 Export format (``mogp_core/admet_export/``)
 -------------------------------------------
 Copied byte-for-byte from ``spec/admet/fixtures/export/`` (produced by
 ``spec/admet/capture_admet.py`` from the shipped joblib artifacts in
-``models/pretrained_admet/``; the models were **not** retrained, because a
-retrain moves the AD gate and would invalidate the cached library).  Format name
+``models/pretrained_admet/``; the models were **not** retrained.  The reason
+given was that a retrain moves the AD gate and would invalidate the cached
+library, a reason ``ADM-27`` records as lapsed now that archive compatibility is
+waived).  Format name
 ``"MOGP-NTD ADMET numpy export v1"``.  No pickle, no structured dtype, no
 sklearn class -- plain ``.npz`` plus a JSON sidecar.
 
@@ -115,7 +143,7 @@ N_BITS = 2048
 #: Fixed model order, matching ``admet_oracle.MODEL_SPEC``.
 MODEL_KEYS = ("caco2", "half_life", "herg")
 
-#: Mirror of ``admet_oracle.MODEL_SPEC``'s output naming.  ``kind`` is
+#: Same output naming as ``admet_oracle.MODEL_SPEC``.  ``kind`` is
 #: ``"value"`` (regressor) or ``"proba"`` (classifier, P(class 1)); the
 #: ``"log10"`` transform means the model was fit on ``log10(y)`` and the oracle
 #: returns ``10 ** prediction``.
@@ -150,7 +178,8 @@ OUTPUT_COLUMNS = (
 )
 
 #: ``admet_oracle.DEFAULT_AD_THRESHOLD``.  An undocumented judgement call in the
-#: reference; kept deliberately, because 766 library molecules depend on it.
+#: reference; kept because 766 library molecules depend on it.  Whether it should
+#: be this value is an open owner decision (ADM-19).
 AD_THRESHOLD = 0.20
 
 #: 0.20 == 1/5 exactly, which is what makes the integer-exact gate possible.
@@ -527,7 +556,8 @@ class ADMETTreeModel:
     def predict_label(self, X, chunk_size=None):
         """``classes_[(raw > 0).astype(int)]`` -- the classifier's hard label.
 
-        Not used by this project; mirrored for completeness.  Note ``> 0``, not
+        Not used by this project; kept for completeness (``ADM-13``, audit
+        action ``remove``).  Note ``> 0``, not
         ``>= 0``; no library molecule has ``raw == 0.0`` exactly, so the tie rule
         is not exercised.
         """
@@ -548,7 +578,8 @@ class ADMETTreeModel:
     def max_tanimoto(self, X):
         """``max_j T(x, t_j)`` via the reference float32 path, bit-for-bit.
 
-        Mirrors ``ADMETOracle._max_tanimoto``: float32 ``sgemm`` for the
+        Same arithmetic as ``ADMETOracle._max_tanimoto`` (this is a second copy;
+        production calls the oracle's): float32 ``sgemm`` for the
         intersection, float32 union, float32 division, ``np.where(union > 0,
         ., 0.0)`` for the both-empty convention (which never fires on this data
         -- measured ``min(union) = 15 / 19 / 20``), then a float32 row max.
@@ -575,7 +606,8 @@ class ADMETTreeModel:
         return sim.max(axis=1)
 
     def out_of_domain(self, X):
-        """``max_tanimoto(X) < 0.20``, STRICT, in float32 -- the archived gate.
+        """``max_tanimoto(X) < 0.20``, STRICT, in float32 -- the gate the cached
+        library was built with.
 
         The dtype and the operator are both load-bearing.  222 / 220 / 373
         library molecules have ``max_sim`` bit-exactly equal to float32(0.20)
@@ -604,7 +636,8 @@ class ADMETTreeModel:
         256-row synthetic fixture.
 
         Provided as a cross-check, not as the default: :meth:`out_of_domain` is
-        what the archive was built with and stays the production path.
+        what the cached library was built with (and what ``ADMETOracle``
+        applies), and stays the default here.
         """
         p, q = AD_THRESHOLD_RATIONAL
         inter, union = self._tanimoto_parts_f32(X)
@@ -670,7 +703,9 @@ class ADMETTreeOracle:
 
     def predict_from_fingerprints(self, X, smiles_list=None, positions=None,
                                   n_rows=None, chunk_size=None):
-        """Column-wise mirror of ``ADMETOracle.predict``, minus featurization.
+        """Column-wise re-implementation of ``ADMETOracle.predict``, minus
+        featurization.  Not called by production code; ``test_core_admet.py``
+        uses it.
 
         Parameters
         ----------

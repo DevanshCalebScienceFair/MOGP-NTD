@@ -1,13 +1,25 @@
 """Coregionalized (ICM) multi-output exact GP with a Tanimoto kernel — pure numpy.
 
-Behavioural mirror of ``mogp_coregionalized.py``
+The numerical backend of ``mogp_coregionalized.py``
 (``MOGPCoregionalized`` / ``train_mogp_coregionalized`` / ``predict_coregionalized``),
-per ``spec/icm/SPEC.md``.  Nothing here is a redesign: every quirk of the
-gpytorch path the archived campaigns were produced with is reproduced on
-purpose, including the ones a textbook would call wrong.
+per ``spec/icm/SPEC.md``.
+
+Provenance.  This module was first written as a behavioural mirror of the
+gpytorch ICM the archived campaigns were produced with.  The model structure and
+many conventions below (the plain-softplus link and low-rank form of ``B``, the
+shared ``sigma2``, the ``1e-4`` noise floors, the ``N(0, 1)`` start for ``W`` and
+``v_raw`` and the all-zero start for the rest, the 200-step Adam budget, the
+``N*K`` loss divisor, the noise-inclusive predictive variance) were adopted from
+that implementation.  Reproducing the archived runs is no longer a goal: the
+archived results are superseded.  So where this file says "mirror", "shipped" or
+"preserved", read it as a record of how a choice was arrived at, not of the
+standard it is held to.  The origin and status of each such choice is tracked in
+``PROVENANCE.md`` beside this file
+(``ICM-07`` to ``ICM-13``, ``ICM-15``, ``ICM-16``, ``ICM-33``, ``ICM-34``,
+``ICM-36``, ``ICM-46``).
 
 This is the project's PRIMARY GP (``loop.DEFAULT_MODEL == "coregionalized"``),
-so it is the model behind every archived headline number.
+so it is the model the benchmark runs by default.
 
 The model (SPEC §1)
 -------------------
@@ -75,19 +87,21 @@ entire measured speedup (SPEC §3.4: at ``K=2`` the factorization alone buys
 between ``0.68x`` and ``1.79x``; the caching buys ``7x`` at ``N=40`` and ``184x``
 at ``N=600``).
 
-Load-bearing behaviours preserved verbatim
-------------------------------------------
-* **The MLL divisor is ``N*K``, not ``N``** (SPEC §4.1, D7).  Every loss value
-  and every gradient carries that factor, so loss numbers stay comparable to the
-  archive.  There are no priors on any parameter.
+Behaviours inherited from the gpytorch implementation, kept as they were
+-----------------------------------------------------------------------
+* **The MLL divisor is ``N*K``, not ``N``** (SPEC §4.1, D7; ``ICM-16``).  Every
+  loss value and every gradient carries that factor, as the gpytorch model's did.
+  There are no priors on any parameter.
 * **The ``1e-4`` noise floors are load-bearing, not a quirk** (SPEC D5).  The
   constrained MLE sits ON them: without the floors ``tau_PfDHFR`` and ``sigma2``
   run to zero, ``Sigma`` goes singular and :func:`prepare`'s ``1/sqrt(d)``
-  divides by zero.  ``raw_var`` by contrast uses plain ``softplus`` with **no**
+  divides by zero.  That a floor is needed is a property of the fit; the value
+  ``1e-4`` is gpytorch's default, not derived from docking-score repeatability
+  (``ICM-10``).  ``raw_var`` by contrast uses plain ``softplus`` with **no**
   offset (``Positive()``, not ``GreaterThan(1e-4)``).
 * **``W`` and ``v_raw`` are redrawn at every construction** (SPEC §6), so every
-  BO iteration's refit starts from a fresh ``randn``.  The shipped library drew
-  them from a global RNG; ``BOLoop`` now passes an explicit ``Generator`` keyed by
+  BO iteration's refit starts from a fresh ``randn``.  gpytorch drew them from
+  torch's global RNG; ``BOLoop`` now passes an explicit ``Generator`` keyed by
   ``(run_seed, iteration, "icm_init")`` (``acquisition.keyed_generator``), so a
   refit's start is a pure function of that key and the loop never touches the
   global stream.  :func:`init_theta` with ``rng=None`` keeps numpy's **ambient**
@@ -101,19 +115,21 @@ Load-bearing behaviours preserved verbatim
   D6, measured difference exactly ``0.0``) and is called only from a test.
   There is ONE predict here, exposed under both spellings.
 * **``var_observed`` adds the global ``sigma2`` as well as ``tau_t``**, because
-  ``d = tau + sigma2``; ``observation_noise=True`` is the shipped default.
+  ``d = tau + sigma2``; ``observation_noise=True`` is the default inherited from
+  the previous implementation (``ICM-33``).
 
 Not fixed here, on purpose (SPEC §8)
 ------------------------------------
-``acquisition.py:323`` rebuilds the joint posterior from the *marginals* with a
-strictly diagonal covariance, discarding a measured within-point cross-task
-correlation of ``0.994`` (latent) / ``0.919`` (observed) and between-candidate
-blocks up to ``0.317``.  That is the one thing the ICM learns which the
-independent model cannot, and it is deleted before the acquisition sees it.
-:func:`posterior_covariance` and :func:`posterior_block_covariance` compute the
-full joint at the same asymptotic cost, so closing the gap is now a one-line
-change — but doing so is a deliberate scientific change, not a port, and this
-module does not make it.  The default path returns marginals, exactly as today.
+``acquisition.compute_qnehvi`` rebuilds the joint posterior from the *marginals*
+with a strictly diagonal covariance (``mogp_core.qnehvi.draw_objective_samples``;
+``ICM-34`` / ``QN-15`` in ``PROVENANCE.md``), discarding a measured within-point
+cross-task correlation of ``0.994`` (latent) / ``0.919`` (observed) and
+between-candidate blocks up to ``0.317``.  That is the one thing the ICM learns
+which the independent model cannot, and it is deleted before the acquisition
+sees it.  :func:`posterior_covariance` and :func:`posterior_block_covariance`
+compute the full joint at the same asymptotic cost, so the information needed to
+close the gap is available — but doing so is a deliberate scientific change, not
+a port, and this module does not make it.  The default path returns marginals.
 
 What is NOT identified, and must never be tested (SPEC §7)
 ----------------------------------------------------------
@@ -129,14 +145,18 @@ for an indistinguishable loss), kept only for ``K > 2``.
 Batch shapes
 ------------
 The acquisition gate showed that the *torch* GP's float32 output depends on the
-batch shape it is called with, so the calling code has to reproduce botorch's
+batch shape it is called with, so the calling code had to reproduce botorch's
 posterior call pattern exactly (baseline from a separate predict, candidates from
 a stacked ``cat(X_baseline, X)`` layout) or lose six orders of magnitude.  That
 hazard is a float32/batched-linear-algebra artefact.  This module is float64 and
 evaluates every query row through the same row-independent formulas, so its
 output is shape-invariant to within BLAS blocking; ``test_core_icm.py`` measures
-that residual.  A caller must still keep the stacked call pattern, because the
-*consumers* downstream were verified against it.
+that residual.  ``acquisition.compute_qnehvi`` still calls ``predict`` in that
+pattern (baseline alone, candidates stacked behind it), because the *consumers*
+downstream were verified against it; this module does not need it for
+correctness, and ``QN-23`` in ``PROVENANCE.md`` records the pattern as a
+bit-compatibility arrangement for the float32 torch path (audit action
+``remove``).
 
 numpy + stdlib only.  No torch / gpytorch / botorch / scipy / sklearn.
 """
@@ -148,7 +168,6 @@ import math
 import numpy as np
 
 from mogp_core import gp as _gp
-from mogp_core import linalg as _linalg
 from mogp_core import optim as _optim
 from mogp_core import tanimoto as _tanimoto
 from mogp_core import transforms as _transforms
@@ -237,8 +256,8 @@ def n_params(n_tasks: int, rank: int = DEFAULT_RANK) -> int:
 
     Not ``3T + 1``: that is the independent model's count (SPEC §1.5).  All of
     them are reached by ``torch.optim.Adam(model.parameters())`` because the
-    likelihood is registered as a submodule of the ``ExactGP`` — there is no
-    missed-parameter bug on the torch side to mirror.
+    likelihood is registered as a submodule of the ``ExactGP`` — there was no
+    missed-parameter bug on the torch side to reproduce here.
     """
     K = int(n_tasks)
     R = int(rank)
@@ -387,7 +406,8 @@ def split_grad(grad, n_tasks: int, rank: int = DEFAULT_RANK):
 
 def init_theta(n_tasks: int, rank: int = DEFAULT_RANK, rng=None,
                dtype=np.float64):
-    """The shipped initialization: ``W, v_raw ~ randn``; ``c = tau_raw = sigma_raw = 0``.
+    """The initialization adopted from gpytorch: ``W, v_raw ~ randn``;
+    ``c = tau_raw = sigma_raw = 0`` (``ICM-11``, ``ICM-12``).
 
     ``IndexKernel`` draws ``covar_factor`` and ``raw_var`` from the **global**
     torch RNG at construction, so they are redrawn at every BO iteration's refit
@@ -435,10 +455,11 @@ def task_covariance(W, raw_var):
     positive definite at every parameter value.
 
     ``mogp_coregionalized.MOGPCoregionalized.task_covariance_matrix``'s docstring
-    says ``B B^T + diag(v)``, overloading ``B`` for both the factor and the
-    result and omitting the ``softplus`` (SPEC D2).  The formula above is what
-    the code computes; verified against ``IndexKernel._eval_covar_matrix`` to
-    ``0.0`` at the fixture's raw values.
+    used to say ``B B^T + diag(v)``, overloading ``B`` for both the factor and
+    the result and omitting the ``softplus`` (SPEC D2); it has since been
+    corrected to match.  The formula above is what the code computes; verified
+    against ``IndexKernel._eval_covar_matrix`` to ``0.0`` at the fixture's raw
+    values.
 
     There is no ``ScaleKernel`` around the Tanimoto kernel and no lengthscale, so
     ``B`` carries ALL of the output scale.  The usual ICM outputscale/``B``

@@ -1,11 +1,25 @@
 """qNEHVI in pure numpy: the acquisition, both estimators, and the splice.
 
-A reimplementation of ``acquisition.py::compute_qnehvi`` and the two botorch
-adapter classes it stands on (``DockingPosteriorModel``,
-``CompositeKnownADMETObjective``).  Nothing here imports torch, gpytorch,
-botorch, scipy or sklearn; only numpy, the standard library, and the two sibling
-modules ``boxdecomp`` and ``sobol``.  ``torch``/``botorch`` appear in
-``test_core_qnehvi.py`` only, as differential oracles.
+The estimator behind ``acquisition.py::compute_qnehvi``.  It replaced a botorch
+implementation: ``qLogNoisyExpectedHypervolumeImprovement`` driven through two
+adapter classes, ``DockingPosteriorModel`` and ``CompositeKnownADMETObjective``,
+which ``acquisition.py`` now builds lazily, only as test oracles.  Nothing here
+imports torch, gpytorch, botorch, scipy or sklearn; only numpy, the standard
+library, and the two sibling modules ``boxdecomp`` and ``sobol``.
+``torch``/``botorch`` appear in ``test_core_qnehvi.py`` only, as differential
+oracles.
+
+Provenance.  This module was first written as a mirror of what that botorch
+implementation computed, so that archived runs could be replayed.  The log
+estimator's constants and arrangement (``tau_relu``, ``tau_max``, the fat tails,
+the ``1e10`` cell clamp), the Sobol' sampler layout and the forced-diagonal
+posterior were taken from it, not derived.  Replaying archived runs is no longer
+a goal.  The origin and status of each choice is in ``PROVENANCE.md`` beside
+this file: ``QN-1`` (which estimator ships), ``QN-5`` to ``QN-13`` (the log
+kernel), ``QN-15`` / ``ICM-34`` (the diagonal posterior), ``QN-16``, ``QN-26``,
+``ICM-44``, ``QMC-19``, and ``AQ-M4`` (module headers).  Where this file says
+"mirror" or "preserved", read it as a record of how a choice was arrived at, not
+of the standard it is held to.
 
 Read ``spec/qnehvi/SPEC.md`` alongside this file; every section reference below
 points into it.
@@ -20,37 +34,46 @@ TWO ESTIMATORS, AND WHY BOTH ARE HERE
     and exact ``0.0`` is attainable -- hence the tiebreak in
     ``rank_for_selection``.
 
-``estimator="log"``    -- a 1:1 mirror of what ``acquisition.py`` runs TODAY:
-    botorch's ``qLogNoisyExpectedHypervolumeImprovement`` with its shipped
-    defaults ``tau_relu=1e-6``, ``tau_max=1e-3``, ``fat=True``, including the
+``estimator="log"``    -- what ``acquisition.py`` runs (``acquisition._ESTIMATOR``):
+    a transliteration of botorch's ``qLogNoisyExpectedHypervolumeImprovement``
+    (the implementation it replaced) with that class's defaults
+    ``tau_relu=1e-6``, ``tau_max=1e-3``, ``fat=True``, including the
     unexplained ``clamp_max(1e10)`` on the cell upper bounds
-    (``botorch/acquisition/multi_objective/logei.py:447``).  Returns a LOG value:
-    typically negative, never exactly ``0.0``, no units.
+    (``botorch/acquisition/multi_objective/logei.py:447``).  These constants are
+    botorch's, not derived (``QN-5``, ``QN-6``, ``QN-7``, ``QN-13``).  Returns a
+    LOG value: typically negative, never exactly ``0.0``, no units.
 
-    Both exist because the SPEC and the task brief disagree about which one this
-    rewrite should ship (see ``ESTIMATOR_CHOICE_IS_UNSETTLED`` below).  The
-    plumbing -- sampling, composition, normalization, the splice, chunking -- is
-    shared, so the two differ only in the final per-cell kernel.  Nothing here
-    picks a default silently: ``estimator`` is a required argument.
+    Both exist because the SPEC and the brief this module was first written from
+    (not part of the repo) disagreed about which one to ship; see
+    ``ESTIMATOR_CHOICE_IS_UNSETTLED`` below, a string constant that still quotes
+    that disagreement.  Which one should ship is an open owner decision
+    (``QN-1``).  The plumbing -- sampling, composition, normalization, the
+    splice, chunking -- is shared, so the two differ only in the final per-cell
+    kernel.  Nothing here picks a default silently: ``estimator`` is a required
+    argument.
 
-DELIBERATELY PRESERVED BEHAVIOURS (do not "fix" these)
-------------------------------------------------------
-* **Forced diagonal posterior.**  ``acquisition.py:316-324`` builds the joint
-  posterior as ``torch.diag_embed(var)``, asserting exact independence across
+BEHAVIOURS KEPT FROM THE PREVIOUS IMPLEMENTATION (do not change in passing)
+---------------------------------------------------------------------------
+* **Forced diagonal posterior.**  The botorch implementation built the joint
+  posterior as ``torch.diag_embed(var)`` (``DockingPosteriorModel.posterior`` in
+  ``acquisition.py``, now a test oracle), asserting exact independence across
   rows AND across the two tasks -- including between a candidate and the baseline
   molecules it is scored against, and between a candidate and an identical copy
-  of itself.  Mirrored here: each row and each task is drawn independently from
-  the marginal ``(mu, sigma^2)``.  SPEC section 8.2 flags the scientific objection
-  (it removes exactly the correlation NEHVI exists to integrate over, so it
-  over-credits near-analogs) and says to keep the diagonal as the benchmark
-  configuration.  Kept.
-* **Variance floor ``1e-9``**, exact constant, applied before ``sqrt``.
+  of itself.  This module does the same: each row and each task is drawn
+  independently from the marginal ``(mu, sigma^2)``.  SPEC section 8.2 flags the
+  scientific objection (it removes exactly the correlation NEHVI exists to
+  integrate over, so it over-credits near-analogs) and says to keep the diagonal
+  as the benchmark configuration.  Kept (``QN-15``, ``ICM-34``).
+* **Variance floor ``1e-9``**, exact constant, applied before ``sqrt``
+  (``ICM-44``; the same value as ``acquisition._VAR_FLOOR``).
 * **``clip(., 0, 1)``** inside the normalization, so ``ref = 0`` really is the
   worst corner.  A candidate with any known-ADMET value clipping to ``0.0``
-  scores exactly ``0.0`` under the exact estimator, whatever its docking.
+  scores exactly ``0.0`` under the exact estimator, whatever its docking
+  (``QN-26``).
 * **Draws are keyed by ROW POSITION, not molecule identity.**  A candidate that
   is a copy of a baseline molecule gets an independent draw and a positive score
-  (SPEC section 2.3 T-SPLICE-3 measures ``2.159931e-04``).  Arguably wrong; preserved.
+  (SPEC section 2.3 T-SPLICE-3 measures ``2.159931e-04``).  Arguably wrong; kept
+  (``QN-16``).
 * **CRN candidate layout**: one shared ``(2,)`` normal per MC sample for every
   candidate, which is what botorch's collapsed t-batch
   (``batch_range=(0,-2)``, base samples ``(N, 1, B+1, 2)``) already produces.
@@ -131,7 +154,7 @@ DOCK_IDX = (0, 1)  # mogp.DOCKING_TASK_INDICES
 LIB_IDX = (2, 3, 4)
 DEFAULT_OBJECTIVE_SIGNS = np.array([-1.0, +1.0, -1.0, +1.0, +1.0])
 
-VAR_FLOOR = 1e-9  # PRESERVED, exact (acquisition.py:322)
+VAR_FLOOR = 1e-9  # same value as acquisition._VAR_FLOOR (ICM-44)
 
 # botorch's shipped qLogNEHVI defaults.  tau_max is 1e-3, NOT
 # botorch.acquisition.logei.TAU_MAX (which is 1e-2) -- qLogNEHVI overrides it
@@ -456,7 +479,7 @@ def hvi_q1_exact(y, lower, upper) -> np.ndarray:
 
 
 # --------------------------------------------------------------------------
-# Kernel B: botorch's log-space smoothed kernel, mirrored
+# Kernel B: botorch's log-space smoothed kernel, transliterated
 # --------------------------------------------------------------------------
 #
 # All four helpers below are transliterations of botorch.utils.safe_math.  At
@@ -489,7 +512,7 @@ def log_fatplus(x, tau: float = TAU_RELU) -> np.ndarray:
     ``fatplus(x) = tau * (softplus(x/tau) + 0.1 * cauchy(x/tau))`` with
     ``cauchy(t) = 1/(1+t^2)``.  The ``0.1`` is hard-coded in botorch with the
     comment "guarantees monotonicity and convexity (TODO: ref + Lemma 4)"; it is
-    mirrored, not derived.
+    copied here, not derived (``QN-8``).
     """
     x = np.asarray(x, dtype=np.float64)
     t = x / tau

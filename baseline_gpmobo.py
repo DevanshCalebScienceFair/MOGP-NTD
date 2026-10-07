@@ -93,6 +93,9 @@ from mogp import TASK_NAMES, resolve_objective_layout
 from acquisition import (
     compute_pareto_front,
     get_active_objectives,
+    draw_without_replacement,
+    initial_design_indices,
+    keyed_generator,
     DEFAULT_OBJECTIVE_SIGNS,
 )
 import evaluation
@@ -266,7 +269,8 @@ def ehvi_reference(pred_means, pred_vars, ref_point, pareto_Y,
         ref_point: ``(m,)`` hypervolume reference point.
         pareto_Y: ``(P, m)`` current Pareto front, maximization frame.
         n_samples: MC draws per candidate.
-        rng: Optional ``np.random.RandomState`` for reproducible draws.
+        rng: Optional ``np.random.RandomState`` or ``Generator`` for reproducible
+            draws.
         gpmobo: Optional preloaded ``gpmobo_ref.load()`` mapping.
 
     Returns:
@@ -315,7 +319,8 @@ def ehvi_fast(pred_means, pred_vars, ref_point, pareto_Y,
         ref_point: ``(m,)`` hypervolume reference point.
         pareto_Y: ``(P, m)`` current Pareto front, maximization frame.
         n_samples: MC draws per candidate.
-        rng: Optional ``np.random.RandomState`` for reproducible draws.
+        rng: Optional ``np.random.RandomState`` or ``Generator`` for reproducible
+            draws.
         max_elements: Cap on the working tensor size; the candidate chunk is
             derived from it so peak memory is bounded.
 
@@ -380,11 +385,17 @@ class GPMOBOBaseline:
                  n_mc_samples=DEFAULT_MC_SAMPLES, ehvi_impl=DEFAULT_EHVI_IMPL,
                  objective_frame="raw", hparam_mode="budget",
                  hparam_holdout=200):
+        # `seed` is a KEY, not global state: this arm never reads or advances
+        # numpy's global RNG. The initial design is ``acquisition.
+        # initial_design_indices(seed, ...)`` -- the SAME molecules every other
+        # arm starts from for this seed -- and the holdout block and each round's
+        # MC noise come from their own streams keyed by (seed, iteration, name).
         self.seed = seed
-        np.random.seed(seed)
         # Selection draws come from a dedicated stream so the acquisition's MC
         # noise cannot shift depending on how many library draws preceded it.
-        self.rng = np.random.RandomState(seed)
+        # `step` re-keys it per round, so a round's noise is a function of
+        # (seed, round) alone; this is the stream for use before the first round.
+        self.rng = keyed_generator(seed, 0, "ehvi_mc")
 
         self.gpmobo = gpmobo_ref.load()
 
@@ -613,15 +624,15 @@ class GPMOBOBaseline:
         taken = set(self.evaluated_indices) | self.excluded_indices
         return [i for i in range(self.library_size) if i not in taken]
 
-    def _random_indices(self, k, rng=None):
-        """``k`` uniformly random available indices (used for the seed batch)."""
-        rng = rng if rng is not None else np.random
-        available = self._candidate_indices()
+    def _random_indices(self, k, rng, exclude=()):
+        """``k`` uniformly random available indices drawn from ``rng`` (the
+        hyperparameter holdout block), skipping ``exclude`` as well."""
+        taken = set(exclude)
+        available = [i for i in self._candidate_indices() if i not in taken]
         k = min(k, len(available))
         if k == 0:
             return []
-        chosen = rng.choice(np.asarray(available, dtype=int), size=k, replace=False)
-        return [int(i) for i in chosen]
+        return draw_without_replacement(rng, np.asarray(available, dtype=int), k)
 
     def _select_one(self):
         """One GP-MOBO pick: fit, score every candidate by EHVI, take the argmax.
@@ -665,14 +676,27 @@ class GPMOBOBaseline:
     def initialize(self):
         """Seed with ``n_init`` random molecules (same protocol as every arm).
 
+        The initial design is ``acquisition.initial_design_indices`` -- the very
+        draw ``loop.BOLoop`` and every other arm makes for this seed, in either
+        hyperparameter mode.
+
         In ``--hparam-mode holdout`` an additional block is drawn and evaluated
         FIRST, used only to fix the GP hyperparameters, and then excluded from
         the candidate pool — upstream's recipe. Those molecules are extra oracle
         calls the budget-matched arms never get, so this mode is reported as a
-        generous variant rather than the headline.
+        generous variant rather than the headline. The holdout is drawn from the
+        library minus the initial design (the design is drawn first, so it stays
+        the shared one); the joint law of (holdout, design) is still uniform over
+        disjoint pairs, the same as drawing the holdout first.
         """
+        init_indices = initial_design_indices(
+            self.seed, self.library_size, min(self.n_init, self.library_size)
+        )
         if self.hparam_mode == "holdout":
-            holdout = self._random_indices(self.hparam_holdout, rng=self.rng)
+            holdout = self._random_indices(
+                self.hparam_holdout, keyed_generator(self.seed, 0, "hparam_holdout"),
+                exclude=init_indices,
+            )
             if holdout:
                 print(f"Hyperparameter holdout: evaluating {len(holdout)} "
                       "molecules (excluded from the candidate pool; NOT charged "
@@ -690,7 +714,6 @@ class GPMOBOBaseline:
                     self._holdout_hparams = (means, variances, noises)
                 self.excluded_indices.update(holdout)
 
-        init_indices = self._random_indices(self.n_init)
         print(f"Initializing with {len(init_indices)} random molecules...")
         Y, Y_le, Y_raw, docking = self._evaluate(init_indices)
 
@@ -712,6 +735,9 @@ class GPMOBOBaseline:
         """
         iteration = len(self.history) + 1
         selected, acq_values = [], []
+        # This round's MC noise: keyed by (seed, round), independent of how many
+        # draws earlier rounds consumed.
+        self.rng = keyed_generator(self.seed, iteration, "ehvi_mc")
 
         for _ in range(self.batch_size):
             index, score = self._select_one()

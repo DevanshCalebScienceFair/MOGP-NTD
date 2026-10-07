@@ -42,6 +42,9 @@ from mogp import TASK_NAMES, resolve_objective_layout
 from acquisition import (
     compute_pareto_front,
     get_active_objectives,
+    draw_without_replacement,
+    initial_design_indices,
+    keyed_generator,
     DEFAULT_OBJECTIVE_SIGNS,
 )
 import evaluation
@@ -68,8 +71,12 @@ class RandomSearchBaseline:
     def __init__(self, library_dir="data/library", seed=99,
                  n_init=10, batch_size=10, n_iterations=10):
         # --- Reproducibility (numpy only; there is no torch model here) ---
+        # `seed` is a KEY, not global state: the initial design and every batch
+        # are drawn from explicit Generators keyed by (seed, iteration, stream)
+        # (``acquisition.keyed_generator``), so this arm never reads or advances
+        # numpy's global RNG, and its initial design is the SAME one
+        # ``loop.BOLoop`` and every other arm draws for this seed.
         self.seed = seed
-        np.random.seed(seed)
 
         # --- Library (cheap precomputed features) ---
         library = load_library(library_dir)
@@ -177,11 +184,13 @@ class RandomSearchBaseline:
     # ------------------------------------------------------------------ #
     # Main loop stages
     # ------------------------------------------------------------------ #
-    def _random_indices(self, k):
+    def _random_indices(self, k, iteration):
         """Pick ``k`` random library indices not yet evaluated (without replacement).
 
-        Returns fewer than ``k`` only if the unevaluated pool is smaller than
-        ``k`` (the pool is then exhausted).
+        Drawn from this round's own stream, key ``(seed, iteration,
+        "random_batch")``, so a round's batch is a function of the pool and the
+        key and of nothing else. Returns fewer than ``k`` only if the unevaluated
+        pool is smaller than ``k`` (the pool is then exhausted).
         """
         evaluated_set = set(self.evaluated_indices)
         candidate_library_indices = np.array(
@@ -189,12 +198,18 @@ class RandomSearchBaseline:
             dtype=int,
         )
         k = min(k, len(candidate_library_indices))
-        chosen = np.random.choice(candidate_library_indices, size=k, replace=False)
-        return [int(i) for i in chosen]
+        return draw_without_replacement(
+            keyed_generator(self.seed, iteration, "random_batch"),
+            candidate_library_indices, k,
+        )
 
     def initialize(self):
         """Seed the baseline with ``n_init`` random, freshly-docked molecules."""
-        init_indices = self._random_indices(self.n_init)
+        # The shared, keyed initial design (clamped to the library, as this arm
+        # always was): identical to the one every other arm draws for this seed.
+        init_indices = initial_design_indices(
+            self.seed, self.library_size, min(self.n_init, self.library_size)
+        )
 
         print(f"Initializing with {len(init_indices)} random molecules...")
         Y, Y_le, Y_raw, docking = self._evaluate(init_indices)
@@ -212,7 +227,7 @@ class RandomSearchBaseline:
         iteration = len(self.history) + 1
 
         # --- Random batch from the unevaluated pool (no GP, no EHVI) ---
-        selected_library_indices = self._random_indices(self.batch_size)
+        selected_library_indices = self._random_indices(self.batch_size, iteration)
         if not selected_library_indices:
             print(f"[Iteration {iteration}] no candidates left; stopping early.")
             return False

@@ -70,6 +70,7 @@ from kernel import TanimotoKernel
 from acquisition import (
     compute_pareto_front,
     get_active_objectives,
+    initial_design_indices,
     DEFAULT_OBJECTIVE_SIGNS,
 )
 import evaluation
@@ -458,15 +459,15 @@ class SingleObjectiveBOLoop:
                  diversity_threshold=0.7):
         # --- Reproducibility ---
         # ``torch.manual_seed(seed)`` is gone with torch. It never fed anything:
-        # this baseline's only RNG consumer is ``np.random.choice`` in
+        # this baseline's only RNG consumer is the initial design drawn in
         # ``initialize()``, and the GP fit is fully deterministic (all-zero raw
-        # initialization, fixed-step Adam, no sampling). Nor did it feed another
-        # arm: in both drivers (run_all.py, run_benchmark_seeds.py) every arm that
-        # touches the torch RNG — loop.BOLoop via acquisition.select_batch — seeds
-        # it in its own constructor, and the only arm that runs AFTER this one
-        # (baseline_greedy.GreedyFilterThenDock) imports no torch at all.
+        # initialization, fixed-step Adam, no sampling). `seed` is a KEY, not
+        # global state: the initial design comes from ``acquisition.
+        # initial_design_indices(seed, ...)``, an explicit Generator keyed by
+        # (seed, 0, "init_design"), so this arm never reads or advances numpy's
+        # global RNG and starts from the SAME molecules as ``loop.BOLoop`` and
+        # every other arm for this seed.
         self.seed = seed
-        np.random.seed(seed)
 
         # --- Library (cheap precomputed features) ---
         library = load_library(library_dir)
@@ -581,10 +582,9 @@ class SingleObjectiveBOLoop:
     # ------------------------------------------------------------------ #
     def initialize(self):
         """Seed the loop with ``n_init`` random, freshly-docked molecules."""
-        init_indices = np.random.choice(
-            self.library_size, size=self.n_init, replace=False
+        init_indices = initial_design_indices(
+            self.seed, self.library_size, self.n_init
         )
-        init_indices = [int(i) for i in init_indices]
 
         print(f"Initializing with {self.n_init} random molecules...")
         Y, Y_le, Y_raw, docking = self._evaluate(init_indices)

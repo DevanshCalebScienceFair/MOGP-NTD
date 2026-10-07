@@ -85,10 +85,13 @@ Load-bearing behaviours preserved verbatim
   run to zero, ``Sigma`` goes singular and :func:`prepare`'s ``1/sqrt(d)``
   divides by zero.  ``raw_var`` by contrast uses plain ``softplus`` with **no**
   offset (``Positive()``, not ``GreaterThan(1e-4)``).
-* **``W`` and ``v_raw`` are redrawn from a global RNG at every construction**
-  (SPEC §6), so every BO iteration's refit starts from a fresh ``randn``.
-  :func:`init_theta` with ``rng=None`` reproduces that by drawing from numpy's
-  global RNG; pass a seed or a ``Generator`` for reproducibility.
+* **``W`` and ``v_raw`` are redrawn at every construction** (SPEC §6), so every
+  BO iteration's refit starts from a fresh ``randn``.  The shipped library drew
+  them from a global RNG; ``BOLoop`` now passes an explicit ``Generator`` keyed by
+  ``(run_seed, iteration, "icm_init")`` (``acquisition.keyed_generator``), so a
+  refit's start is a pure function of that key and the loop never touches the
+  global stream.  :func:`init_theta` with ``rng=None`` keeps numpy's **ambient**
+  global RNG as a documented fallback for ad-hoc callers that pass no key.
 * **200 Adam steps, unconditionally**, ``lr=0.1``, no schedule, no early stop.
   SPEC §7.3 shows this is *acting as* early-stopping regularization: the true
   MLE is a boundary solution with a numerically singular ``B``, perfect task
@@ -393,11 +396,14 @@ def init_theta(n_tasks: int, rank: int = DEFAULT_RANK, rng=None,
     ``raw_task_noises`` and ``raw_noise`` all initialize to exactly ``0.0``.
 
     Args:
-        rng: ``None`` draws from numpy's **global** RNG, mirroring the library's
-            global-stream behaviour (one ``np.random.seed`` per run makes the run
-            reproducible while any individual refit depends on how many draws
-            preceded it).  An ``int`` or a ``Generator`` makes a single fit
-            reproducible on its own.
+        rng: a ``Generator`` (what ``BOLoop`` passes: keyed by
+            ``(run_seed, iteration, "icm_init")``, so the draw is a pure function
+            of its key) or an ``int`` seed makes the fit reproducible on its own,
+            independent of numpy's global RNG.  ``None`` is the documented
+            AMBIENT fallback for ad-hoc callers that pass no key: it draws from
+            numpy's **global** RNG, so reproducibility then needs
+            ``np.random.seed`` and any individual refit depends on how many draws
+            preceded it.  The loop never takes this path.
 
     ``W`` is drawn before ``v_raw``, matching ``IndexKernel``'s own construction
     order (``covar_factor`` then ``raw_var``), so a seeded numpy stream lays the
@@ -411,7 +417,7 @@ def init_theta(n_tasks: int, rank: int = DEFAULT_RANK, rng=None,
         raise ValueError(f"rank must be >= 1, got {rank}")
     dt = np.dtype(dtype)
     if rng is None:
-        W = np.random.standard_normal((K, R))          # GLOBAL stream, as shipped
+        W = np.random.standard_normal((K, R))          # AMBIENT fallback (no key given)
         v = np.random.standard_normal(K)
     else:
         g = rng if isinstance(rng, np.random.Generator) else np.random.default_rng(rng)
@@ -782,8 +788,9 @@ def fit(X, Y_norm, n_steps: int = N_ADAM_STEPS, lr: float = ADAM_LR,
             thing keeping the fit off a degenerate boundary MLE, so it is
             load-bearing.
         theta0: an explicit starting point.  ``None`` calls :func:`init_theta`,
-            which draws ``W`` and ``v_raw`` from ``rng`` (``None`` = numpy's
-            global stream, mirroring the library).
+            which draws ``W`` and ``v_raw`` from ``rng`` (a keyed ``Generator`` or
+            int seed; ``None`` = numpy's ambient global stream, the fallback for
+            callers that pass no key).
         S, K_xx: a precomputed Gram, to hoist the ``N x 2048 @ 2048 x N`` matmul
             out of a caller's loop.  Both names accepted; ``S`` matches
             ``mogp_core.gp.fit``, ``K_xx`` matches this module's own notation.
@@ -1100,10 +1107,12 @@ def train_mogp_coregionalized(train_x, train_y, n_iterations: int = N_ADAM_STEPS
     Grey box: only the docking objectives are modelled; the three ADMET columns'
     ``y_mean`` / ``y_std`` are forced NaN and :func:`predict` returns NaN there.
 
-    ``rng=None`` draws ``W`` and ``v_raw`` from numpy's **global** stream, which
-    is the behaviour being mirrored: ``IndexKernel`` redraws them at every
-    construction, so a whole run is reproducible from one seed but any individual
-    refit depends on how many draws preceded it.  ``verbose=True`` prints the
+    ``W`` and ``v_raw`` are redrawn at every call, as ``IndexKernel`` redrew them
+    at every construction.  ``rng`` is where they come from: ``BOLoop`` passes a
+    ``Generator`` keyed by ``(run_seed, iteration, "icm_init")`` so a refit is a
+    pure function of its key; ``rng=None`` is the AMBIENT fallback for ad-hoc
+    callers (numpy's global stream, so any individual refit then depends on how
+    many draws preceded it).  ``verbose=True`` prints the
     every-20-steps loss line the shipped function prints unconditionally; the
     default is quiet because a 50-iteration campaign refits 50 times.
     """

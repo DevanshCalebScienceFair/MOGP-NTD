@@ -51,6 +51,7 @@ for _thread_var in ("KMP_DUPLICATE_LIB_OK", "OMP_NUM_THREADS", "MKL_NUM_THREADS"
     )
 
 import time
+import inspect
 import argparse
 import warnings
 
@@ -74,6 +75,8 @@ from acquisition import (
     select_batch,
     compute_pareto_front,
     get_active_objectives,
+    initial_design_indices,
+    keyed_generator,
     DEFAULT_OBJECTIVE_SIGNS,
 )
 import evaluation
@@ -156,19 +159,33 @@ def resolve_train_fn(model, rank=1):
         rank: ``IndexKernel`` rank for the coregionalized model (ignored otherwise).
 
     Returns:
-        A callable ``train_fn(train_x, train_y, n_iterations=..., lr=...)``.
+        A callable ``train_fn(train_x, train_y, n_iterations=..., lr=...)``. The
+        coregionalized one also takes ``rng=None``, the ``Generator`` its initial
+        ``W`` / ``v_raw`` are drawn from (``BOLoop`` passes a keyed one; ``None``
+        is the ambient-RNG fallback for ad-hoc callers). ``train_mogp`` has no
+        such argument because it draws no random numbers.
     """
     if model == "independent":
         return train_mogp
     if model == "coregionalized":
-        def _train_coregionalized(train_x, train_y, n_iterations=200, lr=0.1):
+        def _train_coregionalized(train_x, train_y, n_iterations=200, lr=0.1,
+                                  rng=None):
             return train_mogp_coregionalized(
-                train_x, train_y, n_iterations=n_iterations, lr=lr, rank=rank
+                train_x, train_y, n_iterations=n_iterations, lr=lr, rank=rank,
+                rng=rng,
             )
         return _train_coregionalized
     raise ValueError(
         f"Unknown model {model!r}; choose one of {MODEL_CHOICES}."
     )
+
+
+def _takes_rng(fn):
+    """True if ``fn`` declares an ``rng`` parameter (so it can be handed a stream)."""
+    try:
+        return "rng" in inspect.signature(fn).parameters
+    except (TypeError, ValueError):
+        return False
 
 
 class BOLoop:
@@ -188,27 +205,27 @@ class BOLoop:
                  densify=False, densify_every=1, densify_per_parent=20,
                  densify_max_pool=None):
         # --- Reproducibility ---
-        # One seed, one global RNG. `np.random.seed(seed)` covers `initialize`'s
-        # random draw here, and `_densify` derives its own explicit seed from
-        # `self.seed`, so both are pinned by the argument above.
+        # `seed` is the run seed, and it is a KEY, not a global state. Every
+        # random draw in a run comes from an explicit numpy Generator that is a
+        # pure function of (run seed, iteration, stream name)
+        # (``acquisition.keyed_generator``): the initial design (iteration 0),
+        # and at BO step k the ICM's initial W / v_raw and the Sobol' scramble of
+        # the qNEHVI draw. So a draw does not depend on what numpy's global RNG
+        # was seeded with, on how many other draws happened first, or on the order
+        # the stages run in, and this loop never reads or advances the global RNG
+        # (it no longer calls ``np.random.seed``). `_densify` derives its own
+        # explicit seed from `self.seed`, so it is pinned by the same argument.
         #
-        # This used to be seeded twice. ``torch.manual_seed(seed)`` sat here not
-        # because this file did any torch arithmetic — it never did — but because
-        # botorch built its ``SobolQMCNormalSampler`` with ``seed=None``, and
-        # botorch's ``MCSampler.__init__`` then draws the Sobol scramble seed
-        # from torch's GLOBAL RNG (``int(torch.randint(0, 1000000, (1,)).item())``).
-        # The torch seed therefore decided the quasi-MC draws — the qNEHVI scores
-        # and the selected batch — through a hidden global: numerically
-        # load-bearing, and invisible from here.
-        #
-        # The own-code acquisition mirrors that structure rather than the exact
-        # stream (no numpy seed can reproduce a torch one): it draws its Sobol'
-        # scramble seed from numpy's ambient global RNG, once per
-        # ``compute_qnehvi`` call (``acquisition._draw_scramble_seed``). So the
-        # line below is now the single control for the whole run, and there is no
-        # torch RNG left to seed.
+        # History, so the next reader knows why this is keyed. ``torch.manual_seed
+        # (seed)`` used to sit here, not because this file did any torch arithmetic
+        # but because botorch built its ``SobolQMCNormalSampler`` with
+        # ``seed=None``, and botorch's ``MCSampler.__init__`` then drew the Sobol
+        # scramble seed from torch's GLOBAL RNG: numerically load-bearing, and
+        # invisible from here. The own-code port first mirrored that structure with
+        # ``np.random.seed(seed)`` and an ambient draw; the keyed streams replace
+        # the hidden global with an argument. Results therefore differ from the
+        # archived runs' draws (accepted); the distributions do not.
         self.seed = seed
-        np.random.seed(seed)
 
         # --- GP training function ---
         # The PRIMARY / headline model is the coregionalized (ICM) GP, which
@@ -224,6 +241,10 @@ class BOLoop:
         self.coregionalization_rank = coregionalization_rank
         self.train_fn = (train_fn if train_fn is not None
                          else resolve_train_fn(model, rank=coregionalization_rank))
+        # Whether `train_fn` draws random numbers, i.e. declares an `rng`
+        # parameter. The coregionalized model does (its initial W / v_raw);
+        # `mogp.train_mogp` and the like do not and are called without one.
+        self._train_fn_takes_rng = _takes_rng(self.train_fn)
 
         # --- Library (cheap precomputed features) ---
         library = load_library(library_dir)
@@ -537,10 +558,11 @@ class BOLoop:
     # ------------------------------------------------------------------ #
     def initialize(self):
         """Seed the loop with ``n_init`` random, freshly-docked molecules."""
-        init_indices = np.random.choice(
-            self.library_size, size=self.n_init, replace=False
+        # The shared, keyed initial design: the same function, key and therefore
+        # molecules every baseline arm starts from for this seed.
+        init_indices = initial_design_indices(
+            self.seed, self.library_size, self.n_init
         )
-        init_indices = [int(i) for i in init_indices]
 
         print(f"Initializing with {self.n_init} random molecules...")
         Y, Y_le, Y_raw, docking = self._evaluate(init_indices)
@@ -574,9 +596,15 @@ class BOLoop:
         print(f"\n[Iteration {iteration}] Training GP on "
               f"{int(finite_rows.sum())}/{len(self.evaluated_indices)} "
               f"fully-evaluated molecules...")
+        # The ICM's initial W / v_raw come from this step's own keyed stream
+        # (a train_fn that draws nothing is called without it).
+        train_kwargs = {}
+        if self._train_fn_takes_rng:
+            train_kwargs["rng"] = keyed_generator(self.seed, iteration, "icm_init")
         model, likelihood, y_mean, y_std = self.train_fn(
             train_x, train_y,
             n_iterations=self.mogp_train_iters, lr=self.mogp_lr,
+            **train_kwargs,
         )
 
         # --- Candidate pool: library molecules not yet evaluated ---
@@ -602,6 +630,7 @@ class BOLoop:
             train_x, baseline_admet,
             batch_size=self.batch_size,
             diversity_threshold=self.diversity_threshold,
+            run_seed=self.seed, iteration=iteration,    # keys the Sobol' scramble
         )
         selected_library_indices = candidate_library_indices[selected_local]
 

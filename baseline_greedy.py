@@ -50,6 +50,8 @@ from mogp import TASK_NAMES, resolve_objective_layout
 from acquisition import (
     compute_pareto_front,
     get_active_objectives,
+    draw_without_replacement,
+    keyed_generator,
     DEFAULT_OBJECTIVE_SIGNS,
 )
 import evaluation
@@ -85,8 +87,13 @@ class GreedyFilterThenDock:
                  batch_size=10, n_total=110,
                  herg_threshold=0.5, halflife_min=2.0, caco2_min=-5.5):
         # --- Reproducibility (numpy only; there is no torch model here) ---
+        # `seed` is a KEY, not global state: the one random draw this arm makes
+        # (the docking set, ``select_docking_set``) comes from an explicit
+        # Generator keyed by (seed, 0, "greedy_select"), so it never reads or
+        # advances numpy's global RNG. This arm has no initial-design stage: it
+        # draws its whole docking budget from the filter survivors, a different
+        # population from the one every other arm's initial design draws from.
         self.seed = seed
-        np.random.seed(seed)
 
         # --- Library (cheap precomputed features) ---
         library = load_library(library_dir)
@@ -161,8 +168,9 @@ class GreedyFilterThenDock:
         """
         passed = np.asarray(self.passed_indices, dtype=int)
         k = min(self.n_total, len(passed))
-        chosen = np.random.choice(passed, size=k, replace=False)
-        self.selected_indices = [int(i) for i in chosen]
+        self.selected_indices = draw_without_replacement(
+            keyed_generator(self.seed, 0, "greedy_select"), passed, k
+        )
 
         if k < self.n_total:
             print(f"\nOnly {len(passed)} molecules passed the filter "

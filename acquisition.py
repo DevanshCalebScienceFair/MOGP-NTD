@@ -137,30 +137,106 @@ _SAMPLE_LAYOUT = "CRN"
 # Variance floor, preserved exactly from the BoTorch posterior wrapper.
 _VAR_FLOOR = 1e-9
 
-# Upper bound of the QMC scramble seed draw; see `_draw_scramble_seed`.
+# Upper bound of the AMBIENT-fallback scramble seed draw; see `_draw_scramble_seed`.
 _SOBOL_SEED_HIGH = 1000000
 
 
-def _draw_scramble_seed():
-    """Draw the Sobol' scramble seed from numpy's AMBIENT global RNG.
+# --------------------------------------------------------------------------
+# Keyed randomness: the ONLY way the optimizer draws random numbers
+# --------------------------------------------------------------------------
+# Every random draw in a run -- the initial design, the ICM's initial W / v_raw,
+# the Sobol' scramble -- comes from a `numpy.random.Generator` that is a pure
+# function of the key (run_seed, iteration, stream):
+#
+#     SeedSequence(entropy=(run_seed, iteration, stream)) -> PCG64
+#
+# the scheme `mogp_core.qnehvi.acquisition_generator` / `mogp_core.sobol.
+# qmc_generator` already use (spec/qnehvi/SPEC.md section 3.1). A tuple entropy,
+# so (1, 2, 3), (2, 1, 3) and (0, 3, 3) cannot collide, and never `hash(str)`,
+# which CPython salts per process. Because each draw is a function of its key and
+# of nothing else, it does not depend on what numpy's GLOBAL RNG was seeded with,
+# on how many other draws happened first, or on the order the stages run in, and
+# the loop never reads or advances the global stream at all.
+#
+# Stream ids are the third key word. `0` is the Sobol' scramble: it is what
+# `mogp_core.qnehvi.qnehvi` keys its sampler with (its `baseline_stream` default)
+# and is NOT passed from here, so it must stay 0. SPEC.md reserves `1` for the
+# iid candidate block and `2..6`, and the capture script owns `7`; the streams
+# this module adds start at 8 so none of those can ever collide with them.
+RNG_STREAMS = {
+    "qmc_scramble": 0,      # Sobol' scramble of the qNEHVI draw (iteration = BO step)
+    "icm_init": 8,          # ICM initial W, v_raw             (iteration = BO step)
+    "init_design": 9,       # the shared initial design        (iteration = 0)
+    "random_batch": 10,     # baseline_random's batch draws    (iteration = BO step)
+    "greedy_select": 11,    # baseline_greedy's docking set    (iteration = 0)
+    "ehvi_mc": 12,          # baseline_gpmobo's EHVI MC noise  (iteration = BO step)
+    "hparam_holdout": 13,   # baseline_gpmobo's holdout block  (iteration = 0)
+}
 
-    This reproduces the structure of what it replaces, not just its output.
+
+def keyed_generator(run_seed, iteration, stream):
+    """The ``numpy.random.Generator`` for key ``(run_seed, iteration, stream)``.
+
+    ``stream`` is a name in :data:`RNG_STREAMS` (or a raw non-negative int, for a
+    caller that owns its own stream id). ``run_seed`` and ``iteration`` must be
+    non-negative integers: ``SeedSequence`` rejects a negative entropy word.
+    """
+    stream_id = RNG_STREAMS[stream] if isinstance(stream, str) else int(stream)
+    return _core_qnehvi.acquisition_generator(run_seed, iteration, stream_id)
+
+
+def draw_without_replacement(generator, pool, size):
+    """``size`` distinct members of ``pool``, uniformly, as a list of ``int``.
+
+    ``pool`` is a library size (the pool ``0..pool-1``) or an array of library
+    indices. Raises ``ValueError`` if ``size`` exceeds the pool, as
+    ``numpy``'s ``choice`` does; callers that clamp do so before calling.
+    """
+    chosen = generator.choice(pool, size=int(size), replace=False)
+    return [int(i) for i in chosen]
+
+
+def initial_design_indices(run_seed, library_size, n_init):
+    """The initial design: ``n_init`` distinct library indices for ``run_seed``.
+
+    THE single definition of the initial design, called by ``loop.BOLoop`` and by
+    every baseline arm. A benchmark's arms are comparable only if, for a given
+    seed, they all start from the SAME ``n_init`` molecules, so that difference is
+    enforced by construction (one function, one key) rather than by every arm
+    happening to seed numpy's global RNG and make the same ``choice`` call.
+
+    A pure function of ``(run_seed, library_size, n_init)``: key
+    ``(run_seed, 0, "init_design")``, iteration 0 being "before the first step".
+    The set is uniform over all ``n_init``-subsets of the library, the same
+    distribution the global-RNG ``np.random.choice(..., replace=False)`` had; only
+    the particular draw for a given seed differs from the archived runs.
+    """
+    return draw_without_replacement(
+        keyed_generator(run_seed, 0, "init_design"), int(library_size), n_init
+    )
+
+
+def _draw_scramble_seed():
+    """Draw a Sobol' scramble seed from numpy's AMBIENT global RNG.
+
+    *** AMBIENT FALLBACK ONLY. *** The optimizer does not call this: ``BOLoop``
+    passes ``run_seed`` / ``iteration`` down to ``compute_qnehvi``, which then
+    keys the scramble with ``SeedSequence((run_seed, iteration, 0))`` and never
+    touches the global stream. This is what ``compute_qnehvi`` / ``select_batch``
+    fall back to for an ad-hoc DIRECT caller that supplies no ``run_seed``: such a
+    caller is reproducible by ``np.random.seed(...)`` exactly as it always was,
+    and each call advances the global stream once.
+
+    It reproduces the structure of the code the own-code acquisition replaced.
     ``SobolQMCNormalSampler(sample_shape=...)`` was constructed with no explicit
     seed, so BoTorch's ``MCSampler.__init__`` drew one from the ambient global
     TORCH RNG, once per sampler construction:
 
         seed = int(torch.randint(0, 1000000, (1,)).item())
 
-    i.e. the QMC scramble was a deterministic function of the caller's global
-    seed, and it advanced once per ``compute_qnehvi`` call. Every caller seeds
-    both global RNGs on adjacent lines (``loop.BOLoop.__init__``:
-    ``np.random.seed(seed); torch.manual_seed(seed)``; same in all four
-    baselines), so reading numpy's global RNG here keeps a run exactly as
-    reproducible as it was, and keeps the per-call variation the original had.
-
-    A fixed module-level seed would have been MORE deterministic than the code
-    being mirrored, which is a behaviour change in the direction the brief
-    forbids, so it is not what this does.
+    i.e. the QMC scramble was a deterministic function of the caller's global seed
+    and advanced once per ``compute_qnehvi`` call. That hidden dependence on a
+    global is what the keyed path removes from the loop.
     """
     return int(np.random.randint(0, _SOBOL_SEED_HIGH))
 
@@ -400,7 +476,7 @@ def compute_qnehvi(model, likelihood, y_mean, y_std,
                    X_baseline, baseline_admet,
                    objective_signs=None, bounds=None,
                    ref_point=None, n_mc_samples=N_MC_SAMPLES, layout=None,
-                   candidate_chunk=CANDIDATE_CHUNK):
+                   candidate_chunk=CANDIDATE_CHUNK, run_seed=None, iteration=0):
     """Noisy Expected Hypervolume Improvement (qNEHVI) per candidate.
 
     Builds a 2-output docking posterior and a composite objective that folds each
@@ -425,6 +501,13 @@ def compute_qnehvi(model, likelihood, y_mean, y_std,
         n_mc_samples: qNEHVI quasi-MC sample count.
         layout: Optional ``(dock_task_indices, lib_task_indices, lib_admet_cols)``;
             defaults to ``_resolve_admet_layout()``.
+        run_seed, iteration: The key of the Sobol' scramble,
+            ``SeedSequence((run_seed, iteration, 0))``. ``BOLoop`` passes its
+            seed and the BO step, which makes the scores a pure function of the
+            fit and the key and never touches numpy's global RNG. ``run_seed=None``
+            is the documented AMBIENT fallback for ad-hoc direct callers: the
+            scramble seed is then drawn from the global RNG
+            (``_draw_scramble_seed``), as it always was.
 
     Returns:
         Array of shape ``(M,)`` of qNEHVI scores; higher is more valuable to
@@ -538,14 +621,19 @@ def compute_qnehvi(model, likelihood, y_mean, y_std,
     # it is genuinely bit-neutral (the standard normals do not depend on it and
     # no reduction crosses a chunk boundary), unlike the chunking of the posterior
     # calls above, which is not — see the note on CANDIDATE_CHUNK below.
+    # The Sobol' scramble key. Explicit (run_seed, iteration) is the keyed path
+    # and reads no global state; only a caller that passes no run_seed falls back
+    # to the ambient draw.
+    if run_seed is None:
+        run_seed = _draw_scramble_seed()
     scores = _core_qnehvi.qnehvi(
         mu_baseline, var_baseline, baseline_admet,
         mu_candidates, var_candidates, candidate_admet,
         bounds,
         estimator=_ESTIMATOR,
         n_mc=int(n_mc_samples),
-        run_seed=_draw_scramble_seed(),
-        iteration=0,
+        run_seed=run_seed,
+        iteration=iteration,
         signs=signs,
         ref=ref,
         dock_idx=dock_task_indices,
@@ -574,7 +662,8 @@ def select_batch(model, likelihood, y_mean, y_std,
                  X_candidates, candidate_admet,
                  X_baseline, baseline_admet,
                  batch_size=20, diversity_threshold=0.7,
-                 objective_signs=None, n_mc_samples=N_MC_SAMPLES, layout=None):
+                 objective_signs=None, n_mc_samples=N_MC_SAMPLES, layout=None,
+                 run_seed=None, iteration=0):
     """Greedily select a diverse, high-qNEHVI batch of candidates.
 
     Candidates are ranked by their qNEHVI score (``compute_qnehvi``), then walked
@@ -594,7 +683,9 @@ def select_batch(model, likelihood, y_mean, y_std,
         batch_size: Number of molecules to select.
         diversity_threshold: Max allowed Tanimoto similarity to any already-
             selected molecule.
-        objective_signs, n_mc_samples, layout: Passed through to ``compute_qnehvi``.
+        objective_signs, n_mc_samples, layout, run_seed, iteration: Passed through
+            to ``compute_qnehvi`` (``run_seed`` / ``iteration`` key the Sobol'
+            scramble; ``run_seed=None`` is the ambient-RNG fallback).
 
     Returns:
         A tuple ``(selected_indices, selected_scores)`` of int and float arrays
@@ -606,6 +697,7 @@ def select_batch(model, likelihood, y_mean, y_std,
         model, likelihood, y_mean, y_std,
         X_candidates, candidate_admet, X_baseline, baseline_admet,
         objective_signs=objective_signs, n_mc_samples=n_mc_samples, layout=layout,
+        run_seed=run_seed, iteration=iteration,
     )
 
     # Rank candidates by qNEHVI score, highest first. Kept as np.argsort(-scores)
@@ -800,14 +892,12 @@ def __getattr__(name):
 
 
 if __name__ == "__main__":
-    # Determinism, without torch. `np.random.seed(0)` seeds the LEGACY global
-    # RandomState, which is what `_draw_scramble_seed` reads to pick the Sobol'
-    # scramble seed — exactly the role `torch.manual_seed(0)` used to play for
-    # botorch's SobolQMCNormalSampler. `rng` is an explicit numpy Generator for
-    # the synthetic demo data. `mogp.train_mogp` draws no random numbers (its
-    # hyperparameters initialize to constants and Adam is deterministic), so
-    # nothing else needs seeding and two runs of this script agree exactly.
-    np.random.seed(0)
+    # Determinism, without torch and without the global RNG. The Sobol' scramble
+    # is keyed by the explicit `run_seed=0` passed to `select_batch` below, and
+    # `rng` is an explicit numpy Generator for the synthetic demo data.
+    # `mogp.train_mogp` draws no random numbers (its hyperparameters initialize to
+    # constants and Adam is deterministic), so nothing else needs seeding and two
+    # runs of this script agree exactly.
     rng = np.random.default_rng(0)
 
     # Objective layout WITHOUT importing the (heavy) data module: docking indices
@@ -844,7 +934,7 @@ if __name__ == "__main__":
     selected_indices, selected_scores = select_batch(
         model, likelihood, y_mean, y_std,
         X_candidates, candidate_admet, X_baseline, baseline_admet,
-        batch_size=5, layout=layout,
+        batch_size=5, layout=layout, run_seed=0, iteration=0,
     )
 
     print("\nSelected molecules (candidate index -> qNEHVI score):")

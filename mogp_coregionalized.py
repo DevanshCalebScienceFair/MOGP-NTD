@@ -86,13 +86,14 @@ class MOGPCoregionalized:
     raw parameters. ``likelihood`` is accepted for signature compatibility and
     otherwise ignored — the noise now lives in :attr:`theta`.
 
-    ``W`` and ``v_raw`` are drawn from numpy's **global** RNG at construction.
-    That mirrors what was there before: gpytorch's ``IndexKernel`` drew
-    ``covar_factor`` and ``raw_var`` from the global torch RNG every time it was
-    constructed, so every BO iteration's refit started from a fresh ``randn``
-    and a run was reproducible from one seed while an individual refit depended
-    on how many draws preceded it. The per-task noises, the shared noise and the
-    task means all initialize to exactly ``0.0``, as they did.
+    ``W`` and ``v_raw`` are drawn at construction, as gpytorch's ``IndexKernel``
+    drew ``covar_factor`` and ``raw_var`` every time it was constructed, so every
+    BO iteration's refit started from a fresh ``randn``. They come from ``rng``
+    (a keyed ``numpy.random.Generator`` or an int seed: the draw is then a pure
+    function of it). ``rng=None`` is the documented AMBIENT fallback for ad-hoc
+    callers that pass no key: numpy's **global** RNG, where an individual refit
+    depends on how many draws preceded it. The per-task noises, the shared noise
+    and the task means all initialize to exactly ``0.0``, as they did.
 
     ``train_mogp_coregionalized`` no longer returns an instance of this class —
     it returns a ``mogp_core.icm.ICMState``, which is serializable and carries
@@ -106,9 +107,10 @@ class MOGPCoregionalized:
             the ``K`` MODELLED tasks). ``K`` is inferred from ``train_y.shape[1]``.
         likelihood: Accepted and ignored (kept for signature compatibility).
         rank: Rank ``R`` of the low-rank task-covariance factor ``W``.
+        rng: Where ``W`` / ``v_raw`` are drawn from; see above.
     """
 
-    def __init__(self, train_x, train_y, likelihood, rank=1):
+    def __init__(self, train_x, train_y, likelihood, rank=1, rng=None):
         train_y = np.asarray(train_y, dtype=np.float32)
         num_tasks = train_y.shape[1]
         self.train_inputs = (np.asarray(train_x, dtype=np.float32),)
@@ -116,8 +118,9 @@ class MOGPCoregionalized:
         self.likelihood = likelihood
         self.num_tasks = int(num_tasks)
         self.rank = int(rank)
-        # W, v_raw ~ randn off the GLOBAL stream; everything else exactly 0.0.
-        self.theta = _icm.init_theta(self.num_tasks, rank=self.rank, rng=None)
+        # W, v_raw ~ randn off `rng` (global stream only if None); everything
+        # else exactly 0.0.
+        self.theta = _icm.init_theta(self.num_tasks, rank=self.rank, rng=rng)
 
     def train(self):
         """No-op; kept because the gpytorch object had it."""
@@ -165,7 +168,8 @@ class MOGPCoregionalized:
         return self.natural()[0]
 
 
-def train_mogp_coregionalized(train_x, train_y, n_iterations=200, lr=0.1, rank=1):
+def train_mogp_coregionalized(train_x, train_y, n_iterations=200, lr=0.1, rank=1,
+                              rng=None):
     """Train the coregionalized (ICM) GP over the docking objectives.
 
     Same signature and return contract as ``mogp.train_mogp`` (plus a ``rank``
@@ -182,6 +186,12 @@ def train_mogp_coregionalized(train_x, train_y, n_iterations=200, lr=0.1, rank=1
         n_iterations: Number of Adam steps.
         lr: Adam learning rate.
         rank: Rank of the task-covariance factor ``W`` (default 1).
+        rng: Where ``W`` / ``v_raw`` are drawn from: a ``numpy.random.Generator``
+            or int seed (``BOLoop`` passes one keyed by
+            ``(run_seed, iteration, "icm_init")``), which makes the fit a pure
+            function of its inputs and independent of numpy's global RNG.
+            ``None`` is the documented AMBIENT fallback for ad-hoc callers: the
+            global stream.
 
     Returns:
         A tuple ``(model, likelihood, y_mean, y_std)`` where ``y_mean`` / ``y_std``
@@ -197,8 +207,8 @@ def train_mogp_coregionalized(train_x, train_y, n_iterations=200, lr=0.1, rank=1
         call site (loop.py) needs no change, and ``predict_coregionalized``
         ignores the second slot.
 
-    ``W`` and ``v_raw`` are initialized off numpy's **global** RNG, mirroring the
-    global-torch-RNG draw ``IndexKernel`` did at every construction. The 200 Adam
+    ``W`` and ``v_raw`` are redrawn at every call from ``rng`` (see above),
+    mirroring the fresh draw ``IndexKernel`` did at every construction. The 200 Adam
     steps are unconditional, with no schedule and no early stop: ``spec/icm``
     §7.3 shows the step count is acting as early-stopping regularization and is
     load-bearing, because the true MLE is a degenerate boundary solution with a
@@ -208,7 +218,7 @@ def train_mogp_coregionalized(train_x, train_y, n_iterations=200, lr=0.1, rank=1
     return _icm.train_mogp_coregionalized(
         train_x, train_y, n_iterations=n_iterations, lr=lr, rank=rank,
         docking_task_indices=DOCKING_TASK_INDICES,
-        rng=None,
+        rng=rng,
         # The shipped function printed the loss every 20 Adam steps
         # unconditionally; keep printing it.
         verbose=True,

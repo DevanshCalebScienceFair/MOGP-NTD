@@ -1,8 +1,9 @@
 """Differential tests for the pure-numpy numerical primitives in ``mogp_core``.
 
-Validates ``mogp_core.tanimoto`` / ``transforms`` / ``linalg`` / ``optim``
-against the captured fixtures in ``spec/primitives/fixtures/`` and, where it is
-cheap, against torch / gpytorch / scipy as LIVE oracles.
+Validates ``mogp_core.tanimoto`` / ``transforms`` / ``linalg`` / ``optim`` (and
+the unjittered ``gp.cholesky``) against the captured fixtures in
+``spec/primitives/fixtures/`` and, where it is cheap, against torch / gpytorch /
+scipy as LIVE oracles.
 
 The oracle imports live HERE, in the test instrument, and nowhere in
 ``mogp_core`` — that separation is the whole point of the exercise.
@@ -53,6 +54,7 @@ import warnings
 import numpy as np
 import pytest
 
+from mogp_core import gp as mgp
 from mogp_core import linalg as mlin
 from mogp_core import optim as mopt
 from mogp_core import tanimoto as mtan
@@ -161,7 +163,7 @@ def live_tanimoto_kernel():
 # without torch / scipy it skipped them, so the suite went GREEN while asserting
 # nothing about the agreements those tests exist to prove -- and those particular
 # agreements (softplus vs torch, Adam vs torch.optim.Adam, forward substitution
-# vs scipy's TRSV, the ladder rule vs linear_operator's) were asserted in NO
+# vs scipy's TRSV) were asserted in NO
 # other test in this file, so the coverage was lost outright, not merely
 # downgraded.  Each of those tests now asserts its agreement UNCONDITIONALLY
 # against the array ``spec/primitives/capture_primitives.py`` captured FROM the
@@ -208,62 +210,6 @@ def live_scipy_linalg():
             sla = None
         _LIVE_OPT["scipy.linalg"] = sla
     return _LIVE_OPT["scipy.linalg"]
-
-
-def pristine_linear_operator_defaults():
-    """linear_operator's ladder defaults as they are *before* botorch loads.
-
-    These must be read in a FRESH INTERPRETER.  ``import botorch`` permanently
-    rewrites ``linear_operator``'s module-level globals at import time --
-    measured here: ``cholesky_max_tries`` 3 -> 6 -- and it overwrites
-    ``_global_value`` in place, leaving no pristine value to recover, so an
-    in-process read reports whatever the last importer wanted.
-
-    Forcing the settings with a context manager would NOT do: the assertions
-    below check that ``mogp_core.linalg``'s constants equal the library's
-    vanilla defaults, and forcing the library to our own constant and then
-    asserting equality would be vacuous.  A subprocess keeps the claim intact
-    while making it independent of which test file ran first.
-
-    Returns ``None`` if the subprocess cannot run, so the caller degrades to
-    fixture-mediated checks rather than skipping.
-    """
-    if "pristine_lo" not in _LIVE_OPT:
-        import json
-        import subprocess
-        import sys
-        probe = (
-            "import json;"
-            "import torch;"
-            "from linear_operator import settings as s;"
-            "print(json.dumps({"
-            "'max_tries': s.cholesky_max_tries.value(),"
-            "'jitter_f32': float(s.cholesky_jitter.value(torch.float32)),"
-            "'jitter_f64': float(s.cholesky_jitter.value(torch.float64))}))"
-        )
-        try:
-            out = subprocess.run([sys.executable, "-c", probe],
-                                 capture_output=True, text=True, timeout=180)
-            got = json.loads(out.stdout.strip().splitlines()[-1])
-            assert "botorch" not in out.stderr  # the probe must not have loaded it
-        except Exception:                                     # pragma: no cover
-            got = None
-        _LIVE_OPT["pristine_lo"] = got
-    return _LIVE_OPT["pristine_lo"]
-
-
-def live_linear_operator_settings():
-    """``linear_operator.settings``, or ``None``.  Never skips."""
-    if "lo_settings" not in _LIVE_OPT:
-        if live_gpytorch() is None:                           # pragma: no cover
-            _LIVE_OPT["lo_settings"] = None
-        else:
-            try:
-                from linear_operator import settings as lo_settings
-            except ImportError:                               # pragma: no cover
-                lo_settings = None
-            _LIVE_OPT["lo_settings"] = lo_settings
-    return _LIVE_OPT["lo_settings"]
 
 
 # --------------------------------------------------------------------------- #
@@ -986,90 +932,19 @@ def test_constant_mean_live_oracle_is_unconstrained(HP):
 
 
 # =========================================================================== #
-# 3. Cholesky ladder + triangular substitution
+# 3. Unjittered Cholesky + triangular substitution
 # =========================================================================== #
-def test_ladder_rungs_are_totals_not_cumulative(CH):
-    """SPEC 3.9.1."""
-    r32 = mlin.jitter_rungs(np.float32)
-    r64 = mlin.jitter_rungs(np.float64)
-    assert np.array_equal(r32, CH["ladder_rungs_f32"])
-    assert np.array_equal(r64, CH["ladder_rungs_f64"])
-    assert r32.tolist() == [np.float32(1e-6), np.float32(1e-5), np.float32(1e-4)]
-    # NOT the cumulative sum: a cumulative bug gives 1.1e-5 at rung 1
-    cum = np.cumsum(r32.astype(np.float64))
-    assert float(r32[1]) != float(cum[1])
-    assert abs(float(cum[1]) - 1.1e-5) < 1e-12
-    assert mlin.CHOL_MAX_TRIES == 3
-    assert mlin.default_jitter(np.float32) == 1e-6
-    assert mlin.default_jitter(np.float64) == 1e-8
-    assert np.array_equal(
-        np.array([1e-6 * (10 ** i) for i in range(4)]),
-        CH["ladder_rung_python_float_vs_literal"])
-
-
-def test_ladder_raises_after_exhausting_all_rungs(CH):
-    """SPEC 3.9.2: diag(-1,1,1,1) is unrescuable; 3 warnings then a raise."""
-    bad = CH["ladder_unrescuable_matrix"]
-    assert np.array_equal(bad, np.diag(np.array([-1, 1, 1, 1], dtype=np.float32)))
-    with warnings.catch_warnings(record=True) as rec:
-        warnings.simplefilter("always")
-        with pytest.raises(np.linalg.LinAlgError, match="up to 1.0e-04"):
-            mlin.cholesky_jitter_ladder(bad, mlin.CHOL_JITTER_F32)
-    msgs = [str(w.message) for w in rec
-            if issubclass(w.category, mlin.NumericalWarning)]
-    assert len(msgs) == 3, msgs
-    assert "1.0e-06" in msgs[0] and "1.0e-05" in msgs[1] and "1.0e-04" in msgs[2]
-    assert int(CH["ladder_raises_on_unrescuable"][0]) == 1
-
-
-@pytest.mark.parametrize("n", [10, 20, 40, 64])
-def test_ladder_on_singular_grams(CH, n):
-    """SPEC 3.9.3: reconstruction, not byte-comparison of L (lapack-dependent)."""
-    K = CH[f"gram_f32_singular_n{n}"]
-    with warnings.catch_warnings(record=True) as rec:
-        warnings.simplefilter("always")
-        L, jit, na = mlin.cholesky_jitter_ladder(K, mlin.CHOL_JITTER_F32)
-    assert L.dtype == np.float32
-    assert np.isfinite(L).all() and (np.diagonal(L) > 0).all()
-    rungs = mlin.jitter_rungs(np.float32)
-    assert float(jit) in {0.0} | {float(r) for r in rungs}
-    assert 1 <= na <= 4
-    # The RULE, which IS portable even though the rung reached is not: the
-    # returned jitter is exactly the rung belonging to the attempt consumed,
-    # and one warning was emitted per rung attempted, in ladder order.
-    if na == 1:
-        assert float(jit) == 0.0
-    else:
-        assert float(jit) == float(rungs[na - 2])
-    msgs = [str(w.message) for w in rec
-            if issubclass(w.category, mlin.NumericalWarning)]
-    assert len(msgs) == max(0, na - 1)
-    for k, m in enumerate(msgs):
-        assert f"{float(rungs[k]):.1e}" in m, (k, m)
-    A = K + np.float32(jit) * np.eye(n, dtype=np.float32)
-    recon = float(np.max(np.abs((L @ L.T) - A)))
-    assert recon < 1e-5
-    np.testing.assert_allclose(L @ L.T, A, rtol=1e-5, atol=1e-5)
-    # the fixture's own factor satisfies the same invariant on its own jitter
-    idx = int(np.flatnonzero(CH["singular_case_sizes"] == n)[0])
-    jf = np.float32(CH["ladder_chosen_jitter_f32"][idx])
-    Lf = CH[f"chol_L_f32_n{n}"]
-    np.testing.assert_allclose(
-        Lf @ Lf.T, K + jf * np.eye(n, dtype=np.float32), rtol=1e-5, atol=1e-5)
-    assert float(CH[f"chol_recon_max_abs_err_n{n}"][0]) < 1e-5
-    assert abs(float(CH["singular_case_min_eig_f64"][idx])) < 1e-12
-    # SPEC 3.9.10: do NOT assert numpy and torch pick the same rung.
-    assert 1 <= int(CH["ladder_n_attempts"][idx]) <= 4
-
-
 def test_non_finite_input_raises_before_factorizing(CH):
-    """SPEC 3.9.4: numpy is silent where gpytorch is not; check the WHOLE matrix."""
+    """SPEC 3.9.4: numpy is silent where gpytorch is not; check the WHOLE matrix.
+
+    The screen lives in ``gp.cholesky``, the one factorization training uses.
+    """
     lower = CH["nan_in_lower_triangle_input"]
     assert np.array_equal(lower, np.where(
         np.arange(9).reshape(3, 3) == 3, np.float32(np.nan),
         np.eye(3, dtype=np.float32)), equal_nan=True)
     with pytest.raises(FloatingPointError):
-        mlin.cholesky_jitter_ladder(lower, mlin.CHOL_JITTER_F32)
+        mgp.cholesky(lower)
     # numpy itself SUCCEEDS on this and returns NaNs -- the hazard being closed
     Ln = np.linalg.cholesky(lower)
     assert np.isnan(Ln).any()
@@ -1080,36 +955,62 @@ def test_non_finite_input_raises_before_factorizing(CH):
     assert int(CH["nan_in_upper_triangle_is_ignored"][0]) == 1
     assert not np.isnan(np.linalg.cholesky(upper)).any()
     with pytest.raises(FloatingPointError):
-        mlin.cholesky_jitter_ladder(upper, mlin.CHOL_JITTER_F32)
+        mgp.cholesky(upper)
     # inf too
     bad = np.eye(3, dtype=np.float32)
     bad[2, 2] = np.float32(np.inf)
     with pytest.raises(FloatingPointError):
-        mlin.cholesky_jitter_ladder(bad, mlin.CHOL_JITTER_F32)
+        mgp.cholesky(bad)
 
 
-def test_per_task_ladder_does_not_jitter_the_good_slice(CH):
-    """SPEC 3.9.5."""
-    good = np.eye(4, dtype=np.float32) * np.float32(2.0)
-    singular = CH["gram_f32_singular_n10"]
-    # a stacked numpy call dies for the WHOLE stack when one slice fails
-    bad = CH["ladder_unrescuable_matrix"]
-    with pytest.raises(np.linalg.LinAlgError):
-        np.linalg.cholesky(np.stack([good, bad]))
-    assert int(CH["batched_cholesky_one_bad_slice_raises"][0]) == 1
-    with pytest.raises(ValueError, match="per task"):
-        mlin.cholesky_jitter_ladder(np.stack([good, good]))
-    # the per-task ladder: good slice keeps ZERO jitter
-    A = np.zeros((2, 10, 10), dtype=np.float32)
-    A[0] = np.eye(10, dtype=np.float32) * np.float32(2.0)
-    A[1] = singular
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", mlin.NumericalWarning)
-        Ls, jits, atts = mlin.cholesky_jitter_ladder_stack(A, mlin.CHOL_JITTER_F32)
-    assert Ls.shape == (2, 10, 10)
-    assert float(jits[0]) == 0.0 and int(atts[0]) == 1
-    assert float(jits[1]) in {0.0, float(np.float32(1e-6)),
-                              float(np.float32(1e-5)), float(np.float32(1e-4))}
+def test_cholesky_failure_message_is_accurate():
+    """A non-PD matrix is refused, and the message says what actually happened.
+
+    ``gp.cholesky`` adds no jitter (``tau_t`` IS the jitter), yet it used to
+    report "not positive definite after repeatedly adding jitter up to 1.0e-09".
+    The exception type (``LinAlgError``) is what callers rely on and is unchanged.
+    """
+    bad = np.diag(np.array([-1.0, 1.0, 1.0, 1.0]))
+    with pytest.raises(np.linalg.LinAlgError) as ei:
+        mgp.cholesky(bad)
+    msg = str(ei.value)
+    assert "not numerically positive definite" in msg
+    assert "no jitter was applied" in msg
+    assert "(4x4, float64)" in msg
+    assert "diagonal range [-1.000e+00, 1.000e+00]" in msg
+    assert "minimum eigenvalue -1.000e+00" in msg
+    assert "adding jitter" not in msg and "1.0e-09" not in msg
+    # float32 reports its own dtype, and a PSD-but-singular matrix (rank 1) is
+    # refused too rather than rescued
+    with pytest.raises(np.linalg.LinAlgError, match=r"\(3x3, float32\)"):
+        mgp.cholesky(np.ones((3, 3), dtype=np.float32))
+    # a non-square input is its own, plainly stated, error of the same type
+    with pytest.raises(np.linalg.LinAlgError, match="must be square"):
+        mgp.cholesky(np.ones((3, 4)))
+
+
+def test_cholesky_pd_matrix_factors_with_zero_jitter(CH):
+    """A PD matrix factors as numpy's own unjittered factor: nothing is added.
+
+    Any diagonal addition from the old ladder (1e-8 in float64) would break
+    ``L L^T == A`` at 1e-12, so the reconstruction pins "zero jitter" directly;
+    bitwise equality with ``np.linalg.cholesky`` pins it from the other side.
+    """
+    rng = np.random.default_rng(20261007)
+    B = rng.standard_normal((40, 25))
+    for A in (B @ B.T + np.eye(40), CH["tri_A_f64_n64"]):
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")           # no jitter warning either
+            L = mgp.cholesky(A)
+        assert L.dtype == np.float64
+        assert np.array_equal(L, np.linalg.cholesky(A))
+        assert np.array_equal(L, np.tril(L))
+        assert float(np.max(np.abs(L @ L.T - A))) < 1e-12
+    # float32 is factored in float32, again exactly numpy's factor
+    A32 = (B @ B.T + np.eye(40)).astype(np.float32)
+    L32 = mgp.cholesky(A32)
+    assert L32.dtype == np.float32
+    assert np.array_equal(L32, np.linalg.cholesky(A32))
 
 
 @pytest.mark.parametrize("nm,dt,rt", [("f64", np.float64, 1e-13),
@@ -1288,91 +1189,6 @@ def test_triangular_live_oracle_scipy(CH):
             refT = sla.solve_triangular(L.T, ref, lower=False)
             np.testing.assert_allclose(mlin.back_substitution_LT(L, mine), refT,
                                        rtol=rt, atol=0)
-
-
-def test_cholesky_live_oracle_ladder_rule_only(CH):
-    """SPEC 3.6 / 3.9.10: compare the RULE, never which rung a matrix lands on.
-
-    UNCONDITIONAL since 2026-09-28 for the parts the archive witnesses.  The
-    ladder RULE the library uses is recorded in the fixture itself — the rung
-    arrays are ``linear_operator``'s ``cholesky_jitter * 10**i`` for
-    ``i < cholesky_max_tries`` — so ``mlin``'s three constants are checked against
-    it with no torch present.  So is the measured reason this test may only
-    compare the rule: the archived ``torch_cholesky_ex_info`` and
-    ``numpy_cholesky_succeeds_unjittered`` DISAGREE about which exactly
-    rank-deficient float32 matrices are PD.  The live half then reads
-    ``linear_operator``'s settings and re-runs ``torch.linalg.cholesky_ex`` /
-    ``psd_safe_cholesky``, which is the only way to check the library has not
-    changed its own rule.
-    """
-    # -- half 1, unconditional: the rule, as the archive records it ------------
-    r32 = CH["ladder_rungs_f32"]
-    r64 = CH["ladder_rungs_f64"]
-    assert mlin.CHOL_MAX_TRIES == r32.shape[0] == r64.shape[0] == 3
-    # r32 is a float32 array, so compare in float32: float(np.float32(1e-6)) is
-    # 9.999999974752427e-07, and reading the rung back as a python float would
-    # compare the cast, not the constant.
-    assert np.float32(mlin.CHOL_JITTER_F32) == r32[0]
-    assert mlin.CHOL_JITTER_F64 == float(r64[0])
-    assert np.array_equal(mlin.jitter_rungs(np.float32), r32)
-    assert np.array_equal(mlin.jitter_rungs(np.float64), r64)
-    # WHY the rung itself is off limits: the two LAPACK builds disagree about
-    # which of the four singular cases is PD at all (measured 3 of 4).
-    torch_pd = CH["torch_cholesky_ex_info"] == 0
-    numpy_pd = CH["numpy_cholesky_succeeds_unjittered"] == 1
-    n_disagree = int(np.sum(torch_pd != numpy_pd))
-    assert n_disagree >= 1, (
-        "the archived torch and numpy PD verdicts agree on every case "
-        f"({CH['torch_cholesky_ex_info']!r} vs "
-        f"{CH['numpy_cholesky_succeeds_unjittered']!r}), so SPEC 3.6's "
-        "non-portability claim has lost its evidence and comparing the chosen "
-        "rung would now be legitimate")
-    # and the unrescuable matrix defeated the LIBRARY's ladder too, recorded
-    assert int(CH["ladder_raises_on_unrescuable"][0]) == 1
-    report(f"ladder rule: rungs {r32.tolist()} (f32) / {r64.tolist()} (f64), "
-           f"max_tries {mlin.CHOL_MAX_TRIES}; archived torch-vs-numpy PD "
-           f"verdicts disagree on {n_disagree} of "
-           f"{CH['torch_cholesky_ex_info'].shape[0]} singular cases")
-
-    # -- half 2, live ---------------------------------------------------------
-    torch, gp = live_torch(), live_gpytorch()
-    lo_settings = live_linear_operator_settings()
-    if torch is None or gp is None or lo_settings is None:     # pragma: no cover
-        report("ladder oracle: torch/gpytorch absent -> fixture-mediated only "
-               "(the rule, and the archived non-portability)")
-        return
-    # Read the library's defaults from a CLEAN interpreter, not from this one.
-    # `import botorch` rewrites linear_operator's globals in place at import
-    # time (cholesky_max_tries 3 -> 6), so whether this process sees 3 or 6
-    # depends only on whether a botorch-importing test file happened to run
-    # first -- test_acquisition.py does it at COLLECTION time, and
-    # test_core_hv.py imports evaluation.py at run time.  The claim being
-    # asserted is unchanged: mogp_core.linalg's ladder constants equal vanilla
-    # linear_operator's defaults.
-    pristine = pristine_linear_operator_defaults()
-    assert pristine is not None, (
-        "could not read linear_operator's pristine defaults in a subprocess; "
-        "the ladder constants are therefore unverified against the library")
-    assert pristine["max_tries"] == mlin.CHOL_MAX_TRIES
-    assert pristine["jitter_f32"] == mlin.CHOL_JITTER_F32
-    assert pristine["jitter_f64"] == mlin.CHOL_JITTER_F64
-    # ...and record what THIS process sees, so the mutation stays visible.
-    report(f"ladder defaults: pristine max_tries={pristine['max_tries']}, "
-           f"in-process={lo_settings.cholesky_max_tries.value()}"
-           f"{' (mutated by an earlier botorch import)' if lo_settings.cholesky_max_tries.value() != pristine['max_tries'] else ''}")
-    # torch and numpy genuinely disagree on these; only the rule is portable
-    infos = []
-    for n in (10, 20, 40, 64):
-        K = CH[f"gram_f32_singular_n{n}"]
-        _, info = torch.linalg.cholesky_ex(torch.from_numpy(K))
-        infos.append(int(info))
-    np.testing.assert_array_equal(np.array(infos), CH["torch_cholesky_ex_info"])
-    # the unrescuable matrix must defeat gpytorch too
-    with pytest.raises(Exception):
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            gp.utils.cholesky.psd_safe_cholesky(
-                torch.from_numpy(CH["ladder_unrescuable_matrix"]))
 
 
 # =========================================================================== #

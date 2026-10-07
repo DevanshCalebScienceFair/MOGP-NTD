@@ -46,8 +46,8 @@ Load-bearing behaviours preserved verbatim
   to ``ddof=1`` and would shift every standardized target by ~1.7%.
 * **No jitter** (SPEC §2.2, §13).  ``tau_t >= 2e-4`` *is* the jitter and it is a
   fitted parameter; adding a separate jitter term changes the model silently.
-  :func:`cholesky` therefore runs ``mogp_core.linalg``'s ladder with
-  ``max_tries=0``, i.e. the unjittered factorization only.
+  :func:`cholesky` therefore performs the unjittered factorization only, and
+  raises if the matrix does not factor.
 * **200 Adam steps, unconditionally**, ``lr=0.1``, from all-zero raw parameters.
   No schedule, no convergence check, no early stop.  The fit is not converged
   and is not meant to be.
@@ -380,17 +380,57 @@ def _self_similarity(x, dtype=np.float64, check_binary: bool = True):
 def cholesky(A):
     """Unjittered Cholesky of ``A``, lower factor.
 
-    Routed through ``mogp_core.linalg.cholesky_jitter_ladder`` with
-    ``max_tries=0``, so **no jitter is ever added** (SPEC §2.2, §13: ``tau_t`` is
-    the jitter and it is a fitted parameter).  Identical to
-    ``np.linalg.cholesky`` on any positive-definite input; it additionally
-    refuses a non-finite matrix instead of propagating NaN silently through
-    ``potrf``'s lower-triangle-only read.
+    **No jitter is ever added** (SPEC §2.2, §13: ``tau_t`` is the jitter and it
+    is a fitted parameter).  The factor is ``np.linalg.cholesky``'s, unchanged,
+    for any positive-definite float32/float64 input.  What this adds is the
+    screening numpy omits: ``potrf`` reads only the lower triangle, so a NaN
+    below the diagonal factorizes *successfully* into a factor full of NaN and a
+    NaN above it is ignored entirely.  The whole matrix is therefore checked with
+    ``isfinite`` first, and a factor that is non-finite or has a non-positive
+    diagonal is refused.
+
+    Raises:
+        ValueError: ``A`` is not a 2-D float32/float64 array.
+        FloatingPointError: a non-finite entry anywhere in ``A``.
+        numpy.linalg.LinAlgError: ``A`` is not square, or is not numerically
+            positive definite (the message gives the size, the diagonal range
+            and, up to n = 1000, the minimum eigenvalue).
     """
-    L, jitter, _ = _linalg.cholesky_jitter_ladder(A, max_tries=0, warn=False)
-    if float(jitter) != 0.0:                       # unreachable at max_tries=0
-        raise AssertionError("jitter added; SPEC §13 forbids it")
-    return L
+    A = np.asarray(A)
+    if A.ndim != 2:
+        raise ValueError(
+            f"cholesky expects a single (n, n) matrix, got shape {A.shape}; "
+            f"factorize a stack one slice at a time.")
+    if not np.isfinite(A).all():
+        raise FloatingPointError(
+            "cholesky: input has NaN/Inf. numpy's potrf reads only the lower "
+            "triangle, propagates a lower-triangle NaN SILENTLY into the factor "
+            "and ignores an upper-triangle NaN entirely.")
+    if A.dtype not in (np.float32, np.float64):
+        raise ValueError(f"cholesky expects float32 or float64, got {A.dtype}.")
+    n = A.shape[0]
+    if A.shape[1] != n:
+        raise np.linalg.LinAlgError(
+            f"cholesky: matrix must be square, got shape {A.shape}.")
+
+    try:
+        L = np.linalg.cholesky(A)
+    except np.linalg.LinAlgError:
+        L = None
+    if L is not None and np.isfinite(L).all() and (np.diagonal(L) > 0).all():
+        return L
+
+    d = np.diagonal(A)
+    detail = f"diagonal range [{float(d.min()):.3e}, {float(d.max()):.3e}]"
+    if n <= 1000:                                  # O(n^3), failure path only
+        try:
+            detail += f", minimum eigenvalue {float(np.linalg.eigvalsh(A)[0]):.3e}"
+        except np.linalg.LinAlgError:              # pragma: no cover
+            pass
+    raise np.linalg.LinAlgError(
+        f"cholesky: matrix ({n}x{n}, {A.dtype}) is not numerically positive "
+        f"definite; no jitter was applied (tau_t is the jitter, SPEC 2.2/13). "
+        f"{detail}.")
 
 
 def _solve_lower(L, B, use_primitive_solves: bool):

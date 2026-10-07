@@ -1,3 +1,7 @@
+> **Historical record.** This document's acceptance criterion, parity with the botorch / gpytorch / scipy / scikit-learn
+> reference, is superseded: the project owner has waived archive-compatibility, and those libraries are now test oracles only.
+> Its measurements describe the tree as it was when written, not the tree now; for where each choice actually came from, see `mogp_core/PROVENANCE.md`.
+
 # FINAL GATE — adversarial review of the three closing agents
 
 **Date:** 2026-09-28 · **Branch:** `feat/numpy-bo-rewrite` · **Reviewer:** final gate,

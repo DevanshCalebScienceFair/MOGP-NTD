@@ -36,44 +36,102 @@ binding but **weak** hDHFR (human) binding, so `hDHFR_Docking` is *maximized*.
 (`hDHFR_Docking - PfDHFR_Docking`) that is **not** an optimized objective.
 
 Core idea: the 3 ADMET objectives are cheap and precomputed for the whole
-library; the 2 docking objectives are expensive, so the EHVI acquisition spends
+library; the 2 docking objectives are expensive, so the qNEHVI acquisition spends
 docking only on the molecules most likely to expand the Pareto front. The
-docking columns are all-NaN until evaluated, so the GP/acquisition/loop handle a
-**dynamic objective count** (the 3 ADMET objectives active until docking fills
-the 2 docking columns; ADMET scores that fall out of domain arrive as NaN and
-`get_active_objectives` simply excludes unobserved objectives).
+docking columns are all-NaN until evaluated, so the loop's Pareto/hypervolume
+bookkeeping handles a **dynamic objective count** (the 3 ADMET objectives active
+until docking fills the 2 docking columns; `get_active_objectives` simply
+excludes unobserved objectives). The acquisition itself always works at all 5
+objectives (a deliberate tripwire in `acquisition.compute_qnehvi`). The cached
+library never contains NaN ADMET scores: a molecule that falls outside any of the
+three ADMET applicability domains, or whose score is NaN, is **dropped** when the
+library is built (`data.py`), not carried as NaN.
 
 ## Environment
 
 - Conda env **`mogp-drug`** (Python 3.11). `vina` is also available in a separate
   `vina-cli` env.
-- NumPy is **2.x**; `scikit-learn` is **pinned to 1.9.0** to match the serialized
-  ADMET models in `models/pretrained_admet/` (loading under another version can
-  silently produce invalid predictions).
+- NumPy is **2.x** (`requirements.txt` pins 2.2.6, but the numpy that actually
+  imports in `mogp-drug` is 2.4.6, so record the real one with any result).
+- **The optimizer does not need torch, gpytorch, botorch, scipy or scikit-learn.**
+  Its runtime path is numpy, pandas, RDKit and the docking stack; the BO core is
+  `mogp_core/` (pure numpy), and ADMET prediction reads the numpy export in
+  `mogp_core/admet_export/`, not the pickles. Those libraries are still installed,
+  for four separate reasons: differential **test oracles** (`test_core_*.py`,
+  `spec/*/capture_*.py`), the quarantined GP-MOBO comparator
+  (`baseline_gpmobo.py`), ADMET **retraining** (`train_admet_oracle.py`), and
+  dependencies of the data and docking stack (PyTDC pulls sklearn; meeko pulls
+  scipy). So `import loop` still leaves scipy/sklearn/joblib resident even though
+  no repo optimizer code uses them.
+- `scikit-learn` is **pinned to 1.9.0** (and `joblib` to 1.5.3) because the pickled
+  models in `models/pretrained_admet/` are version-sensitive. That now matters for
+  retraining and re-exporting only, not for predicting.
 - Docking deps: `vina` + `openbabel` (conda: `conda install -c conda-forge vina
   openbabel`), `meeko` + `biopython` (pip). `vina` must be on PATH.
-- If you hit **OMP Error #15** (duplicate libomp) on import, set
-  `KMP_DUPLICATE_LIB_OK=TRUE` (run.py already does this at module top).
+- **OMP Error #15** (duplicate libomp) is only reachable when torch is loaded next
+  to sklearn, i.e. the GP-MOBO arm and the oracle tests. If you hit it, set
+  `KMP_DUPLICATE_LIB_OK=TRUE` (the entry points, including `loop.py` and
+  `run.py`, already do this at module top).
 
 ## Key files
 
 | File | Role |
 |---|---|
-| `data.py` | Build & cache the molecule library (ChEMBL → Lipinski filter → fingerprints → ADMET scores). `load_library()` reloads it. |
-| `admet_oracle.py` | Inference wrapper for the 3 pretrained HistGradientBoosting ADMET models, with per-model Tanimoto applicability-domain flags. |
-| `train_admet_oracle.py` | Retrain the 3 ADMET models from TDC datasets (`--refit-on-full` for production). |
+| `mogp_core/` | The own-code numerical core: pure-numpy GP, ICM, Tanimoto, qNEHVI, box decomposition, Sobol, hypervolume, statistics and the ADMET tree evaluator. See "mogp_core and the provenance rule" below and `mogp_core/PROVENANCE.md`. |
+| `data.py` | Build & cache the molecule library (ChEMBL → Lipinski filter → fingerprints → ADMET scores → **drop** molecules outside any ADMET applicability domain). `load_library()` reloads it and applies the heavy-atom floor and the shared quality gate. |
+| `admet_oracle.py` | Inference wrapper for the 3 pretrained HistGradientBoosting ADMET forests. It evaluates the numpy export in `mogp_core/admet_export/` through `mogp_core.admet_trees` (no sklearn/joblib needed to predict), with per-model Tanimoto applicability-domain flags (strict `max_sim < 0.20`). |
+| `train_admet_oracle.py` | Retrain the 3 ADMET models from TDC datasets with **scikit-learn** HistGradientBoosting (default hyperparameters, 80/20 split; whether this counts as outside methodology is an open owner decision, `PROVENANCE.md` ADM-28). The shipped models were **not** trained with `--refit-on-full` (the export manifest records 728 / 533 / 524 training rows, the 80% splits), and a retrain changes nothing the pipeline predicts until the numpy export is regenerated (`spec/admet/capture_admet.py`). |
 | `utils/featurize.py` | SMILES → 2048-bit Morgan fingerprints. |
-| `kernel.py` | `TanimotoKernel` for GPyTorch. |
-| `mogp.py` | Multi-output Tanimoto GP (one independent scaled-Tanimoto GP per objective). Owns `TASK_NAMES`. |
-| `acquisition.py` | Monte-Carlo EHVI, Pareto front / hypervolume / reference-point helpers, diverse `select_batch`. |
+| `kernel.py` | `TanimotoKernel`: a thin numpy adapter over `mogp_core.tanimoto` (no GPyTorch; returns numpy arrays; keeps the float32 downcast). |
+| `mogp.py` | Grey-box GP over the two **docking** objectives only (the ADMET objectives are known exactly and enter the acquisition directly). One scaled-Tanimoto GP per task, backend `mogp_core.gp`, but the tasks are **not** independent in fitting (one shared noise scalar). `predict` returns the noise-inclusive variance. Owns `TASK_NAMES`. |
+| `mogp_coregionalized.py` | The primary (default) model: a 2-task ICM (coregionalized) GP over the docking objectives, backend `mogp_core.icm`, same train/predict contract as `mogp.py`. `--model independent` selects the `mogp.py` arm for the ablation. |
+| `acquisition.py` | Grey-box qNEHVI: a log-smoothed estimator on scrambled-Sobol draws (N = 128) of the docking posterior, with each candidate's exact ADMET values folded in, via `mogp_core.qnehvi` / `boxdecomp` / `sobol`; diverse `select_batch` (Tanimoto < 0.7); Pareto-front and reference-point helpers. The posterior it samples is diagonal, so ICM cross-task covariance never reaches it (`PROVENANCE.md` QN-15). |
+| `evaluation.py` | Objective normalization into the [0, 1] maximization frame, hypervolume, selectivity index. Reads the canonical `evaluation_bounds.json` (see "Objective bounds are settled" below). |
 | `docking.py` | DHFR docking oracle against **named** targets (`PfDHFR` 1J3I + `hDHFR` 1U72): SMILES → 3D conformer → Vina → kcal/mol. `batch_dock_targets()` docks a batch vs several targets; returns NaN on failure. `prepare_protein` **retains the NADPH cofactor** (`COFACTOR_RESNAMES = {"NDP"}`) — see below. Exposes `oracle_fingerprint()`, the cache key. |
 | `sa_score.py` | Crash-safe SA (synthetic accessibility) scoring. The RDKit contrib scorer SIGBUSes on some builds; this patches its deprecated fingerprint call and **raises rather than degrading silently** if the screen cannot run. |
 | `quality_filter.py` | Shared candidate gate: PAINS + **reactive-group screen** + synthesizability. Also `structural_alerts()` — reporting-only annotations, never a filter. |
 | `annotate_leads.py` | Classifies leads by MECHANISM (recognition vs size exclusion) from docked-pose geometry. |
 | `validate_redock.py` | Self-docking RMSD control (crystal ligand → own structure). |
-| `loop.py` | The multi-objective BO loop (`BOLoop`): train MOGP → EHVI select → dock → update Pareto/hypervolume → save. |
+| `loop.py` | The multi-objective BO loop (`BOLoop`): train the docking GP (ICM by default) → qNEHVI select → dock → update Pareto/hypervolume → save. |
 | `dashboard.py` | Streamlit results viewer (reads the 3 result CSVs). |
 | `run.py` | Interactive end-to-end runner (train → build library → BO loop → launch dashboard). |
+
+## mogp_core and the provenance rule
+
+**The rule (the project owner's, paraphrased):** the Bayesian-optimization core is
+our own code, with **no outside methodology**. Each capability is derived from
+published mathematics and the derivation is written down. torch, gpytorch, botorch,
+scipy and scikit-learn may be used only as differential **test oracles**, to check
+our code and never to supply a choice it makes. The archived results are
+superseded, so compatibility with them (or with botorch/gpytorch bit for bit) is
+**not** a goal and is not a reason to keep any choice.
+
+**Purity is not provenance.** They are two different properties:
+
+- *Dependency purity* (achieved): nothing in `mogp_core/` imports torch, gpytorch,
+  botorch, scipy or sklearn. This is cheap to check and has been checked.
+- *Provenance* (not achieved): a module can be pure numpy and still carry a
+  constant, an initialization, a draw order or a formula arrangement copied from the
+  library it replaced. The modules were first built as "1:1 behavioural mirrors" to
+  reproduce archived runs, and a provenance audit found 111 such outside-library
+  choices (plus others waiting on an owner decision). Do not describe the core as
+  "derived from the math" or "independent of the libraries" without checking
+  `mogp_core/PROVENANCE.md`, which lists each choice, where it came from, and
+  whether it moves results.
+
+When touching `mogp_core/` or the code that calls it: do not add a library import;
+do not "fix" a result-moving choice in passing (the forced-diagonal acquisition
+posterior, the 200-step Adam fit and the noise parameterisation are open owner
+decisions, and changing any of them changes the benchmark); when you replace a
+library-derived choice, write its derivation and update its row in `PROVENANCE.md`.
+The `mogp_core/*_GATE.md` files and `BOXDECOMP_VERDICT.md` are historical records
+whose acceptance criterion (parity with the libraries) is superseded.
+
+**Objective bounds are settled.** The root `evaluation_bounds.json` is canonical
+(`spec/bounds/SETTLEMENT.md`; frozen copy `spec/bounds/objective_bounds.frozen.json`).
+`matrix_results_holo/evaluation_bounds.snapshot.json` is a **rejected, superseded
+archive** of an earlier, smaller library, not a competing candidate. Do not
+reconcile the two or normalize against the holo snapshot.
 
 ## Running
 
@@ -83,7 +141,7 @@ python run.py
 ```
 Or the stages individually:
 ```bash
-python train_admet_oracle.py --refit-on-full     # (re)train ADMET models
+python train_admet_oracle.py --refit-on-full     # (re)train ADMET models (sklearn; shipped models were NOT made this way)
 python data.py --n-molecules 1000                 # build/cache the library
 python loop.py --n-init 10 --batch-size 10 --n-iterations 10 --mogp-iters 200
 streamlit run dashboard.py                         # view results/
@@ -95,7 +153,7 @@ The cached library lives in `data/library/` (`smiles.csv`, `fingerprints.npy`,
 
 ## Baselines / experiments
 
-Controls that measure how much the MOGP + EHVI loop buys. Each mirrors `loop.py`,
+Controls that measure how much the MOGP + qNEHVI loop buys. Each mirrors `loop.py`,
 writes the same 3 CSVs to its own `*_results/` dir, and saves a `comparison.png`
 (hypervolume vs molecules evaluated) against the MOGP run in `results/`:
 
@@ -110,6 +168,11 @@ All docking is done against **both** targets (PfDHFR + hDHFR) so every method's
 `run_all.py` runs all four back to back and `dashboard_compare.py` overlays them.
 For a fair comparison, run the MOGP `loop.py` and the baselines on the **same
 library and same scale** (n_init / batch_size / n_iterations).
+
+An additional external comparator, `baseline_gpmobo.py` (the external GP-MOBO method, loaded by
+`gpmobo_ref.py` from `external/GP-MOBO`), is run by `run_benchmark_seeds.py`, not
+`run_all.py`. It keeps torch, botorch and scipy **on purpose** as a quarantined
+backtest arm; nothing in it is part of the own-code core.
 
 ## Conventions / gotchas
 
@@ -170,8 +233,18 @@ Prepared receptors carry sidecar `.stamp` files and rebuild on mismatch.
 ### Results status
 
 - `matrix_results/` — apo, LE objective. **Superseded; keep for provenance only.**
+  (The directory is no longer in this checkout; only `matrix_results_holo/` and the
+  later `matrix_thick_*` / `benchmark_*` campaigns are.)
 - `matrix_results_holo/` — corrected receptor, raw-kcal objective, reactive screen
-  on. 60/60, 7.70 h. `FINAL_LEADS.csv` is the paper's lead table.
+  on. 60/60, 7.70 h. `FINAL_LEADS.csv` was the paper's lead table for that sweep.
+- **All archived campaigns are superseded by the own-code core.** They were produced
+  by the earlier torch/gpytorch/botorch stack. The project owner has waived
+  compatibility with them and they are to be re-run; do not validate new code by
+  matching their numbers.
+- Hypervolume is only meaningful against the settled bounds frame: root
+  `evaluation_bounds.json` is canonical and `matrix_results_holo/
+  evaluation_bounds.snapshot.json` is rejected (see "mogp_core and the provenance
+  rule" above).
 - Hypervolumes from the two are **NOT commensurable** (different objective units).
   Never plot them on one axis. The MOGP-vs-baselines comparison *within* a sweep
   is unaffected — all methods share an objective there.
@@ -218,6 +291,13 @@ completeness before presenting it as the sweep's result.
 - **SI is not calibrated.** WR99210 scores −0.17 despite being ~1000× selective.
   Usable as a relative ranking under identical conditions, never as a value.
 - Vina scores are rankings, not affinities. Never report them as Kd or IC50.
+- **Some figures quoted in this file are history, not reproducible results.** The
+  "before" values (Spearman −0.726, LE +0.891, logP −0.293) came from the
+  pre-NADPH-fix apo receptor backup, which was deleted and never committed
+  (`validate_size_confound.py` says so); only the holo-receptor side is re-measured,
+  by `validate_docking.py`. The audit also could not reproduce the pooled-front
+  +0.267 from this checkout (`mogp_core/PROVENANCE.md`, SP-2). Re-measure after the
+  re-run before quoting any of them.
 
 ## Earlier work (2026-07-03)
 
@@ -236,5 +316,7 @@ completeness before presenting it as the sweep's result.
 
 - Verified the full pipeline runs end-to-end in `mogp-drug`
   (`train_admet_oracle.py --refit-on-full` → `data.py` → `loop.py` →
-  `dashboard.py`); docking validated (pyrimethamine ≈ −7 kcal/mol).
+  `dashboard.py`); docking validated (pyrimethamine ≈ −7 kcal/mol). *(Later found:
+  the models now shipped were not produced by `--refit-on-full`; see
+  `mogp_core/PROVENANCE.md`, ADM-26.)*
 - Added `baseline_single_obj.py` (docking-only single-objective BO control).

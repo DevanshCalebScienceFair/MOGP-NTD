@@ -43,14 +43,14 @@ TWO ESTIMATORS, AND WHY BOTH ARE HERE
     botorch's, not derived (``QN-5``, ``QN-6``, ``QN-7``, ``QN-13``).  Returns a
     LOG value: typically negative, never exactly ``0.0``, no units.
 
-    Both exist because the SPEC and the brief this module was first written from
-    (not part of the repo) disagreed about which one to ship; see
-    ``ESTIMATOR_CHOICE_IS_UNSETTLED`` below, a string constant that still quotes
-    that disagreement.  Which one should ship is an open owner decision
-    (``QN-1``).  The plumbing -- sampling, composition, normalization, the
-    splice, chunking -- is shared, so the two differ only in the final per-cell
-    kernel.  Nothing here picks a default silently: ``estimator`` is a required
-    argument.
+    Both exist because ``spec/qnehvi/SPEC.md`` (exact estimator, iid draws,
+    N = 512) and the configuration ``acquisition.py`` runs (log estimator,
+    scrambled Sobol' draws, N = 128) disagree about which one to ship; see
+    ``ESTIMATOR_CHOICE_IS_UNSETTLED`` below, a string constant that states that
+    disagreement.  Which one should ship is an open owner decision (``QN-1``).
+    The plumbing -- sampling, composition, normalization, the splice, chunking --
+    is shared, so the two differ only in the final per-cell kernel.  Nothing here
+    picks a default silently: ``estimator`` is a required argument.
 
 BEHAVIOURS KEPT FROM THE PREVIOUS IMPLEMENTATION (do not change in passing)
 ---------------------------------------------------------------------------
@@ -171,20 +171,22 @@ LEGACY_N_MC = 128  # acquisition.N_MC_SAMPLES, what the archived runs used
 CANDIDATE_CHUNK = 128  # acquisition.CANDIDATE_CHUNK; a pure memory knob here
 
 ESTIMATOR_CHOICE_IS_UNSETTLED = """\
-spec/qnehvi/SPEC.md and the task brief this module was written from disagree on
-four points.  Neither default is chosen here silently; `estimator`, `n_mc` and
-`sampler` are all explicit arguments.
+spec/qnehvi/SPEC.md and the configuration acquisition.py runs (_ESTIMATOR,
+_SAMPLER, N_MC_SAMPLES) disagree on four points.  Neither default is chosen here
+silently; `estimator`, `n_mc` and `sampler` are all explicit arguments.
 
-  | question   | SPEC.md says                      | task brief says          |
+  | question   | SPEC.md says                      | acquisition.py runs      |
   |------------|-----------------------------------|--------------------------|
   | estimator  | exact non-log (decision #1, s7.1) | log-smoothed qLogNEHVI   |
   | sampler    | iid Generator (decision #3, s7.2) | scrambled Sobol'         |
-  | n_mc       | 512 (decision #10)                | 128, do not raise        |
-  | oracle     | exact botorch qNEHVI (s4 C1-C3)   | botorch qLogNEHVI        |
+  | n_mc       | 512 (decision #10)                | 128                      |
+  | oracle     | exact botorch qNEHVI (s4 C1-C3)   | botorch qLogNEHVI (test) |
 
-SPEC.md gives measured reasons for each of its choices and section 7.2 explicitly
-rejects "adopting a Sobol engine".  The task brief asserts its four choices are
-"per the spec", which they are not.  Both are implemented; the caller decides.
+SPEC.md gives measured reasons for each of its choices, and section 7.2 explicitly
+rejects "adopting a Sobol engine".  The estimator and the sampler in acquisition.py
+were taken from the botorch implementation this module replaced, and N = 128 is
+the repo's own earlier constant, never derived (PROVENANCE.md QN-1, QN-20, QN-22).
+Both estimators are implemented; the caller decides.
 """
 
 
@@ -426,8 +428,12 @@ def draw_objective_samples(
             raise ValueError("sampler='sobol' requires run_seed")
         if layout != "CRN":
             raise ValueError(
-                "sampler='sobol' mirrors botorch's collapsed t-batch, which has "
-                "exactly one candidate slot, so it only supports layout='CRN'"
+                f"sampler='sobol' supports only layout='CRN', got {layout!r}.  "
+                "It draws one scrambled Sobol' point per MC sample over the "
+                "baseline rows plus a single shared candidate slot, so every "
+                "candidate sees the same normals; layout='IND' needs one "
+                "independent slot per candidate, which this sampler does not "
+                "provide.  Use sampler='iid' for layout='IND'."
             )
         flat = _sobol.sobol_normal_samples(
             n_mc,

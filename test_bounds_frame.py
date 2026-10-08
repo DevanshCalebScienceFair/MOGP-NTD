@@ -27,6 +27,9 @@ pinned payload; a library whose bounds hash differently is parked in
 ``BoundsFrameChangedError``. Those tests redirect ``evaluation.BOUNDS_PATH`` to a
 copy in ``tmp_path`` and fake the library, so the real file is never a target;
 the autouse fixture below fails any test that changes it or its proposed sibling.
+"The default path" is decided by ``os.path.realpath`` or ``os.path.samefile``, so
+a hard link to the pinned file and (on a case-insensitive filesystem, probed at
+run time) a different-case spelling of its name count as the pinned file too.
 
 The payload hash below is spelled out again here (``_payload_sha256``) from the
 documented canonical form, so the file checks do not lean on the function whose
@@ -350,8 +353,23 @@ def test_proposed_file_is_next_to_the_canonical_one(canonical_copy):
 
 
 # The ways the default file can be spelled. Each must be recognised as the default
-# file by ``os.path.realpath``; compared with ``==`` none of the first three would
-# match the absolute ``BOUNDS_PATH``, and force=True would overwrite the pinned file.
+# file. Compared with ``==`` none of "relative", "dot-slash" or "dotdot" would match
+# the absolute ``BOUNDS_PATH``; ``os.path.realpath`` resolves those three and the
+# symlink but cannot resolve a hard link (another name for the same inode) or a
+# different-case spelling on a case-insensitive filesystem, which
+# ``os.path.samefile`` does. Left unrecognised, any of these would make
+# force=True open the pinned file for writing and truncate it.
+def _filesystem_is_case_insensitive(directory):
+    """Probe ``directory`` at run time; the answer is never assumed."""
+    probe = os.path.join(directory, "Case_Probe.tmp")
+    with open(probe, "w"):
+        pass
+    try:
+        return os.path.exists(os.path.join(directory, "CASE_PROBE.TMP"))
+    finally:
+        os.remove(probe)
+
+
 def _spell(kind, canonical):
     d = os.path.dirname(canonical)
     if kind == "relative":
@@ -364,11 +382,29 @@ def _spell(kind, canonical):
         link = os.path.join(d, "link_to_the_default.json")
         os.symlink(canonical, link)
         return link
+    if kind == "hardlink":
+        link = os.path.join(d, "hardlink_to_the_default.json")
+        try:
+            os.link(canonical, link)
+        except (OSError, NotImplementedError) as exc:
+            pytest.skip(f"hard links are unavailable on this filesystem: {exc!r}")
+        # A genuine second name for the same inode that realpath cannot see through.
+        assert os.path.realpath(link) != os.path.realpath(canonical)
+        assert os.stat(link).st_ino == os.stat(canonical).st_ino
+        return link
+    if kind == "case-variant":
+        if not _filesystem_is_case_insensitive(d):
+            pytest.skip("this filesystem is case-sensitive: a different-case name "
+                        "is a different (here nonexistent) file")
+        variant = os.path.join(d, os.path.basename(canonical).upper())
+        assert variant != canonical and os.path.exists(variant)
+        return variant
     assert kind == "absolute"
     return canonical
 
 
-SPELLINGS = ["absolute", "relative", "dot-slash", "dotdot", "symlink"]
+SPELLINGS = ["absolute", "relative", "dot-slash", "dotdot", "symlink",
+             "hardlink", "case-variant"]
 
 
 @pytest.mark.parametrize("kind", SPELLINGS)
@@ -387,6 +423,41 @@ def test_other_files_are_not_the_default_file(canonical_copy, tmp_path, monkeypa
     assert not evaluation._is_default_bounds_path(str(tmp_path / "missing.json"))
 
 
+def test_a_hard_link_to_some_other_file_is_not_the_default_file(
+        canonical_copy, tmp_path, monkeypatch):
+    """``samefile`` must not over-match: only the default file's own inode counts."""
+    monkeypatch.chdir(tmp_path)
+    shutil.copyfile(ROOT_PATH, tmp_path / "custom_bounds.json")
+    try:
+        os.link(tmp_path / "custom_bounds.json", tmp_path / "custom_alias.json")
+    except (OSError, NotImplementedError) as exc:
+        pytest.skip(f"hard links are unavailable on this filesystem: {exc!r}")
+    assert not evaluation._is_default_bounds_path("custom_alias.json")
+    # Byte-identical content is not identity either.
+    assert not evaluation._is_default_bounds_path("custom_bounds.json")
+
+
+def test_nonexistent_paths_fall_back_to_the_realpath_comparison(tmp_path, monkeypatch):
+    """``samefile`` cannot compare a missing file, so the answer for a path that is
+    missing (or when the default file itself is missing) is the realpath one."""
+    default = str(tmp_path / "pinned_stand_in.json")
+    monkeypatch.setattr(evaluation, "BOUNDS_PATH", default)
+    monkeypatch.chdir(tmp_path)
+    # Both missing: the same spelling is the default, a different one is not.
+    assert evaluation._is_default_bounds_path(default)
+    assert evaluation._is_default_bounds_path("./pinned_stand_in.json")
+    assert not evaluation._is_default_bounds_path("some_other_missing.json")
+    # The default is missing but the candidate exists: no comparison is possible,
+    # and it must not raise.
+    shutil.copyfile(ROOT_PATH, tmp_path / "exists.json")
+    assert not evaluation._is_default_bounds_path("exists.json")
+    # The default exists but the candidate is missing.
+    shutil.copyfile(ROOT_PATH, default)
+    assert not evaluation._is_default_bounds_path("some_other_missing.json")
+    assert evaluation._is_default_bounds_path("./pinned_stand_in.json")
+    assert not evaluation._is_default_bounds_path("exists.json")    # a copy: other inode
+
+
 @pytest.mark.parametrize("kind", SPELLINGS)
 def test_force_is_refused_under_every_spelling_of_the_default_path(
         kind, canonical_copy, monkeypatch):
@@ -402,6 +473,10 @@ def test_force_is_refused_under_every_spelling_of_the_default_path(
     assert os.path.exists(_proposed_of(canonical_copy))
     if kind == "symlink":
         assert os.path.islink(path)                         # not replaced by a file
+    if kind in ("hardlink", "case-variant"):
+        # Same file, not a rewritten copy: had the guard let the write through, the
+        # open(path, "w") would already have truncated the shared inode above.
+        assert os.path.samefile(path, canonical_copy)
 
 
 @pytest.mark.parametrize("kind", SPELLINGS)

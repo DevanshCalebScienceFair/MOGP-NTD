@@ -999,6 +999,54 @@ class TestEdges:
                 p["admet_c"], p["bounds"], n_mc=4, run_seed=1,
             )
 
+    def test_unsettled_estimator_text_is_a_self_contained_account(self):
+        """The constant is a plain ``str`` that is appended to the bad-estimator
+        error.  It names the two things it compares (SPEC.md and what
+        acquisition.py runs), and the values it quotes for the second are the
+        values acquisition.py actually holds."""
+        import acquisition
+
+        text = Q.ESTIMATOR_CHOICE_IS_UNSETTLED
+        assert isinstance(text, str)
+        for residue in ("task brief", "the brief", "per the spec"):
+            assert residue not in text
+        assert "spec/qnehvi/SPEC.md" in text and "acquisition.py" in text
+        # The shipped side of the table is what acquisition.py really holds.
+        assert acquisition._ESTIMATOR == "log"
+        assert acquisition._SAMPLER == "sobol"
+        assert acquisition.N_MC_SAMPLES == 128
+        assert "log-smoothed" in text and "Sobol" in text and "128" in text
+        # ... and the SPEC side is what the SPEC's decision register says.
+        spec_path = os.path.join(REPO, "spec", "qnehvi", "SPEC.md")
+        with open(spec_path, encoding="utf-8") as fh:
+            spec = fh.read()
+        assert "exact non-log" in spec and "iid" in spec and "512" in spec
+        assert "512" in text and "exact non-log" in text and "iid" in text
+
+        p = self._tiny()
+        with pytest.raises(ValueError) as exc:
+            _score(p, estimator="qLogNEHVI", n_mc=4, run_seed=1)
+        assert exc.value.args[0].endswith(text)
+
+    def test_sobol_with_the_IND_layout_explains_itself(self):
+        """``sampler='sobol'`` has one shared candidate slot, so it cannot express
+        the per-candidate layout; the error says why and what to use instead."""
+        p = self._tiny()
+        with pytest.raises(ValueError) as exc:
+            _score(p, estimator="exact", n_mc=8, run_seed=1, sampler="sobol",
+                   layout="IND")
+        msg = exc.value.args[0]
+        assert "layout='CRN'" in msg and "'IND'" in msg
+        assert "single shared candidate slot" in msg
+        assert "sampler='iid'" in msg
+        assert "mirrors" not in msg and "botorch" not in msg
+        # The condition it describes is real: the same call is fine under CRN, and
+        # under iid with IND.
+        _score(p, estimator="exact", n_mc=8, run_seed=1, sampler="sobol",
+               layout="CRN")
+        _score(p, estimator="exact", n_mc=8, run_seed=1, sampler="iid",
+               layout="IND")
+
     def test_missing_objective_column_raises(self):
         with pytest.raises(ValueError, match="supplied by neither"):
             Q.compose_objective_points(

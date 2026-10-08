@@ -21,26 +21,81 @@
 # and dies with "AttributeError: _ARRAY_API not found" under NumPy 2. Installing
 # it here would silently break the env. Get it with:
 #   conda install -c conda-forge rdkit
+#
+# WHAT EACH PIN IS FOR. Found by grepping the repo's imports; the claims about
+# what a package pulls in come from the installed packages' metadata. "BO path"
+# means `python loop.py` and everything it imports (mogp_core/, mogp.py,
+# mogp_coregionalized.py, acquisition.py, evaluation.py, admet_oracle.py, data.py,
+# docking.py, ...).
+#   BO path   imported on that path
+#   ADMET     only to TRAIN or re-export the ADMET forests (train_admet_oracle.py,
+#             spec/admet/capture_admet.py); predicting reads mogp_core/admet_export/
+#   GP-MOBO   only for the quarantined GP-MOBO comparator (baseline_gpmobo.py,
+#             gpmobo_ref.py, external/GP-MOBO)
+#   ORACLE    only as a differential test oracle (test_core_*.py, spec/*/capture_*.py)
+#   VIEWER    only for dashboards, plots and reports
+#   TESTS     only to run the test suite
+# A pin can carry several tags. These comments describe the pins; they do not
+# change them.
+#
+# PyTDC. [ADMET] train_admet_oracle.py pulls the TDC ADMET training sets with it,
+# and data.pull_molecules pulls the ChEMBL sample (MolGen) for a library build.
+# [BO path, import only] data.py imports tdc.generation at module scope, so
+# `import loop` fails without it even though the optimizer never calls it.
 PyTDC==1.1.15
 # Pinned: the serialized models in models/pretrained_admet/ were saved with
 # scikit-learn 1.9.0. Loading them under a different version triggers
 # InconsistentVersionWarning and may silently produce invalid predictions.
 # 1.9.0 requires Python >= 3.11 — this is why the env is 3.11 and not 3.10.
+# [ADMET, ORACLE] NOT needed to predict: admet_oracle.py evaluates the numpy export
+# in mogp_core/admet_export/. Used by train_admet_oracle.py (the
+# HistGradientBoosting fit), spec/admet/capture_admet.py (reads the pickles to
+# make the export) and test_core_admet.py (oracle). The pin only guards loading
+# the pickles. scikit-learn is also a PyTDC dependency, so it stays installed.
 scikit-learn==1.9.0
+# [ADMET, ORACLE] Saves and loads the pickled models (train_admet_oracle.py,
+# spec/admet/capture_admet.py, test_core_admet.py). admet_oracle.py imports it in
+# a try/except only so the attribute `admet_oracle.joblib` exists for a test's
+# monkeypatch; nothing calls it. Also a scikit-learn dependency.
 joblib==1.5.3
+# [BO path] DataFrames in loop.py, data.py, docking.py, admet_oracle.py and the
+# result CSVs. Also a PyTDC and streamlit dependency.
 pandas==2.3.3
+# [BO path] The whole numerical core: mogp_core/ is numpy only. This pin and the
+# numpy that actually imports in the mogp-drug env differ (2.2.6 here, 2.4.6
+# imported, both dist-infos present; PROVENANCE.md RP-05), so record the real
+# version with any result.
 numpy==2.2.6
+# [GP-MOBO, ORACLE] NOT on the BO path. baseline_gpmobo.py imports it (and torch
+# and scipy.stats) at module scope, and run_benchmark_seeds.py imports
+# baseline_gpmobo, so the multi-seed script needs it. acquisition.py imports it
+# lazily, only to build the two test-oracle classes. Oracle in test_core_qnehvi.py,
+# test_core_hv.py and spec/*/capture_*.py. It brings in torch, gpytorch and
+# linear_operator, which nothing in this repo pins (setup_env.sh does not either).
 botorch==0.18.1
-# Paired significance tests (Wilcoxon signed-rank + paired t-test) in
-# run_benchmark_seeds.py. Usually already present as a botorch/sklearn dep.
+# [GP-MOBO, ORACLE] NOT on the BO path: no repo optimizer code imports scipy (the
+# paired tests in run_benchmark_seeds.py are mogp_core.stats). Used by
+# baseline_gpmobo.py (scipy.stats.norm), by external/GP-MOBO (scipy.linalg,
+# scipy.stats) and as an oracle in test_core_*.py and spec/*/capture_*.py. Still
+# installed and imported indirectly on the BO path: meeko imports scipy.spatial,
+# and botorch and scikit-learn depend on it.
 scipy==1.17.1
+# [TESTS] Test runner only.
 pytest==9.1.1
-# dashboard.py (results viewer) only:
+# [VIEWER] streamlit: app.py, dashboard.py and dashboard_compare.py only
+# (test_bounds_frame.py skips one test when it is missing).
 streamlit==1.61.1
+# [VIEWER] matplotlib: plots and reports only (dashboard.py, dashboard_compare.py,
+# matrix_report.py, run_benchmark_seeds.py, validate_docking.py and the
+# comparison.png of baseline_random.py, baseline_greedy.py and
+# baseline_single_obj.py). Not imported by loop.py.
 matplotlib==3.11.1
 
 # --- docking stack -----------------------------------------------------------
 # meeko prepares the ligand PDBQT; biopython parses the receptor PDB.
+# [BO path] docking.py imports meeko at module scope, so `import loop` needs it;
+# Bio.PDB is imported inside docking.prepare_protein. The docking stack is outside
+# the own-code rule (PROVENANCE.md section 1).
 meeko==0.7.1
 biopython==1.88
 # meeko 0.7.1 imports gemmi at package import time but does not declare it, so
@@ -51,9 +106,14 @@ gemmi==0.7.5
 # PyTDC pins pyarrow==12.0.1, which is compiled against NumPy 1.x and raises
 # "_ARRAY_API not found" the moment pandas imports it under NumPy 2. 24.0.0 is
 # the version the working env actually carries.
+# [no repo import] Nothing in this repo (external/GP-MOBO included) imports
+# pyarrow or calls a parquet/feather reader; it is here because PyTDC pins it and
+# streamlit requires it.
 pyarrow==24.0.0
 # PyTDC imports pkg_resources, which setuptools REMOVED in 82.0. Anything >=82
 # breaks `import data` with ModuleNotFoundError: No module named 'pkg_resources'.
+# [no repo import] Nothing in this repo imports pkg_resources; PyTDC does (and so
+# does external/GP-MOBO's tdc_oracles_modified, which is not on the BO path).
 setuptools==81.0.0
 
 # Known, accepted resolver complaints (`pip check` reports these; all benign):

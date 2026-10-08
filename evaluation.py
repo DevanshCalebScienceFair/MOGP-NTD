@@ -324,12 +324,24 @@ def _save_bounds(bounds, bounds_path):
 def _is_default_bounds_path(bounds_path):
     """True if ``bounds_path`` is the file at the module's ``BOUNDS_PATH``.
 
-    Compared by ``os.path.realpath`` on both sides, so a relative name, a
-    ``./name`` spelling and a symlink to the default file all count as the
-    default file. ``BOUNDS_PATH`` is read at call time. This is the single
-    definition of "the default path" for both the load check and the write guard.
+    Two tests, either of which is enough. ``os.path.realpath`` on both sides, so
+    a relative name, a ``./name`` spelling and a symlink to the default file all
+    count as the default file. And, when both paths exist, ``os.path.samefile``
+    (same device and inode), which also catches what ``realpath`` cannot resolve:
+    a hard link to the default file, and a different-case spelling of its name on
+    a case-insensitive filesystem. Opening either of those for writing would
+    truncate the pinned file itself. If either path does not exist ``samefile``
+    cannot compare them, so the answer is the ``realpath`` one: a nonexistent path
+    is the default only if it spells the default path. ``BOUNDS_PATH`` is read at
+    call time. This is the single definition of "the default path" for both the
+    load check and the write guard.
     """
-    return os.path.realpath(bounds_path) == os.path.realpath(BOUNDS_PATH)
+    if os.path.realpath(bounds_path) == os.path.realpath(BOUNDS_PATH):
+        return True
+    try:
+        return os.path.samefile(bounds_path, BOUNDS_PATH)
+    except OSError:
+        return False
 
 
 def proposed_bounds_path():

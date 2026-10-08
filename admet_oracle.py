@@ -20,14 +20,23 @@ extrapolating beyond the training data" (valid predictions, AD flag True).
 WHERE THE NUMBERS COME FROM
 ---------------------------
 The three models are the SAME three fitted HistGradientBoosting forests as
-before — they were not retrained (a retrain would move the AD gate and
-invalidate the cached library). What changed is who evaluates them: the fitted
-forests were exported to plain ``.npz`` + JSON (``mogp_core/admet_export/``, the
-node tables, the baseline ``F0`` and the AD reference fingerprints, sha256'd in
-``export_manifest.json``) and are now evaluated by ``mogp_core.admet_trees``, a
-pure-numpy mirror of sklearn's forward pass. So **sklearn and joblib are no
-longer needed to PREDICT**. Training still needs them: see
-``train_admet_oracle.py``, which is unchanged.
+before — they were not retrained here (a retrain would move the AD gate, and
+with it which molecules the cached library keeps; whether to keep them frozen is
+an open owner decision, PROVENANCE ``ADM-27``). What changed is who evaluates
+them: the fitted forests were exported to plain ``.npz`` + JSON
+(``mogp_core/admet_export/``, the node tables, the baseline ``F0`` and the AD
+reference fingerprints, sha256'd in ``export_manifest.json``) and are now
+evaluated by ``mogp_core.admet_trees``, our own numpy forward pass: the baseline
+``F0`` plus the sum of the trees' leaf values, then the inverse link. So
+**sklearn and joblib are no longer needed to PREDICT**.
+
+That is evaluation only. The forests themselves were FITTED by scikit-learn's
+HistGradientBoosting (``train_admet_oracle.py``, which still uses sklearn, with
+default hyperparameters apart from a fixed ``random_state``), and the export was
+made by dumping sklearn's fitted internals (``spec/admet/capture_admet.py``). So
+the models are sklearn-trained, not trained by a method of our own; whether that
+counts as outside methodology is an open owner decision (PROVENANCE ``ADM-28``,
+``ADM-52``).
 
 RDKit STAYS. It is what turns SMILES into the 2048-bit Morgan fingerprints
 (``utils.featurize.batch_smiles_to_morgan``), and nothing here replaces it.

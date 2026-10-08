@@ -22,12 +22,19 @@ import os
 # Stopgap for the libomp duplicate-runtime crash (OMP Error #15) that can fire
 # when torch/botorch and scikit-learn pull in different OpenMP runtimes. Must be
 # set before any of those libraries are imported, so it lives at module top.
-os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
+# thread_pin sets it (setdefault) together with the single-threaded BLAS pin. It
+# has to be imported HERE: on a first run ``step_train_oracle`` and
+# ``step_build_library`` import train_admet_oracle / data, and so numpy, before
+# ``step_run_loop`` imports loop, whose own import of thread_pin would then be
+# too late to pin the BLAS already loaded.
+import thread_pin  # noqa: F401
 
 import sys
 import time
 import subprocess
 import webbrowser
+
+from mogp_core.optim import DEFAULT_N_ITERATIONS
 
 
 # ---------------------------------------------------------------------------
@@ -292,7 +299,8 @@ def main():
         "n_iterations": ask_int(
             "Number of BO iterations [10]: ", 10),
         "mogp_train_iters": ask_int(
-            "MOGP training iterations [200]: ", 200),
+            f"MOGP training iterations [{DEFAULT_N_ITERATIONS}]: ",
+            DEFAULT_N_ITERATIONS),
         "output_dir": ask_str(
             "Output directory [results]: ", "results"),
     }

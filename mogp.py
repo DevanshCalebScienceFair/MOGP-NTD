@@ -61,10 +61,15 @@ separately identifiable (``(sigma2, d) -> (sigma2 + e, d - e)`` leaves every
 Run ``python mogp.py`` for a self-contained demo on a handful of known drugs.
 """
 
+# Single-threaded BLAS pin: must precede numpy so ``python mogp.py`` is pinned
+# like every other entry point (see thread_pin.py).
+import thread_pin  # noqa: F401
+
 import numpy as np
 
 from mogp_core import gp as _gp
 from mogp_core import icm as _icm
+from mogp_core import optim as _optim
 from utils.featurize import smiles_to_morgan, batch_smiles_to_morgan
 
 
@@ -329,7 +334,8 @@ def get_training_data(smiles_list):
     return Y, valid_smiles
 
 
-def train_mogp(train_x, train_y, n_iterations=200, lr=0.1):
+def train_mogp(train_x, train_y, n_iterations=_optim.DEFAULT_N_ITERATIONS,
+               lr=_optim.DEFAULT_LR):
     """Train the MOGP on fingerprints and (per-column normalized) targets.
 
     Args:

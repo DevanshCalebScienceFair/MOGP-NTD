@@ -46,8 +46,9 @@ own results directory for validate_known_actives.py.
 
 # KMP_DUPLICATE_LIB_OK must be set BEFORE numpy/torch import their native
 # libraries, otherwise macOS aborts with the "libomp already initialized" error.
-import os
-os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
+# thread_pin sets it (setdefault) together with the single-threaded BLAS pin that
+# keeps the numerics machine-independent; it must be imported before any of them.
+import thread_pin  # noqa: F401
 
 import argparse
 import time
@@ -55,6 +56,7 @@ import time
 import numpy as np
 
 from loop import BOLoop, MODEL_CHOICES
+from mogp_core.optim import DEFAULT_N_ITERATIONS
 import evaluation
 
 
@@ -211,7 +213,7 @@ def main():
     parser.add_argument("--n-init", type=int, default=10)
     parser.add_argument("--batch-size", type=int, default=10)
     parser.add_argument("--n-iterations", type=int, default=8)
-    parser.add_argument("--mogp-iters", type=int, default=200)
+    parser.add_argument("--mogp-iters", type=int, default=DEFAULT_N_ITERATIONS)
     parser.add_argument("--rank", type=int, default=1,
                         help="IndexKernel rank for the coregionalized arm.")
     parser.add_argument("--max-library", type=int, default=None,

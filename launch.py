@@ -6,17 +6,19 @@ Safe, clean entry point for the MOGP antimalarial BO loop — the launcher you r
 instead of typing the old ``env KMP_DUPLICATE_LIB_OK=TRUE ... python loop.py``
 prefix by hand.
 
-Its one job that a bare ``python loop.py`` cannot guarantee: inject the
+Its one job that a bare ``python loop.py`` cannot guarantee: FORCE the
 threading / OpenMP environment variables into ``os.environ`` at the *absolute
-top* of the process, **before** any heavy ML library (numpy / torch / botorch,
-all pulled in transitively by ``loop``) is imported. On Apple Silicon a
-duplicate ``libomp`` runtime otherwise crashes on import (OMP Error #15) or
-deadlocks inside torch autograd (``_C.backward``); pinning every math backend to
-a single thread and tolerating the duplicate runtime avoids both.
+top* of the process, **before** numpy (pulled in transitively by ``loop``) is
+imported, whatever the surrounding shell had exported. (``loop.py`` and the other
+entry points pin the same variables with ``setdefault`` through ``thread_pin``,
+which leaves an explicit outer value alone.) On Apple Silicon a duplicate
+``libomp`` runtime can crash on import (OMP Error #15), and a threaded BLAS makes
+the numerics depend on the machine; pinning every math backend to a single thread
+and tolerating the duplicate runtime avoids both.
 
-Because the variables must be set before the offending import, they are written
-directly here — this module deliberately imports nothing heavy until after the
-block below runs.
+Because the variables must be set before the numerical imports, they are written
+here, from ``thread_pin``'s list — this module deliberately imports nothing heavy
+until after the block below runs.
 
 Usage::
 
@@ -28,26 +30,24 @@ import os
 
 # ---------------------------------------------------------------------------
 # Threading / OpenMP guard — this block MUST stay at the top of the file, above
-# every non-stdlib import. See the module docstring. Direct assignment (not
-# setdefault) so the wrapper *guarantees* the safe values regardless of whatever
-# the surrounding shell had exported.
+# every non-stdlib import except thread_pin. See the module docstring. The
+# variables and values are thread_pin's, so there is one list for every entry
+# point; they are written by direct assignment (not setdefault) so the wrapper
+# *guarantees* the safe values regardless of whatever the surrounding shell had
+# exported. Importing thread_pin runs its own setdefault pass first; the
+# assignments below then overwrite it.
 # ---------------------------------------------------------------------------
-_THREAD_ENV = {
-    "KMP_DUPLICATE_LIB_OK": "TRUE",
-    "OMP_NUM_THREADS": "1",
-    "MKL_NUM_THREADS": "1",
-    "VECLIB_MAXIMUM_THREADS": "1",
-    "NUMEXPR_NUM_THREADS": "1",
-}
-for _name, _value in _THREAD_ENV.items():
+import thread_pin
+
+for _name, _value in thread_pin.THREAD_ENV_DEFAULTS.items():
     os.environ[_name] = _value
 
 # --- Everything below is safe: the env is locked in before torch is imported. ---
 import time
 import argparse
 
-# Importing loop transitively imports numpy / torch / botorch. This line is the
-# reason the env block above must run first; do not move any of it above here.
+# Importing loop transitively imports numpy. This line is the reason the env
+# block above must run first; do not move any of it above here.
 from loop import (
     BOLoop,
     MODEL_CHOICES,
@@ -55,6 +55,7 @@ from loop import (
     SMOKE_PARAMS,
     GRAND_CAMPAIGN_PARAMS,
 )
+from mogp_core.optim import DEFAULT_N_ITERATIONS
 
 
 def build_parser():
@@ -75,7 +76,7 @@ def build_parser():
     parser.add_argument("--n-init", type=int, default=None)
     parser.add_argument("--batch-size", type=int, default=None)
     parser.add_argument("--n-iterations", type=int, default=None)
-    parser.add_argument("--mogp-iters", type=int, default=200)
+    parser.add_argument("--mogp-iters", type=int, default=DEFAULT_N_ITERATIONS)
     parser.add_argument("--model", choices=MODEL_CHOICES, default=DEFAULT_MODEL,
                         help="GP model over the docking objectives: "
                              "coregionalized (ICM, primary) or independent.")

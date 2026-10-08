@@ -43,8 +43,11 @@ Run with, e.g.::
 """
 
 # KMP_DUPLICATE_LIB_OK must be set BEFORE numpy/torch/rdkit import native libs.
+# thread_pin sets it (setdefault) together with the single-threaded BLAS pin that
+# keeps the numerics machine-independent; it must be imported before any of them.
 import os
-os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+
+import thread_pin  # noqa: F401
 
 import sys
 import time
@@ -61,6 +64,7 @@ import pandas as pd
 # (no ties, no zero differences) that selects the EXACT branch, so n=5 pins
 # p = 0.0625 and n=7 pins p = 0.015625. See mogp_core/stats.py.
 from mogp_core import stats as mogp_stats
+from mogp_core.optim import DEFAULT_N_ITERATIONS
 
 from loop import BOLoop
 from baseline_random import RandomSearchBaseline
@@ -569,7 +573,7 @@ def main():
     parser.add_argument("--n-init", type=int, default=10)
     parser.add_argument("--batch-size", type=int, default=10)
     parser.add_argument("--n-iterations", type=int, default=10)
-    parser.add_argument("--mogp-iters", type=int, default=200)
+    parser.add_argument("--mogp-iters", type=int, default=DEFAULT_N_ITERATIONS)
     parser.add_argument("--output-dir", default="benchmark_seeds_results")
     parser.add_argument(
         "--band", choices=["std", "sem", "ci95"], default="std",

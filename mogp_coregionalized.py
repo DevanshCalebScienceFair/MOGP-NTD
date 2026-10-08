@@ -69,9 +69,14 @@ a small set where the docking objectives are correlated, prints the learned
 ``2 x 2`` task-covariance matrix, and confirms it is NOT diagonal.
 """
 
+# Single-threaded BLAS pin: must precede numpy so ``python mogp_coregionalized.py``
+# is pinned like every other entry point (see thread_pin.py).
+import thread_pin  # noqa: F401
+
 import numpy as np
 
 from mogp_core import icm as _icm
+from mogp_core import optim as _optim
 # TASK_NAMES + the grey-box docking-task indices are the single source of truth;
 # re-exported so callers importing from either module agree on the layout.
 # ``_predict_backend`` is the ONE model-dispatch rule, shared with ``mogp.predict``
@@ -175,8 +180,9 @@ class MOGPCoregionalized:
         return self.natural()[0]
 
 
-def train_mogp_coregionalized(train_x, train_y, n_iterations=200, lr=0.1, rank=1,
-                              rng=None):
+def train_mogp_coregionalized(train_x, train_y,
+                              n_iterations=_optim.DEFAULT_N_ITERATIONS,
+                              lr=_optim.DEFAULT_LR, rank=1, rng=None):
     """Train the coregionalized (ICM) GP over the docking objectives.
 
     Same signature and return contract as ``mogp.train_mogp`` (plus a ``rank``
@@ -338,7 +344,7 @@ if __name__ == "__main__":
     print(f"\nTraining coregionalized (ICM) GP on {n} molecules over the "
           f"{len(DOCKING_TASK_INDICES)} docking tasks (rank=1)...")
     model, likelihood, y_mean, y_std = train_mogp_coregionalized(
-        train_x, Y, n_iterations=200, rank=1
+        train_x, Y, n_iterations=_optim.DEFAULT_N_ITERATIONS, rank=1
     )
     print(f"Trained-task count: {int(model.n_tasks)} "
           f"(expect {len(DOCKING_TASK_INDICES)} = docking only)")

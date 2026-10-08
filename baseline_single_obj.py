@@ -36,6 +36,11 @@ Run ``python baseline_single_obj.py --help`` for the command-line options.
 """
 
 import os
+
+# Single-threaded BLAS pin: must precede numpy / pandas / torch, so a script run
+# directly is pinned like every other entry point (see thread_pin.py).
+import thread_pin  # noqa: F401
+
 import math
 import time
 import argparse
@@ -71,6 +76,7 @@ from acquisition import (
     compute_pareto_front,
     get_active_objectives,
     initial_design_indices,
+    resolve_run_seed,
     DEFAULT_OBJECTIVE_SIGNS,
 )
 import evaluation
@@ -257,7 +263,9 @@ class SingleTaskTanimotoGP:
         return mean_x, covar_x
 
 
-def train_docking_gp(train_x, train_y, n_iterations=200, lr=0.1):
+def train_docking_gp(train_x, train_y,
+                     n_iterations=_core_optim.DEFAULT_N_ITERATIONS,
+                     lr=_core_optim.DEFAULT_LR):
     """Train the single-output GP on fingerprints and (normalized) docking scores.
 
     Mirrors ``mogp.train_mogp`` but for one output: standardizes the target,
@@ -455,7 +463,8 @@ class SingleObjectiveBOLoop:
 
     def __init__(self, library_dir="data/library", seed=77,
                  n_init=10, batch_size=10, n_iterations=10,
-                 gp_train_iters=200, gp_lr=0.1,
+                 gp_train_iters=_core_optim.DEFAULT_N_ITERATIONS,
+                 gp_lr=_core_optim.DEFAULT_LR,
                  diversity_threshold=0.7):
         # --- Reproducibility ---
         # ``torch.manual_seed(seed)`` is gone with torch. It never fed anything:
@@ -467,7 +476,16 @@ class SingleObjectiveBOLoop:
         # (seed, 0, "init_design"), so this arm never reads or advances numpy's
         # global RNG and starts from the SAME molecules as ``loop.BOLoop`` and
         # every other arm for this seed.
-        self.seed = seed
+        #
+        # ``seed=None`` means "no particular seed", as in ``loop.BOLoop``: ONE
+        # fresh value is drawn from OS entropy here, stored in ``self.seed`` and
+        # printed, so the run is reproducible by passing ``baseline.seed`` back
+        # as ``seed``. An explicit seed must be a non-negative integer
+        # (``acquisition.validate_seed``), checked here before the library loads.
+        self.seed = resolve_run_seed(seed)
+        if seed is None:
+            print(f"[SingleObjectiveBOLoop] seed=None: drew run seed {self.seed} "
+                  f"from OS entropy; pass seed={self.seed} to reproduce this run.")
 
         # --- Library (cheap precomputed features) ---
         library = load_library(library_dir)
@@ -903,7 +921,8 @@ if __name__ == "__main__":
     parser.add_argument("--n-init", type=int, default=10)
     parser.add_argument("--batch-size", type=int, default=10)
     parser.add_argument("--n-iterations", type=int, default=10)
-    parser.add_argument("--mogp-iters", type=int, default=200,
+    parser.add_argument("--mogp-iters", type=int,
+                        default=_core_optim.DEFAULT_N_ITERATIONS,
                         help="GP training iterations per round.")
     parser.add_argument("--seed", type=int, default=77)
     parser.add_argument("--output-dir", default="baseline_single_obj_results")

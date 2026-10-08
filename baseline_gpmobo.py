@@ -69,6 +69,11 @@ Run ``python baseline_gpmobo.py --help`` for the command-line options.
 """
 
 import os
+
+# Single-threaded BLAS pin: must precede numpy / pandas / torch, so a script run
+# directly is pinned like every other entry point (see thread_pin.py).
+import thread_pin  # noqa: F401
+
 import time
 import argparse
 
@@ -96,6 +101,7 @@ from acquisition import (
     draw_without_replacement,
     initial_design_indices,
     keyed_generator,
+    resolve_run_seed,
     DEFAULT_OBJECTIVE_SIGNS,
 )
 import evaluation
@@ -390,12 +396,21 @@ class GPMOBOBaseline:
         # initial_design_indices(seed, ...)`` -- the SAME molecules every other
         # arm starts from for this seed -- and the holdout block and each round's
         # MC noise come from their own streams keyed by (seed, iteration, name).
-        self.seed = seed
+        #
+        # ``seed=None`` means "no particular seed", as in ``loop.BOLoop``: ONE
+        # fresh value is drawn from OS entropy here, stored in ``self.seed`` and
+        # printed, so the run is reproducible by passing ``baseline.seed`` back
+        # as ``seed``. An explicit seed must be a non-negative integer
+        # (``acquisition.validate_seed``), checked here before anything is loaded.
+        self.seed = resolve_run_seed(seed)
+        if seed is None:
+            print(f"[GPMOBOBaseline] seed=None: drew run seed {self.seed} "
+                  f"from OS entropy; pass seed={self.seed} to reproduce this run.")
         # Selection draws come from a dedicated stream so the acquisition's MC
         # noise cannot shift depending on how many library draws preceded it.
         # `step` re-keys it per round, so a round's noise is a function of
         # (seed, round) alone; this is the stream for use before the first round.
-        self.rng = keyed_generator(seed, 0, "ehvi_mc")
+        self.rng = keyed_generator(self.seed, 0, "ehvi_mc")
 
         self.gpmobo = gpmobo_ref.load()
 

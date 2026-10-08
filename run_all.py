@@ -25,8 +25,11 @@ Run with::
 
 # KMP_DUPLICATE_LIB_OK must be set BEFORE numpy/torch/rdkit import their native
 # libraries, otherwise macOS aborts with the "libomp already initialized" error.
+# thread_pin sets it (setdefault) together with the single-threaded BLAS pin that
+# keeps the numerics machine-independent; it must be imported before any of them.
 import os
-os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+
+import thread_pin  # noqa: F401
 
 import time
 import shutil

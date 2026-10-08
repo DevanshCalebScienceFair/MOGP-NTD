@@ -46,6 +46,7 @@ import streamlit as st
 import dashboard_compare as dc
 import evaluation
 from data import HEAVY_ATOM_FLOOR
+from mogp_core.optim import DEFAULT_N_ITERATIONS
 
 REPO = os.path.dirname(os.path.abspath(__file__))
 RUNS_DIR = os.path.join(REPO, "runs")
@@ -307,7 +308,8 @@ def form_benchmark_seeds(facts):
     n_init = c2.number_input("--n-init", value=10, step=1, min_value=1)
     batch_size = c2.number_input("--batch-size", value=10, step=1, min_value=1)
     n_iterations = c3.number_input("--n-iterations", value=10, step=1, min_value=1)
-    mogp_iters = c3.number_input("--mogp-iters", value=200, step=10, min_value=1)
+    mogp_iters = c3.number_input("--mogp-iters", value=DEFAULT_N_ITERATIONS,
+                                 step=10, min_value=1)
     output_dir = c1.text_input("--output-dir", "benchmark_seeds_results")
     band = c2.selectbox("--band", ["std", "sem", "ci95"], index=0,
                         help="sem/ci95 are more honest for few seeds — they "
@@ -356,7 +358,8 @@ def form_ablation(facts):
     n_init = c2.number_input("--n-init ", value=10, step=1, min_value=1)
     batch_size = c2.number_input("--batch-size ", value=10, step=1, min_value=1)
     n_iterations = c3.number_input("--n-iterations ", value=8, step=1, min_value=1)
-    mogp_iters = c3.number_input("--mogp-iters ", value=200, step=10, min_value=1)
+    mogp_iters = c3.number_input("--mogp-iters ", value=DEFAULT_N_ITERATIONS,
+                                 step=10, min_value=1)
     rank = c1.number_input("--rank", value=1, step=1, min_value=1)
     max_library = c2.text_input("--max-library (blank = whole library)", "")
     models = c3.multiselect("--models", ["coregionalized", "independent"],

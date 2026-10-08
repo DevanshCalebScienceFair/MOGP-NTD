@@ -33,6 +33,11 @@ Run ``python baseline_greedy.py --help`` for the command-line options.
 """
 
 import os
+
+# Single-threaded BLAS pin: must precede numpy / pandas, so a script run directly
+# is pinned like every other entry point (see thread_pin.py).
+import thread_pin  # noqa: F401
+
 import time
 import argparse
 
@@ -52,6 +57,7 @@ from acquisition import (
     get_active_objectives,
     draw_without_replacement,
     keyed_generator,
+    resolve_run_seed,
     DEFAULT_OBJECTIVE_SIGNS,
 )
 import evaluation
@@ -93,7 +99,16 @@ class GreedyFilterThenDock:
         # advances numpy's global RNG. This arm has no initial-design stage: it
         # draws its whole docking budget from the filter survivors, a different
         # population from the one every other arm's initial design draws from.
-        self.seed = seed
+        #
+        # ``seed=None`` means "no particular seed", as in ``loop.BOLoop``: ONE
+        # fresh value is drawn from OS entropy here, stored in ``self.seed`` and
+        # printed, so the run is reproducible by passing ``baseline.seed`` back
+        # as ``seed``. An explicit seed must be a non-negative integer
+        # (``acquisition.validate_seed``), checked here before the library loads.
+        self.seed = resolve_run_seed(seed)
+        if seed is None:
+            print(f"[GreedyFilterThenDock] seed=None: drew run seed {self.seed} "
+                  f"from OS entropy; pass seed={self.seed} to reproduce this run.")
 
         # --- Library (cheap precomputed features) ---
         library = load_library(library_dir)

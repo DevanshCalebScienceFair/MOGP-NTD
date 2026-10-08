@@ -32,23 +32,12 @@ Run ``python loop.py --help`` for the command-line options.
 
 import os
 
-# ---------------------------------------------------------------------------
-# Threading / OpenMP guard — MUST run before numpy (or any math backend) is
-# imported. On Apple Silicon a duplicate libomp runtime can crash on import
-# (OMP Error #15); pinning every math backend to a single thread and tolerating
-# the duplicate runtime avoids that. Single-threaded is also what keeps the
-# numerics independent of the machine: a threaded BLAS splits a reduction
-# across however many cores it finds, and the summation order — hence the last
-# bits — goes with it. The values below are unchanged. launch.py sets the same
-# variables (before it imports this module); setdefault means whichever runs
-# first wins and an explicit outer override is always respected, so
-# `python loop.py` is safe standalone without the old `env KMP_...` prefix.
-# ---------------------------------------------------------------------------
-for _thread_var in ("KMP_DUPLICATE_LIB_OK", "OMP_NUM_THREADS", "MKL_NUM_THREADS",
-                    "VECLIB_MAXIMUM_THREADS", "NUMEXPR_NUM_THREADS"):
-    os.environ.setdefault(
-        _thread_var, "TRUE" if _thread_var == "KMP_DUPLICATE_LIB_OK" else "1"
-    )
+# Threading / OpenMP guard -- MUST run before numpy (or any math backend) is
+# imported. The pin itself lives in thread_pin.py (the same ``setdefault`` block
+# this file used to carry, so an explicit outer override is still respected) and
+# is shared by every entry-point script. launch.py sets the same variables before
+# it imports this module.
+import thread_pin  # noqa: F401
 
 import time
 import inspect
@@ -71,6 +60,9 @@ from densify import generate_analogs, canonical_smiles
 import quality_filter
 from mogp import train_mogp, predict, TASK_NAMES, resolve_objective_layout
 from mogp_coregionalized import train_mogp_coregionalized
+# The training budget (Adam steps, learning rate) is defined once, in
+# mogp_core.optim; every default below refers to it rather than repeating it.
+from mogp_core.optim import DEFAULT_LR, DEFAULT_N_ITERATIONS
 from acquisition import (
     select_batch,
     compute_pareto_front,
@@ -170,8 +162,9 @@ def resolve_train_fn(model, rank=1):
     if model == "independent":
         return train_mogp
     if model == "coregionalized":
-        def _train_coregionalized(train_x, train_y, n_iterations=200, lr=0.1,
-                                  rng=None):
+        def _train_coregionalized(train_x, train_y,
+                                  n_iterations=DEFAULT_N_ITERATIONS,
+                                  lr=DEFAULT_LR, rng=None):
             return train_mogp_coregionalized(
                 train_x, train_y, n_iterations=n_iterations, lr=lr, rank=rank,
                 rng=rng,
@@ -201,7 +194,7 @@ class BOLoop:
 
     def __init__(self, library_dir="data/library", seed=42,
                  n_init=10, batch_size=20, n_iterations=10,
-                 mogp_train_iters=200, mogp_lr=0.1,
+                 mogp_train_iters=DEFAULT_N_ITERATIONS, mogp_lr=DEFAULT_LR,
                  diversity_threshold=0.7,
                  model=DEFAULT_MODEL, coregionalization_rank=1, train_fn=None,
                  densify=False, densify_every=1, densify_per_parent=20,
@@ -841,7 +834,7 @@ if __name__ == "__main__":
     parser.add_argument("--n-init", type=int, default=None)
     parser.add_argument("--batch-size", type=int, default=None)
     parser.add_argument("--n-iterations", type=int, default=None)
-    parser.add_argument("--mogp-iters", type=int, default=200)
+    parser.add_argument("--mogp-iters", type=int, default=DEFAULT_N_ITERATIONS)
     parser.add_argument("--model", choices=MODEL_CHOICES, default=DEFAULT_MODEL,
                         help="GP model over the docking objectives: "
                              "coregionalized (ICM, primary) or independent.")

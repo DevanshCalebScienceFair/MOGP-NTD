@@ -260,12 +260,23 @@ def spearman_rho(x: ArrayLike, y: ArrayLike) -> float:
     (SPEC.md section 5.1).  It is not implemented here at all.
 
     ``n < 2`` -> NaN; constant input (all ranks equal) -> NaN.
+
+    **NaN in either sample -> NaN.**  A rank is undefined for a missing value;
+    ``np.argsort`` would silently sort NaN last, i.e. rank it as the LARGEST
+    observation, and return a plausible-looking but meaningless correlation
+    (measured: 0.3965 on the pooled Selectivity Index column, which holds NaN
+    for non-viable docks, where ``scipy.stats.spearmanr`` correctly gives NaN).
+    This is ``nan_policy='propagate'``.  Callers that want the correlation over
+    the defined pairs must drop the non-finite pairs themselves and report how
+    many were dropped.
     """
     x = np.asarray(x, dtype=np.float64).ravel()
     y = np.asarray(y, dtype=np.float64).ravel()
     if x.size != y.size:
         raise ValueError("x and y must have the same length")
     if x.size < 2:
+        return float("nan")
+    if np.isnan(x).any() or np.isnan(y).any():
         return float("nan")
     return pearson_r(midrank(x), midrank(y), n2_exact=False)
 

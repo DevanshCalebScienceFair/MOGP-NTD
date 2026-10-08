@@ -949,6 +949,26 @@ def test_spearman_edge_rows(row):
         assert r == ref_r
 
 
+def test_spearman_propagates_nan_instead_of_ranking_it_largest():
+    """A NaN must not be ranked as the largest value (nan_policy='propagate').
+
+    Hand-derived: x = 1,2,3,4,5 and y = 1,2,3,4,NaN.  If NaN were ranked
+    largest, y's ranks would be 1,2,3,4,5 and rho would be exactly 1.0 -- a
+    confident wrong answer.  The correlation is undefined, so the answer is NaN.
+    Dropping the undefined pair first gives the honest value, 1.0 on n = 4.
+    """
+    x = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+    y = np.array([1.0, 2.0, 3.0, 4.0, np.nan])
+    assert np.isnan(S.spearman_rho(x, y))
+    assert np.isnan(S.spearman_rho(y, x))
+    assert S.spearman_rho(x[:4], y[:4]) == 1.0
+    from scipy.stats import spearmanr
+    import warnings
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        assert np.isnan(spearmanr(x, y)[0])          # the oracle agrees
+
+
 def test_pearson_n2_rounds_and_spearman_does_not():
     """SPEC 5.4: ``pearsonr`` rounds n == 2 to +-1; ``spearmanr`` does NOT.
 

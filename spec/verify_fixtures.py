@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """verify_fixtures.py -- check every file under spec/ against spec/MANIFEST.md.
 
-Run:
-    conda run -n mogp-drug python /Users/calebsuh/MOGP-NTD/spec/verify_fixtures.py
+Run (from the repository root):
+    conda run -n mogp-drug python spec/verify_fixtures.py
 
 Exit status 0 = every checksum matched (stochastic files may differ; see below).
 Exit status 1 = at least one deterministic file drifted, is missing, or is new.

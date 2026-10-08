@@ -6,8 +6,8 @@ capture_hv.py
 Differential-reference capture for the HYPERVOLUME / PARETO / NORMALIZED-FRAME
 cluster of the pure-numpy rewrite.
 
-Run:
-    conda run -n mogp-drug python /Users/calebsuh/MOGP-NTD/spec/hv/capture_hv.py
+Run (from the repository root):
+    conda run -n mogp-drug python spec/hv/capture_hv.py
 
 What this script is
 -------------------
@@ -1145,6 +1145,47 @@ def section_filter(names, signs, lo, hi):
 # S9.  output column contract
 # ====================================================================== #
 
+# The six docking-derived columns of evaluated.csv.  A failed dock is stored as
+# an EMPTY cell in all six at once; every other row is expected to carry six
+# finite numbers, which require_finite_row_count checks.
+DOCKING_CELL_COLUMNS = ("PfDHFR_Docking", "hDHFR_Docking", "PfDHFR_Docking_LE",
+                        "hDHFR_Docking_LE", "Selectivity_Index",
+                        "Selectivity_Index_LE")
+
+
+def expected_finite_docking_rows(rows):
+    """-> (n_total, n_blank, n_expected_finite), counted from the raw CSV cells.
+
+    ``n_expected_finite`` is the number of rows that np.isfinite MUST keep: the
+    rows whose six docking cells are all non-empty.  A row that is empty in only
+    some of the six is a different failure than a failed dock, so it raises here
+    instead of being left for np.isfinite to drop without a word.
+    """
+    n_blank = 0
+    for i, r in enumerate(rows):
+        empty = [c for c in DOCKING_CELL_COLUMNS if not r.get(c)]
+        if empty and len(empty) != len(DOCKING_CELL_COLUMNS):
+            raise RuntimeError(
+                f"evaluated.csv row {i} is empty in only {empty} of the six "
+                f"docking columns; a failed dock empties all six")
+        n_blank += bool(empty)
+    return len(rows), n_blank, len(rows) - n_blank
+
+
+def require_finite_row_count(n_expected, counts):
+    """Raise unless every np.isfinite count in ``counts`` equals ``n_expected``.
+
+    A shortfall means np.isfinite dropped a row that has a value in its cells (a
+    literal nan or inf, or a quotient that overflowed); the filter would shrink
+    the sample without saying so.
+    """
+    bad = {k: v for k, v in counts.items() if v != n_expected}
+    if bad:
+        raise RuntimeError(
+            f"np.isfinite kept a different number of rows than the CSV cells "
+            f"promise: expected {n_expected}, got {bad}")
+
+
 def section_columns():
     say("\n=== S9  output column contract (measured from the archive) ===")
     seen = {}
@@ -1167,6 +1208,7 @@ def section_columns():
     p = os.path.join(REPO, rel, "evaluated.csv")
     with open(p, newline="") as f:
         rows = list(csv.DictReader(f))
+    n_rows, n_blank, n_expected = expected_finite_docking_rows(rows)
     pf = np.array([float(r["PfDHFR_Docking"]) if r["PfDHFR_Docking"] else np.nan
                    for r in rows])
     hd = np.array([float(r["hDHFR_Docking"]) if r["hDHFR_Docking"] else np.nan
@@ -1198,6 +1240,13 @@ def section_columns():
         ha_pf = pf / pfl
         ha_hd = hd / hdl
     ok = np.isfinite(ha_pf) & np.isfinite(ha_hd)
+    require_finite_row_count(n_expected, {
+        "Selectivity_Index": int(fin.sum()),
+        "Selectivity_Index_LE": int(finl.sum()),
+        "implied heavy atoms": int(ok.sum())})
+    say(f"  rows in {rel}/evaluated.csv: {n_rows}, of which {n_blank} blank "
+        f"(failed dock) and {n_expected} expected finite; the SI, SI_LE and "
+        f"implied-heavy-atom isfinite filters each kept exactly {n_expected}")
     dev = np.abs(ha_pf[ok] - np.round(ha_pf[ok]))
     dev2 = np.abs(ha_hd[ok] - np.round(ha_hd[ok]))
     same = int((np.round(ha_pf[ok]) == np.round(ha_hd[ok])).sum())
@@ -1218,6 +1267,9 @@ def section_columns():
         },
         "verification_run": rel,
         "verification": {
+            "rows_total": n_rows,
+            "rows_blank_failed_dock": n_blank,
+            "rows_expected_finite": n_expected,
             "selectivity_index_max_abs_diff": repr(m_si),
             "selectivity_index_rows_checked": int(fin.sum()),
             "selectivity_index_rows_bitwise_exact": bit_si,

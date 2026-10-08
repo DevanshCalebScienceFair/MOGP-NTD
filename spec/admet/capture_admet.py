@@ -36,8 +36,8 @@ runs of this script in fresh interpreters on the same machine must give
 identical files; see ``fixtures/METADATA.json`` -> ``determinism`` for the
 per-fixture classification and the cross-machine caveats.
 
-Run:
-    conda run -n mogp-drug python /Users/calebsuh/MOGP-NTD/spec/admet/capture_admet.py
+Run (from the repository root):
+    conda run -n mogp-drug python spec/admet/capture_admet.py
 """
 
 from __future__ import annotations
@@ -55,7 +55,7 @@ os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 import joblib
 import numpy as np
 
-REPO = "/Users/calebsuh/MOGP-NTD"
+REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SPEC_DIR = os.path.join(REPO, "spec", "admet")
 FIX = os.path.join(SPEC_DIR, "fixtures")
 EXPORT_DIR = os.path.join(FIX, "export")

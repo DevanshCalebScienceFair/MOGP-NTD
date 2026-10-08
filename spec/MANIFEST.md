@@ -1,6 +1,6 @@
 # `spec/` MANIFEST — index, checksums, determinism status, agreement criteria
 
-**216 files, 17,566,747 bytes total** under `/Users/calebsuh/MOGP-NTD/spec/`, of which
+**216 files, 17,572,329 bytes total** under the repository's `spec/` directory, of which
 **188 are fixtures / frozen artifacts totalling 16,396,254 bytes**; the rest are the nine
 `SPEC.md` documents, the capture scripts and two reference modules.
 
@@ -13,7 +13,7 @@ transcribed prose.
 Verify with:
 
 ```bash
-conda run -n mogp-drug python /Users/calebsuh/MOGP-NTD/spec/verify_fixtures.py
+conda run -n mogp-drug python spec/verify_fixtures.py     # from the repository root
 ```
 
 `verify_fixtures.py` parses the `CHECKSUMS` block at the end of this document, so the manifest
@@ -63,10 +63,11 @@ git-ignored).
 
 Method: `spec/` was copied aside, a scratch mirror of the repo was built from symlinks (so the
 captures read the real `data/`, `models/`, `external/` and archived campaign directories but
-wrote into a scratch `spec/<cluster>/fixtures/`), the three scripts that hard-code
-`REPO = "/Users/calebsuh/MOGP-NTD"` had that one literal repointed at the mirror, and every
-output was byte-compared against the on-disk fixture. **No file in the repo's `spec/` tree was
-written to at any point.**
+wrote into a scratch `spec/<cluster>/fixtures/`), the three scripts that then hard-coded
+`REPO = "/Users/calebsuh/MOGP-NTD"` had that one literal repointed at the mirror (that literal
+has since been replaced by a path computed from `__file__`; see the note after the verdict
+below), and every output was byte-compared against the on-disk fixture. **No file in the repo's
+`spec/` tree was written to at any point.**
 
 | capture script | ran | byte-identical | detail |
 |---|---|---|---|
@@ -89,6 +90,35 @@ runs is one its own cluster had already declared non-byte-comparable, and in thr
 the declaration predicts. Two clusters did *better* than they claimed: `stats` reproduced all
 nine files including the `environment.json` it excludes, and `icm`'s five "stochastic"
 torch-fit fixtures (`07`, `08`, `09`, `11`, `00`) were byte-identical here.
+
+**Edited after this pass (2026-10-07); the scripts below have not been re-run since.** The
+byte-identical results above describe the scripts as they were then. No pinned fixture was
+regenerated or hand-edited; the digests of the changed scripts and documents in `CHECKSUMS` and in
+section 6 were re-pinned mechanically.
+
+* `gp/capture_gp.py`, `icm/capture_icm.py` and `admet/capture_admet.py` no longer hard-code
+  `REPO`; each computes it from `__file__`. The absolute paths in run commands, a directory
+  label and a file reference (twelve scripts, four `SPEC.md` files, this file's own `Verify with`
+  command and `bounds/INDEPENDENT_REVERIFICATION.md`) are now relative to the repository root;
+  the `git -C /Users/...` transcripts in section 0 are verbatim records and keep their paths.
+  Apart from the hardening below, an AST comparison with `HEAD` shows only docstring text and
+  those three assignments changed in these scripts.
+* `hv/capture_hv.py` S9 now counts, from the raw CSV cells, the rows its three `np.isfinite`
+  filters must keep (a blank failed dock is the only allowed shortfall) and raises if they keep
+  fewer. Run in memory against the archive it reproduced `output_column_contract.json` exactly
+  except for three added keys under `verification`: `rows_total` 90, `rows_blank_failed_dock` 1,
+  `rows_expected_finite` 89. On its next real run that fixture, the digest recorded in
+  `hv/fixtures/manifest.json` and `hv/capture_log.txt` will therefore differ from the pinned
+  copies.
+* `stats/capture_stats.py` computes the `leads_annotated.csv` Spearman over the pairs where both
+  values are finite, records the count used and the count dropped, and raises rather than write a
+  nan; rows with a non-finite value are also dropped from the `leads_annotated` reference dataset.
+  The pinned `stats/fixtures/spearman.json` and `stats/fixtures/measurements.json` still record
+  the all-rows figure, rho 0.3965 on n = 50 (scipy returns nan when any value is NaN, so every
+  `Selectivity_Index` was defined when that was captured). The file now has 2 undefined values and
+  the same computation gives rho 0.3589 (p 1.223e-02) on the 48 defined rows. Those two fixtures,
+  `stats/fixtures/MANIFEST.json` and the passages of `stats/SPEC.md` that quote the 50-row figure
+  are stale until the owner regenerates them.
 
 ---
 
@@ -307,11 +337,11 @@ measured here.
 
 ### `spec/bounds/` — Frozen objective bounds + the archived-hypervolume settlement (phase-1 artifact, no `fixtures/` subtree)
 
-Capture: `freeze_bounds.py, measure_clipping.py, reproduce_archived_hypervolume.py` · 9 files · 238,193 bytes (fixtures/artifacts 187,434 bytes)
+Capture: `freeze_bounds.py, measure_clipping.py, reproduce_archived_hypervolume.py` · 9 files · 238,188 bytes (fixtures/artifacts 187,434 bytes)
 
 | path | bytes | sha256[:16] | determinism | agreement criterion |
 |---|---:|---|---|---|
-| `bounds/INDEPENDENT_REVERIFICATION.md` | 6,564 | `5c7887bf6338dad7` | `n/a` | Prose settlement record. |
+| `bounds/INDEPENDENT_REVERIFICATION.md` | 6,559 | `cad46df38574ddc0` | `n/a` | Prose settlement record. |
 | `bounds/SETTLEMENT.md` | 17,648 | `5f3e34815a83a822` | `n/a` | Prose settlement record. |
 | `bounds/clipping_measurements.json` | 88,946 | `7845ebbabb2160d5` | `bitwise` | Measurement record; informational. Re-run measure_clipping.py to reproduce. |
 | `bounds/freeze_bounds.py` | 12,166 | `81670d22befeaa92` | `n/a` | Capture/verification script. |
@@ -341,12 +371,12 @@ Capture: `capture_primitives.py` · 11 files · 1,875,316 bytes (fixtures/artifa
 
 ### `spec/gp/` — Independent multi-output exact GP (`mogp.py`): 3T+1 scalars, MLL, analytic gradients, posterior
 
-Capture: `capture_gp.py` · 11 files · 295,159 bytes (fixtures/artifacts 184,414 bytes)
+Capture: `capture_gp.py` · 11 files · 295,197 bytes (fixtures/artifacts 184,414 bytes)
 
 | path | bytes | sha256[:16] | determinism | agreement criterion |
 |---|---:|---|---|---|
-| `gp/SPEC.md` | 53,968 | `ee13db18861cb7cf` | `n/a` | The specification. Not a fixture; hashed here so drift in a spec is detectable alongside drift in its fixtures. |
-| `gp/capture_gp.py` | 56,777 | `439725b07e309046` | `n/a` | The capture script that generates this cluster's fixtures. Re-run it in a fresh interpreter and byte-compare to detect drift. |
+| `gp/SPEC.md` | 53,956 | `405d3ed1768353ff` | `n/a` | The specification. Not a fixture; hashed here so drift in a spec is detectable alongside drift in its fixtures. |
+| `gp/capture_gp.py` | 56,827 | `d4926498f54724fe` | `n/a` | The capture script that generates this cluster's fixtures. Re-run it in a fresh interpreter and byte-compare to detect drift. |
 | `gp/fixtures/MANIFEST.json` | 1,464 | `8a9986c6add3d7a5` | `bitwise` | sha256 of the 7 byte-comparable fixtures; stochastic_threshold.json excluded by design. `capture_gp.py --verify` checks it. |
 | `gp/fixtures/metadata.json` | 1,435 | `78a492911cc05a3c` | `bitwise` | Provenance only. An implementation must read the same fingerprints.npy (sha256 match) and the same constants (noise floor 1e-4, Tanimoto eps 1e-8, softplus threshold 20, Adam lr 0.1 / betas (0.9,0.999) / eps 1e-8 / 200 steps, max_cholesky_size 800). |
 | `gp/fixtures/mll_gradients.json` | 38,661 | `90272dc26c56d33b` | `bitwise` | Loss abs <= 1e-6. Gradients vs grad_gpytorch_autograd: abs <= 1e-7 PER PARAMETER GROUP (check the four groups separately). Your own analytic-vs-central-FD self-check: abs <= 3e-9. Normalization discriminator: assert abs(loss-(-log_prob/(N*T))) <= 1e-6 AND abs(loss-(-log_prob/N)) > 1. WARNING measured this session: the fixture carries no X/Y, so you must regenerate the inputs (X = fingerprints.npy[:N]; targets from the section 16 recipe) AND standardize EXACTLY as section 10.1 says -- float32 mean/std over the FULL (N,5) matrix. Doing the reduction in float64 instead moves the gradient by 1.413e-07, and using nanmean/nanstd over the (N,T) observed slice moves it by 1.005e-07: both BLOW the 1e-7 gate. The gate has no headroom against a standardization deviation. |
@@ -359,12 +389,12 @@ Capture: `capture_gp.py` · 11 files · 295,159 bytes (fixtures/artifacts 184,41
 
 ### `spec/icm/` — Coregionalized ICM GP (`mogp_coregionalized.py`): Kronecker structure, gradients, identifiability
 
-Capture: `capture_icm.py` · 39 files · 449,620 bytes (fixtures/artifacts 342,073 bytes)
+Capture: `capture_icm.py` · 39 files · 449,634 bytes (fixtures/artifacts 342,073 bytes)
 
 | path | bytes | sha256[:16] | determinism | agreement criterion |
 |---|---:|---|---|---|
 | `icm/SPEC.md` | 46,702 | `8c15e00a89ac198c` | `n/a` | The specification. Not a fixture; hashed here so drift in a spec is detectable alongside drift in its fixtures. |
-| `icm/capture_icm.py` | 60,845 | `bea34383beb0923f` | `n/a` | The capture script that generates this cluster's fixtures. Re-run it in a fresh interpreter and byte-compare to detect drift. |
+| `icm/capture_icm.py` | 60,859 | `b0d8b3527656421d` | `n/a` | The capture script that generates this cluster's fixtures. Re-run it in a fresh interpreter and byte-compare to detect drift. |
 | `icm/fixtures/00_environment.json` | 273 | `3f969bc1640b5395` | `stochastic` | Not compared. Records which oracle versions produced the rest. |
 | `icm/fixtures/01_parameterization.json` | 2,133 | `9747eb88c90c690a` | `bitwise` | Exact equality of every structural field (booleans, counts, formula strings); every max_abs_diff <= 1e-12. |
 | `icm/fixtures/02_ordering.json` | 759 | `f614c2b278667708` | `bitwise` | THE TRANSPOSE TRAP. max\|Sigma_impl - kron(K_data,B_task)\| <= 1e-12 AND max\|Sigma_impl - kron(B_task,K_data)\| >= 1.0. The `answer` string must match exactly. Passing only the first test means the docstring ordering was silently accepted. |
@@ -405,12 +435,12 @@ Capture: `capture_icm.py` · 39 files · 449,620 bytes (fixtures/artifacts 342,0
 
 ### `spec/hv/` — Hypervolume indicator, Pareto dominance, and the normalized objective frame
 
-Capture: `capture_hv.py` · 19 files · 775,102 bytes (fixtures/artifacts 614,603 bytes)
+Capture: `capture_hv.py` · 19 files · 777,585 bytes (fixtures/artifacts 614,603 bytes)
 
 | path | bytes | sha256[:16] | determinism | agreement criterion |
 |---|---:|---|---|---|
-| `hv/SPEC.md` | 66,843 | `995637c3bff08bbf` | `n/a` | The specification. Not a fixture; hashed here so drift in a spec is detectable alongside drift in its fixtures. |
-| `hv/capture_hv.py` | 77,276 | `70b8cb6762ff4efe` | `n/a` | The capture script that generates this cluster's fixtures. Re-run it in a fresh interpreter and byte-compare to detect drift. |
+| `hv/SPEC.md` | 66,845 | `57567b54e96cd3aa` | `n/a` | The specification. Not a fixture; hashed here so drift in a spec is detectable alongside drift in its fixtures. |
+| `hv/capture_hv.py` | 79,757 | `4a273c6368a027cf` | `n/a` | The capture script that generates this cluster's fixtures. Re-run it in a fresh interpreter and byte-compare to detect drift. |
 | `hv/capture_log.txt` | 16,380 | `aee69648d188c90e` | `n/a` | Transcript of one capture run; not a comparison target. |
 | `hv/fixtures/archived_hypervolume.json` | 203,368 | `07f5114a850a6a6a` | `bitwise` | Scalar HV <= 4 ulp; front SIZES exact integers. Archived residual max 1.110e-16, mean 8.983e-18; pareto_size matched 448/448; 0 non-monotone steps; 256 pooled front members with a zero coordinate. VERIFIED this session by an INDEPENDENT route (spec/boxdecomp Lacour cells + the volume-complement identity): max residual 3.053e-16, mean 8.13e-17, front sizes 3/62, zero-coordinate members 256, non-monotone 0. My 3.05e-16 is a third algorithm and sits inside the 4-ulp gate -- evidence the gate is correctly calibrated, not that the fixture is wrong. |
 | `hv/fixtures/bound_roundtrip_edge.json` | 679 | `879503172b76b0b8` | `bitwise` | Exact hex equality on every field. Proves the clip is load-bearing and must come BEFORE the strict reference filter. Do NOT 'fix' it by widening the bound or adding an epsilon. |
@@ -431,30 +461,30 @@ Capture: `capture_hv.py` · 19 files · 775,102 bytes (fixtures/artifacts 614,60
 
 ### `spec/boxdecomp/` — Non-dominated box decomposition (Lacour 2017 local upper bounds, applied twice)
 
-Capture: `capture_boxdecomp.py, mutation_study.py` · 9 files · 3,470,379 bytes (fixtures/artifacts 3,335,409 bytes)
+Capture: `capture_boxdecomp.py, mutation_study.py` · 9 files · 3,470,392 bytes (fixtures/artifacts 3,335,409 bytes)
 
 | path | bytes | sha256[:16] | determinism | agreement criterion |
 |---|---:|---|---|---|
 | `boxdecomp/SPEC.md` | 69,988 | `346b8d5fe0b94b02` | `n/a` | The specification. Not a fixture; hashed here so drift in a spec is detectable alongside drift in its fixtures. |
-| `boxdecomp/capture_boxdecomp.py` | 38,731 | `b79a929eee04018f` | `n/a` | The capture script that generates this cluster's fixtures. Re-run it in a fresh interpreter and byte-compare to detect drift. |
+| `boxdecomp/capture_boxdecomp.py` | 38,742 | `9ae0c3a02abe2734` | `n/a` | The capture script that generates this cluster's fixtures. Re-run it in a fresh interpreter and byte-compare to detect drift. |
 | `boxdecomp/fixtures/arrays.bin` | 2,709,800 | `993f4351bb02a4a9` | `bitwise` | GATE T1 (the only test that maps onto what the acquisition consumes): compute cells from front_in_oracle_order and ref, evaluate the exact non-log MC EHVI per sample, and require max abs diff <= 1e-12 AND max rel diff <= 1e-9 against ehvi_per_sample. (Reference agrees with botorch to 1.11e-16 abs / 4.33e-16 rel over all 161 cases; the permutation study bounds the partition-choice contribution at 2.2e-16.) If your front arrives float32, loosen to 1e-7 relative. SECONDARY T4: byte-compare canonically-sorted cell rows against cells_canonical -- valid ONLY under the exact insertion and append order of SPEC 5.1; reproduces botorch row for row on all 119 m>=3 cases, and the 40 non-empty m=2 cases are EXPECTED to differ (deviation D2). A T4 failure with T1/T2 green means a different valid partition, not a bug. Raw little-endian float64, C order, header-free -- index it with manifest.json. |
 | `boxdecomp/fixtures/manifest.json` | 593,384 | `ce4439941f54bd2a` | `bitwise` | GATE T2 (pointwise membership -- catches individually-wrong cells and cannot false-alarm on a valid-but-different partition): 20000 uniform query points in [ref,1]^m, half-open membership lower <= q < upper, require n_overlapping == 0, n_nondominated_uncovered == 0, n_dominated_covered == 0. Totals over 161 cases x 20000 probes x 2 decompositions = 6.44M probes are 0/0/0. T3 (total volume, cap upper at 1.0): \|sum_cells vol - (prod_j(1-r_j) - HV)\| <= 1e-12 absolute (worst stored 3.331e-16). T5 (bound provenance, intrinsic, no tolerance): every cell bound bit-identical to a front coordinate, the reference coordinate, or +inf -- 0 violations. Structural: upper[:,0]==+inf for every cell; at m=2 the cell count is exactly max(\|P\|+1,1). |
 | `boxdecomp/fixtures/measurements.json` | 24,879 | `1c217776ddc679af` | `bitwise` | Evidence base for SPEC's claims and for T1/T3's tolerances, not a numeric target. The one number to carry into the test suite is the permutation study's max_abs_ehvi_deviation <= 2.2e-16 -- the floor below which no tolerance can meaningfully be set. |
 | `boxdecomp/fixtures/mutations.json` | 5,079 | `f99c3060a57a3315` | `bitwise` | Validates the TEST SUITE, not the implementation. Run mutation_study.py with your own cells() as the control: the control row must be 0/16 on all five tests and every real bug must be caught by T2. sha256 must be f99c3060a57a3315a8155e16a03430f4a0a4c0000e929deaf3c4ac545beb2fe7. VERIFIED this session: byte-identical, sha matches, and the full firing pattern reproduced (including step4_nonstrict diverged=3 and no_empty_filter firing T4 only). |
 | `boxdecomp/fixtures/timings.json` | 2,267 | `48ba7573e37a3b45` | `stochastic` | Do NOT byte-compare or assert the seconds / traced megabytes. The CELL COUNTS in this file ARE deterministic (43/181/577/1649/2861/3936) and may be asserted. VERIFIED this session: the file differs between runs. |
-| `boxdecomp/mutation_study.py` | 13,707 | `e49a5cdce2d799ee` | `n/a` | Bug-injection study that validates the boxdecomp test suite. |
+| `boxdecomp/mutation_study.py` | 13,709 | `b7f70f046d4a0422` | `n/a` | Bug-injection study that validates the boxdecomp test suite. |
 | `boxdecomp/reference_lacour.py` | 12,544 | `b9e8c16cee599e99` | `n/a` | Paper-derived numpy decomposition. Used this session as the independent decomposition in the qNEHVI and hypervolume spot-checks. |
 
 ### `spec/qnehvi/` — q=1 exact non-log qNEHVI estimator + the determinism / RNG policy
 
-Capture: `capture_qnehvi.py, capture_probes.py, check_decomposition_contract.py` · 49 files · 3,397,024 bytes (fixtures/artifacts 3,198,350 bytes)
+Capture: `capture_qnehvi.py, capture_probes.py, check_decomposition_contract.py` · 49 files · 3,397,039 bytes (fixtures/artifacts 3,198,350 bytes)
 
 | path | bytes | sha256[:16] | determinism | agreement criterion |
 |---|---:|---|---|---|
-| `qnehvi/SPEC.md` | 112,054 | `a176544e08f534bd` | `n/a` | The specification. Not a fixture; hashed here so drift in a spec is detectable alongside drift in its fixtures. |
-| `qnehvi/capture_probes.py` | 12,297 | `0bee25ca3080b809` | `n/a` | The capture script that generates this cluster's fixtures. Re-run it in a fresh interpreter and byte-compare to detect drift. |
-| `qnehvi/capture_qnehvi.py` | 70,183 | `00844dda85ff885f` | `n/a` | The capture script that generates this cluster's fixtures. Re-run it in a fresh interpreter and byte-compare to detect drift. |
-| `qnehvi/check_decomposition_contract.py` | 4,140 | `7a1f29eda5cc63de` | `n/a` | Executable interface contract between spec/qnehvi and spec/boxdecomp. |
+| `qnehvi/SPEC.md` | 112,063 | `f62cc44b0856e01e` | `n/a` | The specification. Not a fixture; hashed here so drift in a spec is detectable alongside drift in its fixtures. |
+| `qnehvi/capture_probes.py` | 12,299 | `0e5e95fd39e3f861` | `n/a` | The capture script that generates this cluster's fixtures. Re-run it in a fresh interpreter and byte-compare to detect drift. |
+| `qnehvi/capture_qnehvi.py` | 70,185 | `aa4b6578d6798a18` | `n/a` | The capture script that generates this cluster's fixtures. Re-run it in a fresh interpreter and byte-compare to detect drift. |
+| `qnehvi/check_decomposition_contract.py` | 4,142 | `9b898f2e4f8116cf` | `n/a` | Executable interface contract between spec/qnehvi and spec/boxdecomp. |
 | `qnehvi/fixtures/capture_runtime.txt` | 23 | `bfd9fad461e73b84` | `stochastic` | Wall clock; never compared. |
 | `qnehvi/fixtures/decomposition_contract.json` | 858 | `8fc0ab80f3b72579` | `bitwise` | Re-run check_decomposition_contract.py: byte-identical, sha256 8fc0ab80f3b725790a74b94aad312e1bdfa0bfa4a9f9e52ea221824fef28cc01. The same script MUST also pass against spec/boxdecomp's numpy decomposition. VERIFIED this session: pointed at spec/boxdecomp/reference_lacour.nondominated_cells it produced a BYTE-IDENTICAL file with the same sha256, including K_min=1, K_max=328 and n_infinite_upper_bound_entries=4378. The cluster's unresolved item 4 is therefore CLOSED by measurement. |
 | `qnehvi/fixtures/decomposition_timings.txt` | 161 | `1f6deb6b16f224a6` | `stochastic` | Wall clock; never compared. |
@@ -503,12 +533,12 @@ Capture: `capture_qnehvi.py, capture_probes.py, check_decomposition_contract.py`
 
 ### `spec/stats/` — Standard normal PDF/CDF, closed-form EI, Wilcoxon signed-rank, paired t-test, Spearman/Pearson
 
-Capture: `capture_stats.py` · 13 files · 1,320,325 bytes (fixtures/artifacts 1,144,506 bytes)
+Capture: `capture_stats.py` · 13 files · 1,323,290 bytes (fixtures/artifacts 1,144,506 bytes)
 
 | path | bytes | sha256[:16] | determinism | agreement criterion |
 |---|---:|---|---|---|
 | `stats/SPEC.md` | 60,376 | `8009b668c7f8e8d2` | `n/a` | The specification. Not a fixture; hashed here so drift in a spec is detectable alongside drift in its fixtures. |
-| `stats/capture_stats.py` | 77,814 | `d1a39e9714fa1b66` | `n/a` | The capture script that generates this cluster's fixtures. Re-run it in a fresh interpreter and byte-compare to detect drift. |
+| `stats/capture_stats.py` | 80,777 | `b70f9b598e31c90d` | `n/a` | The capture script that generates this cluster's fixtures. Re-run it in a fresh interpreter and byte-compare to detect drift. |
 | `stats/fixtures/MANIFEST.json` | 1,250 | `011458a344959033` | `bitwise` | sha256 of the 7 byte-comparable fixtures. stats/verify_fixtures.py checks this FIRST so a stale or edited fixture fails loudly. VERIFIED this session: all 9 files in the directory, including environment.json, were byte-identical on a fresh re-run. |
 | `stats/fixtures/ei.json` | 227,998 | `5e81971e75125b94` | `bitwise` | max abs dev vs ei_ref <= 1e-15; restricted to the 1103 candidates with EI >= 1e-6*max(EI), max rel <= 1e-12. Do NOT impose a whole-block relative bound (worst is 8.121e-11 at a candidate whose EI is 4.024e-130). argsort(-ei)[:10] and [:50] must match top10/top50 ELEMENT FOR ELEMENT despite 12 exactly-tied EI values. All 15 edge rows exact, NaN via isnan. Assert all(ei >= 0). |
 | `stats/fixtures/environment.json` | 317 | `ba16cf3c085033af` | `provenance` | EXCLUDED from byte-compare by design (changes with the environment). Its job is to record which scipy produced the reference values -- the Wilcoxon branch selector in particular is scipy-version-dependent: the n<=13 permutation cap did not exist in older scipy. If the oracle version changes, wilcoxon.json must be recaptured and library-deviation rows 4 and 5 re-adjudicated. NOTE: it nonetheless reproduced byte-identically this session. |
@@ -519,16 +549,16 @@ Capture: `capture_stats.py` · 13 files · 1,320,325 bytes (fixtures/artifacts 1
 | `stats/fixtures/ttest.json` | 598,409 | `6e5bc1a974ef980e` | `bitwise` | betainc_reg vs scipy_betainc: rel <= 1e-11 on the t slice, <= 1e-10 on the wide grid. The two-sided p is judged against exact_two_sided_p_50dps (mpmath is the ARBITER, not scipy): rel <= 1e-11 for df <= 5000 and <= 1e-13 for df <= 50. Do NOT require better than 4e-09 against scipy_two_sided_p -- scipy's own worst error vs exact on this grid is 3.120e-09. ttest_rel: t rel <= 1e-13, p rel <= 1e-12. Degenerate rows exact, nan via isnan, inf via isinf AND sign. VERIFIED this session from SPEC section 4.4: 9.2005e-12 vs mpmath (claim 9.201e-12), 4.2631e-14 at df<=50 (claim 4.260e-14), 3.1202e-09 vs scipy (matching the stated scipy error). CRITICAL: those gates are only meetable WITH section 4.4's accurate-logarithm entry point (log_x = -log1p(t^2/nu), log_y = -log1p(nu/t^2)); passing math.log of the rounded argument instead gave me 7.98e-09, a 1000x miss. |
 | `stats/fixtures/wilcoxon.json` | 51,341 | `aebd7ff5e054d1cb` | `bitwise` | The branch chosen must equal ref_branch on all 95 selector rows and the p-value must equal auto_p. Exact and permutation branches are rationals with denominator 2^n: BITWISE on exact_table, real, selector_* and boundary. Asymptotic branch: 1e-12 absolute. signed_rank_null_counts(n) must equal `counts` as exact ints with sum == 2**n and palindromic. Assert n=5 -> p == 0.0625 and n=7 -> p == 0.015625 exactly. statistic: two-sided == min(r_plus,r_minus), one-sided == r_plus, to 1e-12. d=[0.0] must return (0.0,1.0) and NOT raise. sweep_disagreements must stay empty. VERIFIED this session: exact_table reproduced for all 15 rows (sum==2**n, palindromic) and both hard-coded p-values matched exactly from an independently written generating-function recursion. |
 | `stats/refstats.py` | 21,184 | `bf8f0d88a826daeb` | `n/a` | The paper/stdlib-derived reference implementations the fixtures were generated with. Section 5.3's Pearson arrangement and section 4.4's betainc live here. |
-| `stats/verify_fixtures.py` | 16,445 | `13227da8dd37dcbd` | `n/a` | The stats cluster's own fixture checker (checks stats/fixtures/MANIFEST.json). spec/verify_fixtures.py is the repo-wide superset. |
+| `stats/verify_fixtures.py` | 16,447 | `6fc6232733cb0966` | `n/a` | The stats cluster's own fixture checker (checks stats/fixtures/MANIFEST.json). spec/verify_fixtures.py is the repo-wide superset. |
 
 ### `spec/admet/` — ADMET HistGradientBoosting export to numpy + Tanimoto applicability-domain gate
 
-Capture: `capture_admet.py` · 56 files · 5,745,629 bytes (fixtures/artifacts 5,656,668 bytes)
+Capture: `capture_admet.py` · 56 files · 5,745,688 bytes (fixtures/artifacts 5,656,668 bytes)
 
 | path | bytes | sha256[:16] | determinism | agreement criterion |
 |---|---:|---|---|---|
-| `admet/SPEC.md` | 43,515 | `5627d6dc5b24d7fe` | `n/a` | The specification. Not a fixture; hashed here so drift in a spec is detectable alongside drift in its fixtures. |
-| `admet/capture_admet.py` | 45,446 | `8b7950fcd7b8fef0` | `n/a` | The capture script that generates this cluster's fixtures. Re-run it in a fresh interpreter and byte-compare to detect drift. |
+| `admet/SPEC.md` | 43,522 | `c1f7afba4f113933` | `n/a` | The specification. Not a fixture; hashed here so drift in a spec is detectable alongside drift in its fixtures. |
+| `admet/capture_admet.py` | 45,498 | `2772518c5c66c2d9` | `n/a` | The capture script that generates this cluster's fixtures. Re-run it in a fresh interpreter and byte-compare to detect drift. |
 | `admet/fixtures/METADATA.json` | 40,864 | `9ced5e2f086e7ec4` | `stochastic` | NOT byte-comparable: it records wall-clock timings, so its content and its own length vary by a few bytes per run. A re-runner must EXCLUDE this file and byte-compare the other 53. VERIFIED this session: it was the ONLY one of the 54 that differed (40864 -> 40832 bytes). |
 | `admet/fixtures/ad/caco2_max_tanimoto_float32.npy` | 118,840 | `1dca396f401e2946` | `bitwise` | Bitwise IF you reproduce the float32 path; not required if you use the exact-integer gate, which needs only the boolean fixtures. The float32 intersection is bitwise equal to the int32 matmul on the full product, so this file is BLAS-order-independent. |
 | `admet/fixtures/ad/caco2_max_tanimoto_float64.npy` | 237,552 | `be9adbf0f855b458` | `bitwise` | Exact int32 numerator/denominator with a float64 division. |
@@ -662,8 +692,8 @@ int64 matmul at n = 4…1024); LAPACK's Cholesky and the float32 reductions are 
 `spec/verify_fixtures.py` parses this block. Regenerate it whenever a fixture legitimately changes.
 
 ```
-5627d6dc5b24d7fe2d94694d626389d0c14a0ff6c31945aa129ebaf2bf9aa211  admet/SPEC.md
-8b7950fcd7b8fef0c9d7fea12bc24da3fe359c10305bb809fac6b42f818e372f  admet/capture_admet.py
+c1f7afba4f1139330085cbc0f333ba16b938733d590845c44caed00406cbb5f5  admet/SPEC.md
+2772518c5c66c2d9944573d1ed74fb906b2abe01a3d5dc603954fffd0140b72b  admet/capture_admet.py
 9ced5e2f086e7ec462e38cb412fea1f74f8f530e0a10a17d4872ff99420faab9  admet/fixtures/METADATA.json
 1dca396f401e29467809ae8be71a97be66f90313dcee6b774b96817653db8f26  admet/fixtures/ad/caco2_max_tanimoto_float32.npy
 be9adbf0f855b45802fbcb9dbce8d556075769626f1b23f95ccbdef130f25d4b  admet/fixtures/ad/caco2_max_tanimoto_float64.npy
@@ -718,7 +748,7 @@ f95e04e4aa8650fdf6b7447fc21b3b6d3a2c0ee73efb8a2d166fba795d2d01a3  admet/fixtures
 3f7322472b6233a6824d43d858328c225308224a675f396c873e8a2f38e058f0  admet/fixtures/synthetic/herg_synth_oracle_float64.npy
 3f7322472b6233a6824d43d858328c225308224a675f396c873e8a2f38e058f0  admet/fixtures/synthetic/herg_synth_postlink_float64.npy
 f1894212a3d191863b6415f43f655858b054b6836445aece1b9b0ae8b61296e7  admet/fixtures/synthetic/herg_synth_raw_float64.npy
-5c7887bf6338dad759902ca6534f20a5050985f67c11d8025663fc06de1b9c29  bounds/INDEPENDENT_REVERIFICATION.md
+cad46df38574ddc0504a90a67ea620a6a38856bddbfe0b434d0063b929ac7d26  bounds/INDEPENDENT_REVERIFICATION.md
 5f3e34815a83a82296e579dd89e88358fd62c9cb416e6da4799bb1eb20f7aa22  bounds/SETTLEMENT.md
 7845ebbabb2160d5567cc912ad6aad35d721ea1a8f902b043e1a23cc37ee8ec2  bounds/clipping_measurements.json
 81670d22befeaa92da8980e5f9664d7d39b080b89c947771b1d2203bd61da2be  bounds/freeze_bounds.py
@@ -728,16 +758,16 @@ e5da30adfcd84c5bcba4e1dae6a7e1568a8a4aa73933f45a252f720ff00221bc  bounds/objecti
 f89662657aba24b9881a121939d6cb5aa56ec079de39f9b569fd93ada7a06c4d  bounds/reproduce_archived_hypervolume.py
 85be77500dc3abe7fd966de4601dff686c4bd5e25af9f7c4c405a3423e94474f  bounds/reproduction_residuals.json
 346b8d5fe0b94b021010fa9e06dc9d2da58f79605020c76917da86889db0e801  boxdecomp/SPEC.md
-b79a929eee04018f90b9f453d5db6635d0fb562ccbb855641463898fd7ca322e  boxdecomp/capture_boxdecomp.py
+9ae0c3a02abe2734ca95e7aefec2b2255fe37f6ce57b0ba2482d0f21655e55f9  boxdecomp/capture_boxdecomp.py
 993f4351bb02a4a97c1539b2b59d0d1380d64ebb90be520209c469ddf53a6f7b  boxdecomp/fixtures/arrays.bin
 ce4439941f54bd2afa0cb4cd2d615bef2454a98ef9b1d8ce366edc3869cbae63  boxdecomp/fixtures/manifest.json
 1c217776ddc679af07f10f5bb3839644c77af3a2838bd4abe60dc688a7bbd77f  boxdecomp/fixtures/measurements.json
 f99c3060a57a3315a8155e16a03430f4a0a4c0000e929deaf3c4ac545beb2fe7  boxdecomp/fixtures/mutations.json
 48ba7573e37a3b450f8ecebb98ff01e7a03fa00f044e91d5698eecfa6569899e  boxdecomp/fixtures/timings.json
-e49a5cdce2d799ee01218388455f75c718b5e43f810e1817a08517f5de578170  boxdecomp/mutation_study.py
+b7f70f046d4a0422edaea303e7183f024ce9cde78d9166f6e7465182ccbb3244  boxdecomp/mutation_study.py
 b9e8c16cee599e99808fb4b070766f9c7b6f0709f85778cd72e7ac9ae4026bb6  boxdecomp/reference_lacour.py
-ee13db18861cb7cf0ee01ae180f3061e06cd036519a1786c0ab8f8ccb422d3c8  gp/SPEC.md
-439725b07e3090466492b5c0e0f28f77c8786412c2218d035416146b6c23cd17  gp/capture_gp.py
+405d3ed1768353ffc33d952b124a37d25bfe1dec181d3f686de7c4b337391891  gp/SPEC.md
+d4926498f54724fefebe30b4fe6f617aaff37c62d4cac7167da55acdf2be829a  gp/capture_gp.py
 8a9986c6add3d7a585e3ceb6bfcad32ecf66a70737895eaf61653f476a3abc92  gp/fixtures/MANIFEST.json
 78a492911cc05a3c7bb46812fb6ef16ab61b37ca78195b63f9cc8ddca64653d8  gp/fixtures/metadata.json
 90272dc26c56d33bcce187d60622c1967d2990c3c1cc89ef197d47a04132301e  gp/fixtures/mll_gradients.json
@@ -747,8 +777,8 @@ cef9fd459b368e1d85e453e7cade61479fc1c0df614949fcba01145a9c533c07  gp/fixtures/st
 8bc687641cd268c3ad519f1fbb0a8694849ff9c4e17b6c698e4c9da18c75d129  gp/fixtures/stochastic_threshold.json
 65063bdd55dd6943604d879d3cf4a10078b8cff1fd3b726d91e9b5997a390614  gp/fixtures/tanimoto_gram.json
 e01f642427648f00ad5bd2de8f02c946bce0b673d5ed2cde4be67721f729ddfd  gp/fixtures/trained_hyperparameters.json
-995637c3bff08bbf0075241d441584ef291f3a1686a06f030631da7997f27a6a  hv/SPEC.md
-70b8cb6762ff4efedefc6a4055bccb43595c7dc7a40ac31e08716dab58d74f14  hv/capture_hv.py
+57567b54e96cd3aa3f6d0dad2cdcfd0d27cde94ea6e742b27c00e1997c7db1d1  hv/SPEC.md
+4a273c6368a027cf3f2ede7bdb470e70f992442be9e1b3a2d5799d3866472c57  hv/capture_hv.py
 aee69648d188c90e652c8eac414a559981b67c8067fab8f5d4fe7dbdf893edc3  hv/capture_log.txt
 07f5114a850a6a6a69bb2488eec8d68f9efcb8daeb48adaa45152d89b9392771  hv/fixtures/archived_hypervolume.json
 879503172b76b0b850221456517c850fda34cf5cc6bb9ae812ff62e0a5d60811  hv/fixtures/bound_roundtrip_edge.json
@@ -767,7 +797,7 @@ c1ff9a4e0c1e336c7ec98efb778b753a02533017a53723f383c6bfcbabea901e  hv/fixtures/ou
 cf2b7e1937930d0d4e1ac50a6031f331fbd9e05d9ee97400186c9d1493e46527  hv/fixtures/repo_oracle_agreement.json
 f9bf8d1c5d9410a21f1a2a582c74b92f31ad8c27bef0d4aded29f2ab7babbd85  hv/fixtures/timings.json
 8c15e00a89ac198ceaef8d9096afce90d02540ce1e14adbbb25c2dc0cc1548d5  icm/SPEC.md
-bea34383beb0923f7e748c29457205be3653e12dd1348ec3d007fb70075c595e  icm/capture_icm.py
+b0d8b3527656421d5ad427b068d1b0b8c9f7595dcf90c7ce5b0993fb7aa1cee5  icm/capture_icm.py
 3f969bc1640b53958b546303653546f6b87b187a61056131ad400a171f2fb471  icm/fixtures/00_environment.json
 9747eb88c90c690a146157975720ff983b46473922468ecbbf6dd04f0ffef82e  icm/fixtures/01_parameterization.json
 f614c2b278667708b595bbc74836e7e349da2017758ff52f49d534705948fb05  icm/fixtures/02_ordering.json
@@ -816,10 +846,10 @@ c7504a6df857ec1d25b56cb08e7f22262bde87124c4b504cdc1e1f5ab5d1b3c3  primitives/fix
 fda45befb7c7907fd68be69d2140bf4ab66e01844782e41eccfb73a68e1c81d4  primitives/fixtures/hyperparameter_transforms.npz
 ac9a58a86d52b3a97d6e4fc7c1f496e52c358dc408c3f52dde42739a72cefb19  primitives/fixtures/tanimoto_kernel.json
 3f8e8b9842516c1e1ffb45a6ba72df8d2f9517fd6f6d587eef7ae26364cd23ca  primitives/fixtures/tanimoto_kernel.npz
-a176544e08f534bd45940cc31672c2c1f9cac0ac8232c149d4746cf226bbee56  qnehvi/SPEC.md
-0bee25ca3080b80966e13d2eb0144a02f3d2c1013b2f93afd0b46726ae42e777  qnehvi/capture_probes.py
-00844dda85ff885f55e0d83b4731a1a6253d7db7669bdaa165f5be21ea1d5825  qnehvi/capture_qnehvi.py
-7a1f29eda5cc63de63bf3055cbab147ecbd70268951e8aa94f5c0b27751c53e4  qnehvi/check_decomposition_contract.py
+f62cc44b0856e01ecf52d777ec34e1a507598cad040dd2cadd69b89a74ffd81f  qnehvi/SPEC.md
+0e5e95fd39e3f861ce995002ed4b389bcd7d9a132dc4cec88498f4f15827873f  qnehvi/capture_probes.py
+aa4b6578d6798a18476d5adbf8aac80faf6d62d53a321055bd8ecb78da95442a  qnehvi/capture_qnehvi.py
+9b898f2e4f8116cfb4afdd2238eb112cd279b10622a23a98ce7cd374cfdd4396  qnehvi/check_decomposition_contract.py
 bfd9fad461e73b841901d29e916aa8e328e671bc48e0f6adc37333cab114d9a3  qnehvi/fixtures/capture_runtime.txt
 8fc0ab80f3b725790a74b94aad312e1bdfa0bfa4a9f9e52ea221824fef28cc01  qnehvi/fixtures/decomposition_contract.json
 1f6deb6b16f224a6883ce4d62bc43960cf9dded874d29e9b4f84f477c2c18e69  qnehvi/fixtures/decomposition_timings.txt
@@ -866,7 +896,7 @@ c8eb4731d61051b566d8ad0a709a0bad455126264b96a066cb76283b0f655ccf  qnehvi/fixture
 3126091c42cf4bc6587bcc33c76989fb7dfb3434f9c615b46a05e68f5f947feb  qnehvi/fixtures/small25_var_b.npy
 859896404619ea6b9a0a8b5a7da0a7afd43550434aba659785766e8841a2fc6d  qnehvi/fixtures/small25_var_c.npy
 8009b668c7f8e8d2823d3a7e4df120387719eaa558dad919c0d6c59854307056  stats/SPEC.md
-d1a39e9714fa1b669a0258b941c023d6562579d32c99b55ebc0d3c05ce5f6e0a  stats/capture_stats.py
+b70f9b598e31c90dbbeaed327258b52f274750d62463e4a00fddca5524628b41  stats/capture_stats.py
 011458a344959033de11483902f302d49051589d35083d7ec46c0a0fa8239536  stats/fixtures/MANIFEST.json
 5e81971e75125b94e7e335b0a8831950b5c7785450b3c122b17f7d9c45ab13ad  stats/fixtures/ei.json
 ba16cf3c085033af7a1bc29f67769a6606862045dee8577d248563eb17f0b719  stats/fixtures/environment.json
@@ -877,7 +907,7 @@ f440a716cbe3ce623114118c7ee43a8ae93587aadc2f8dd5d50d1b803e87894e  stats/fixtures
 6e5bc1a974ef980ee93d5bfff79cf14e3ddc3caf1d01b22bee9cd21047ae7723  stats/fixtures/ttest.json
 aebd7ff5e054d1cb41c616491fe6bc6b35318eb44651f9e9dafcd079848422ca  stats/fixtures/wilcoxon.json
 bf8f0d88a826daeb14aa42e9fdb0346ad3e8f71b61e955aafc550f98baa2dc94  stats/refstats.py
-13227da8dd37dcbd375f9d1210fe0e5381c249efd3d6744eb1990e1c657a8635  stats/verify_fixtures.py
+6fc6232733cb0966070c90d9fd0090c6bd4fb95ae62140eb7e3e3d43e9beaa7c  stats/verify_fixtures.py
 ```
 
 ## EXCLUDED-FROM-BYTE-COMPARE
@@ -909,5 +939,5 @@ provenance  stats/fixtures/environment.json
 
 ---
 
-Manifest covers 216 files, 17,566,747 bytes. Generated by the adversarial
+Manifest covers 216 files, 17,572,329 bytes. Generated by the adversarial
 verification pass on branch `feat/numpy-bo-rewrite` at commit `3c6573c`.

@@ -229,11 +229,31 @@ def csv_header(path):
         return next(csv.reader(f))
 
 
+ARCHIVE_ABSENT = "archived campaign directories not present"
+
+
 def archived_runs():
+    """Every archived run holding both CSVs.  ``benchmark_*/`` is untracked
+    campaign output, so a fresh clone has none; that is an explicit skip, never
+    an empty list that a loop over it would pass vacuously."""
     runs = sorted(glob.glob(os.path.join(REPO, "benchmark_*", "*", "seed_*")))
-    return [r for r in runs
+    runs = [r for r in runs
             if os.path.exists(os.path.join(r, "evaluated.csv"))
             and os.path.exists(os.path.join(r, "history.csv"))]
+    if not runs:
+        pytest.skip(ARCHIVE_ABSENT)
+    return runs
+
+
+def _archive_present():
+    return bool(glob.glob(os.path.join(REPO, "benchmark_*", "*", "seed_*",
+                                       "evaluated.csv")))
+
+
+#: Marks a test that reads the untracked archive, directly or through
+#: ``archived_runs()`` / ``replay()``.  Skips with a reason when it is absent.
+requires_archive = pytest.mark.skipif(not _archive_present(),
+                                      reason=ARCHIVE_ABSENT)
 
 
 _FRAME = None
@@ -426,6 +446,7 @@ def test_normalized_frames_fixture_bitwise():
         assert hv == exp, (fr["run"], hv, exp)
 
 
+@requires_archive
 def test_normalize_bitwise_vs_repo_evaluation():
     """F1: bitwise identical to the repo's current torch-era normalize()."""
     try:
@@ -823,6 +844,7 @@ def test_hv_archived_matrix_row_permutations_bitwise():
     assert hypervolume(U, fixed_reference_point(U.shape[1])) == base  # H7
 
 
+@requires_archive
 def test_hv_float32_roundtrip_cost():
     """SPEC 1.7: the whole indicator and frame are float64.  Round-tripping the
     archived matrix through float32 moves HV by ~3.18e-09 -- seven orders of
@@ -926,6 +948,7 @@ def test_hv_objective_column_permutation_within_4ulp():
           f"(spec measured worst {fx['worst_abs_diff']})")
 
 
+@requires_archive
 def test_hv_in_unit_range_on_normalized_frames():
     """H1: HV in [0, 1] in the normalized frame; H1b: HV >= 0 always."""
     vals = [r["hv_mine"] for r in replay()]
@@ -983,6 +1006,7 @@ def _hv_weak_filter(Y, ref):
     return float(hvmod._hv_slice(Z, ref, Y.shape[1])), int(keep.sum())
 
 
+@requires_archive
 def test_ref_filter_strict_vs_weak():
     """SPEC 3.2 Theorem: strict and weak give the SAME VALUE; the row COUNTS
     differ.  Fixture: row counts exact, values 4 ulp (measured worst 0.0)."""
@@ -1044,6 +1068,7 @@ def test_reference_filter_is_strict_not_weak():
         reference_filter_mask(Y, np.zeros(4))
 
 
+@requires_archive
 def test_strict_filter_keeps_only_contributing_points():
     """SPEC 3.2 reason 2: under strict filtering the retained count IS the count
     of contributing points.  On the archive, 2 of the 62 reported front members
@@ -1175,6 +1200,7 @@ def test_pareto_live_botorch_oracle():
           f"dedup count-equal on {n_count}/{n_tot}")
 
 
+@requires_archive
 def test_pareto_agrees_with_repo_compute_pareto_front_on_real_data():
     """P7 / SPEC 5.4: identical on all archived runs (every caller pre-filters
     the NaN rows the repo version would otherwise admit)."""
@@ -1205,6 +1231,7 @@ def test_pareto_agrees_with_repo_compute_pareto_front_on_real_data():
 # H.  THE ACCEPTANCE PREVIEW: archive replay  (SPEC 6 H9, P1, P2)
 # ====================================================================== #
 
+@requires_archive
 def test_archived_replay_matches_fixture_and_history():
     """Replay every archived run and diff against BOTH the fixture and the
     archived history.csv hypervolume column.
@@ -1266,6 +1293,7 @@ def test_archived_replay_matches_fixture_and_history():
     assert worst_arch <= 4 * ULP
 
 
+@requires_archive
 def test_archived_history_trajectory_thicccc_2026_08_16():
     """The task's named check, on its own: every run under
     benchmark_thicccc_2026-08-16/ with both CSVs, hypervolume trajectory
@@ -1286,6 +1314,7 @@ def test_archived_history_trajectory_thicccc_2026_08_16():
     assert worst <= 4 * ULP, f"max residual {worst!r} exceeds 4 ulp"
 
 
+@requires_archive
 def test_two_pareto_fronts_are_not_the_same_set():
     """SPEC 2.6: the REPORTED front (original units) and the HYPERVOLUME front
     (normalized, clipped) are different sets.  Measured: 19 of 448 archived
@@ -1306,6 +1335,7 @@ def test_two_pareto_fronts_are_not_the_same_set():
     assert (min(norm), max(norm)) == (3, 62)
 
 
+@requires_archive
 def test_scored_hypervolume_end_to_end_matches_replay():
     """SPEC 4.6: scored_hypervolume() reproduces the hand-rolled pipeline."""
     F = frame()
@@ -1323,6 +1353,7 @@ def test_scored_hypervolume_end_to_end_matches_replay():
     assert scored_hypervolume(part, F["lo"], F["hi"], F["signs"]) >= 0.0
 
 
+@requires_archive
 def test_active_objectives_and_the_m_less_than_5_cliff():
     """SPEC 4.5: the dynamic-dimension path has ZERO archived coverage (448/448
     iterations had 5 active objectives), so it is tested deliberately here.
@@ -1366,6 +1397,7 @@ def test_active_objectives_and_the_m_less_than_5_cliff():
                               F["signs"]) == 0.0
 
 
+@requires_archive
 def test_failed_dock_on_a_front_member_drops_the_row():
     """SPEC 6: 'a run where a dock fails on a front member' -- a case the
     archive cannot cover.  The row leaves the front and the hypervolume input
@@ -1387,6 +1419,7 @@ def test_failed_dock_on_a_front_member_drops_the_row():
           f"front {int(mask.sum())} -> {int(m2.sum())}")
 
 
+@requires_archive
 def test_duplicate_objective_rows_on_the_front():
     """SPEC 6: 'a duplicate-objective-row pair on the front' -- also uncovered
     by the archive (0 duplicate rows pooled over 448 iterations), and live on
@@ -1416,6 +1449,7 @@ def test_duplicate_objective_rows_on_the_front():
 VERIFY_RUN = os.path.join("benchmark_thicccc_2026-08-16", "mogp", "seed_0")
 
 
+@requires_archive
 def test_selectivity_index_bitwise_against_the_archive():
     """F6 / F7: 89/89 rows bitwise exact, both the raw and the LE companion."""
     path = os.path.join(REPO, VERIFY_RUN, "evaluated.csv")
@@ -1434,6 +1468,7 @@ def test_selectivity_index_bitwise_against_the_archive():
           f"{np.abs(si_le - M[:, 5]).max()!r}")
 
 
+@requires_archive
 def test_ligand_efficiency_implies_an_integer_heavy_atom_count():
     """F8: X / X_LE is an integer to within 7.11e-15 over 89 rows, and both
     targets imply the SAME count -- one heavy-atom count per molecule."""
@@ -1467,6 +1502,7 @@ def test_ligand_efficiency_nan_policy():
     assert np.isnan(out[4])
 
 
+@requires_archive
 def test_output_column_contract_matches_every_archived_file():
     """F9 / SPEC 4.8: the exact headers, in this order, measured from the
     archive AND from the fixture."""

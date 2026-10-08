@@ -9,8 +9,8 @@ scipy, and it is the harness the numpy rewrite should point at its own code.
 To test a different implementation, replace the `import refstats as R` line with
 an import of that module; it must expose the same names.
 
-Run:
-    conda run -n mogp-drug python /Users/calebsuh/MOGP-NTD/spec/stats/verify_fixtures.py
+Run (from the repository root):
+    conda run -n mogp-drug python spec/stats/verify_fixtures.py
 (or any python with numpy -- the env does not matter, since no oracle is used)
 """
 

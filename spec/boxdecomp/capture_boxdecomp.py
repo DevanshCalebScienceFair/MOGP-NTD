@@ -2,10 +2,10 @@
 """capture_boxdecomp.py -- differential-reference capture for the non-dominated
 box decomposition.
 
-Run:
-    conda run -n mogp-drug python /Users/calebsuh/MOGP-NTD/spec/boxdecomp/capture_boxdecomp.py
+Run (from the repository root):
+    conda run -n mogp-drug python spec/boxdecomp/capture_boxdecomp.py
 
-Writes into /Users/calebsuh/MOGP-NTD/spec/boxdecomp/fixtures/:
+Writes into spec/boxdecomp/fixtures/ (relative to the repository root):
 
     arrays.bin        every fixture array, raw little-endian float64, concatenated
     manifest.json     the GATING fixtures: per-case index into arrays.bin plus the

@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 """Differential-reference capture for the coregionalized (ICM) multi-output GP.
 
-Run:
-    conda run -n mogp-drug python /Users/calebsuh/MOGP-NTD/spec/icm/capture_icm.py
+Run (from the repository root):
+    conda run -n mogp-drug python spec/icm/capture_icm.py
 
 This script is a TEST INSTRUMENT. It captures reference numbers that a pure-numpy
 reimplementation of ``mogp_coregionalized.py`` must reproduce. It does two things
@@ -53,7 +53,7 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 FIX = os.path.join(HERE, "fixtures")
-REPO = "/Users/calebsuh/MOGP-NTD"
+REPO = os.path.dirname(os.path.dirname(HERE))
 LIB_SMILES = os.path.join(REPO, "data", "library", "smiles.csv")
 LIB_FP = os.path.join(REPO, "data", "library", "fingerprints.npy")
 DOCK_DB = os.path.join(REPO, "data", "docking_cache", "docking_cache.sqlite")

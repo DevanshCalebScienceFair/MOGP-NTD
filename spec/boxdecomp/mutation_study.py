@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 """mutation_study.py -- does the proposed test suite actually catch the bugs?
 
-Run:
-    conda run -n mogp-drug python /Users/calebsuh/MOGP-NTD/spec/boxdecomp/mutation_study.py
+Run (from the repository root):
+    conda run -n mogp-drug python spec/boxdecomp/mutation_study.py
 
 SPEC.md section 9 proposes gating on T1 (the exact non-log MC EHVI functional),
 T2 (pointwise membership), T3 (the total-volume identity) and T5 (bound

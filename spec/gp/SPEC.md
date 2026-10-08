@@ -1002,8 +1002,8 @@ iteration's GP fully reconstructible from the manifest, which the torch path nev
 ## 16. Measurement appendix — reproducing every number above
 
 ```bash
-conda run -n mogp-drug python /Users/calebsuh/MOGP-NTD/spec/gp/capture_gp.py
-conda run -n mogp-drug python /Users/calebsuh/MOGP-NTD/spec/gp/capture_gp.py --verify
+conda run -n mogp-drug python spec/gp/capture_gp.py            # from the repository root
+conda run -n mogp-drug python spec/gp/capture_gp.py --verify
 ```
 
 Runtime ~33 s. Writes `fixtures/` and prints the full measurement report, from which every

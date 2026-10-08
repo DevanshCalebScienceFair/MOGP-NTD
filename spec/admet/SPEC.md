@@ -644,7 +644,7 @@ In descending order of size:
 ### Re-running the capture
 
 ```
-conda run -n mogp-drug python /Users/calebsuh/MOGP-NTD/spec/admet/capture_admet.py
+conda run -n mogp-drug python spec/admet/capture_admet.py      # from the repository root
 ```
 
 Measured: across repeated fresh-interpreter runs, all **53** of the 54 fixture

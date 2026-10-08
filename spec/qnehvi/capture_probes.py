@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """capture_probes.py -- the secondary measurements cited by SPEC.md.
 
-Run:  conda run -n mogp-drug python /Users/calebsuh/MOGP-NTD/spec/qnehvi/capture_probes.py
+Run (from the repository root):  conda run -n mogp-drug python spec/qnehvi/capture_probes.py
 
 These are the measurements that answer "is that claim actually true?" rather than
 "what does the current code produce". They are separated from

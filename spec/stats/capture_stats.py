@@ -6,8 +6,8 @@ reproduce, measures the agreement between the pure-numpy/stdlib reference
 implementation in ``refstats.py`` and scipy, and writes both to
 ``spec/stats/fixtures/``.
 
-Run:
-    conda run -n mogp-drug python /Users/calebsuh/MOGP-NTD/spec/stats/capture_stats.py
+Run (from the repository root):
+    conda run -n mogp-drug python spec/stats/capture_stats.py
 
 Determinism
 -----------
@@ -1139,9 +1139,20 @@ def capture_correlation():
     la_path = os.path.join(REPO, "matrix_results_holo", "leads_annotated.csv")
     if os.path.exists(la_path):
         la = pd.read_csv(la_path).sort_values("SMILES", kind="stable")
+        # Selectivity_Index is NaN where either dock is non-viable.  scipy's
+        # Spearman is then nan for the whole column while refstats' midranks
+        # silently rank the NaN, so the two would disagree by construction.
+        # Drop those rows listwise, as _pooled_docking does, and record how many.
+        la_cols = ["heavy_atoms", "PfDHFR_kcal", "hDHFR_kcal", "Selectivity_Index"]
+        n_la_rows = int(len(la))
+        la = la[np.isfinite(la[la_cols].to_numpy(np.float64)).all(axis=1)]
         datasets["leads_annotated"] = {
-            "source": "matrix_results_holo/leads_annotated.csv, sorted by SMILES",
+            "source": "matrix_results_holo/leads_annotated.csv, sorted by "
+                      "SMILES, rows with a non-finite value in any listed "
+                      "column dropped",
             "n": int(len(la)),
+            "n_rows_in_file": n_la_rows,
+            "n_dropped_nonfinite": n_la_rows - int(len(la)),
             "columns": {
                 "heavy_atoms": encl(la["heavy_atoms"].to_numpy(np.float64)),
                 "PfDHFR_kcal": encl(la["PfDHFR_kcal"].to_numpy(np.float64)),
@@ -1328,6 +1339,52 @@ def capture_correlation():
     return dump("spearman.json", obj)
 
 
+def finite_pair_spearman(x, y):
+    """scipy Spearman rho and p over the pairs where BOTH values are finite.
+
+    ``scipy.stats.spearmanr`` returns rho = p = nan for the whole sample as soon
+    as either input holds one NaN, and the ``warnings`` filter the callers here
+    use hides that.  ``leads_annotated.csv`` leaves ``Selectivity_Index`` NaN
+    wherever either dock is non-viable (``annotate_leads.gated_selectivity_index``),
+    so the all-rows call on the current file is nan.  Returns
+    ``(rho, p, n_used, n_dropped)``.  It raises rather than return a non-finite
+    rho (fewer than 3 finite pairs, or a constant column), so a nan can never
+    reach a fixture as if it were a measurement.
+    """
+    a = np.asarray(x, dtype=np.float64)
+    b = np.asarray(y, dtype=np.float64)
+    if a.ndim != 1 or a.shape != b.shape:
+        raise ValueError(f"finite_pair_spearman needs two equal-length 1-d "
+                         f"samples, got shapes {a.shape} and {b.shape}")
+    keep = np.isfinite(a) & np.isfinite(b)
+    n_used = int(keep.sum())
+    n_dropped = int(a.size - n_used)
+    if n_used < 3:
+        raise ValueError(f"Spearman needs at least 3 finite pairs; "
+                         f"{n_used} of {a.size} are finite")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        res = stats.spearmanr(a[keep], b[keep])
+    rho = float(res[0])
+    pv = float(res[1])
+    if not (math.isfinite(rho) and math.isfinite(pv)):
+        raise ValueError(f"Spearman is not finite on {n_used} finite pairs "
+                         f"(rho={rho!r}, p={pv!r}); a constant column?")
+    return rho, pv, n_used, n_dropped
+
+
+def leads_annotated_si_spearman(path):
+    """Spearman(heavy_atoms, Selectivity_Index) on ``leads_annotated.csv``, over
+    the rows where both are defined.  ``n_used`` is the n the rho is computed
+    on and ``n_dropped`` the rows left out for a non-finite value."""
+    d = pd.read_csv(path)
+    rho, pv, n_used, n_dropped = finite_pair_spearman(
+        d["heavy_atoms"].to_numpy(float),
+        d["Selectivity_Index"].to_numpy(float))
+    return {"n_rows": int(len(d)), "n_used": n_used,
+            "n_dropped": n_dropped, "rho": rho, "p": pv}
+
+
 def _documented_spearman_attempt():
     """Try to reproduce the Spearman numbers quoted in CLAUDE.md. Report the
     outcome honestly rather than manufacturing agreement."""
@@ -1385,19 +1442,19 @@ def _documented_spearman_attempt():
                     "CLAUDE.md:211)",
            "claimed": 0.267, "reproduced": False}
     if os.path.exists(la):
-        d = pd.read_csv(la)
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            rho = float(stats.spearmanr(d["heavy_atoms"].to_numpy(float),
-                                        d["Selectivity_Index"].to_numpy(float))[0])
-            pv = float(stats.spearmanr(d["heavy_atoms"].to_numpy(float),
-                                       d["Selectivity_Index"].to_numpy(float))[1])
-        row["on_leads_annotated_n"] = int(len(d))
+        r = leads_annotated_si_spearman(la)
+        rho, pv = r["rho"], r["p"]
+        n_used, n_rows, n_dropped = r["n_used"], r["n_rows"], r["n_dropped"]
+        row["on_leads_annotated_n"] = n_used
+        row["on_leads_annotated_n_rows"] = n_rows
+        row["on_leads_annotated_n_dropped_nonfinite"] = n_dropped
         row["on_leads_annotated_rho"] = enc(rho)
         row["on_leads_annotated_p"] = enc(pv)
         row["why"] = (
-            "leads_annotated.csv holds only the TOP 50 leads, not the pooled "
-            f"Pareto set; on it rho = {rho:.4f} (p = {pv:.3e}), not +0.267. "
+            f"leads_annotated.csv holds only the TOP {n_rows} leads, not the "
+            f"pooled Pareto set; over its {n_used} rows with a defined "
+            f"Selectivity_Index ({n_dropped} dropped as non-finite) "
+            f"rho = {rho:.4f} (p = {pv:.3e}), not +0.267. "
             "The pooled Pareto set lived in matrix_results_holo/runs/*/"
             "pareto_front.csv, and that directory is empty, so the quoted "
             "value cannot be recomputed. (A rho of 0.267 with p = 1.3e-6 "
@@ -1405,7 +1462,8 @@ def _documented_spearman_attempt():
             "than a 50-row lead table.)")
         measure(f"CLAUDE.md's Spearman(heavy_atoms, SI) = +0.267 could NOT be "
                 f"reproduced: on the only surviving file "
-                f"(leads_annotated.csv, n={len(d)}) the value is {rho:.4f} "
+                f"(leads_annotated.csv, n={n_used} of {n_rows} rows, "
+                f"{n_dropped} dropped as non-finite) the value is {rho:.4f} "
                 f"(p={pv:.3e}); the pooled Pareto set it was computed on is "
                 f"gone (matrix_results_holo/runs is empty)")
     findings.append(row)

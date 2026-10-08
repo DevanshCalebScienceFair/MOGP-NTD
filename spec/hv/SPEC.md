@@ -1171,7 +1171,7 @@ little-endian float64>", "sha256": "..."}`. Decode with
 | `manifest.json` | sha256 per deterministic fixture + `manifest_digest` | Byte-compare after a fresh `capture_hv.py` run |
 | `timings.json`, `environment.json` | **Declared non-reproducible.** Wall clock, library versions | Never compared |
 
-**Rerun:** `conda run -n mogp-drug python /Users/calebsuh/MOGP-NTD/spec/hv/capture_hv.py`
+**Rerun** (from the repository root): `conda run -n mogp-drug python spec/hv/capture_hv.py`
 (~50 s). Verified: two runs in separate interpreters with different
 `PYTHONHASHSEED` produced byte-identical output for all 13 deterministic
 fixtures, including `manifest.json`.

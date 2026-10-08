@@ -1,6 +1,6 @@
 # SPEC — qNEHVI acquisition estimator, and the determinism policy
 
-Cluster owner directory: `/Users/calebsuh/MOGP-NTD/spec/qnehvi/`
+Cluster owner directory: `spec/qnehvi/` (relative to the repository root)
 Target of reimplementation: `acquisition.py::compute_qnehvi` (~401) and the two
 botorch adapter classes it stands on (`DockingPosteriorModel` ~275,
 `CompositeKnownADMETObjective` ~331).

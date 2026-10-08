@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """capture_qnehvi.py -- differential-reference capture for the qNEHVI cluster.
 
-Run:  conda run -n mogp-drug python /Users/calebsuh/MOGP-NTD/spec/qnehvi/capture_qnehvi.py
+Run (from the repository root):  conda run -n mogp-drug python spec/qnehvi/capture_qnehvi.py
 
 Writes every fixture into ``spec/qnehvi/fixtures/``. Re-runnable and
 deterministic: every RNG is seeded explicitly, torch is pinned to one thread,

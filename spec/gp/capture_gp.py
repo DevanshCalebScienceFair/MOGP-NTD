@@ -17,9 +17,9 @@ Every number written to ``fixtures/`` comes from code in this file.
 
 Determinism
 -----------
-Run it as::
+Run it from the repository root as::
 
-    conda run -n mogp-drug python /Users/calebsuh/MOGP-NTD/spec/gp/capture_gp.py
+    conda run -n mogp-drug python spec/gp/capture_gp.py
 
 The script pins ``OMP_NUM_THREADS=MKL_NUM_THREADS=1`` and
 ``torch.set_num_threads(1)`` BEFORE importing torch, because (a) this env
@@ -61,7 +61,7 @@ import tempfile
 
 import numpy as np
 
-REPO = "/Users/calebsuh/MOGP-NTD"
+REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 HERE = os.path.join(REPO, "spec", "gp")
 FIXTURES = os.path.join(HERE, "fixtures")
 

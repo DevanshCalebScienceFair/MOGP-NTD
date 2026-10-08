@@ -11,7 +11,7 @@ repo; only this file was added.
 
 ## Verdict
 
-**The settlement holds.** `/Users/calebsuh/MOGP-NTD/evaluation_bounds.json`
+**The settlement holds.** The repository-root `evaluation_bounds.json`
 is canonical. Every material number in the frozen artifact reproduced.
 
 ## What reproduced, independently

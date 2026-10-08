@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """check_decomposition_contract.py -- verify SPEC.md section 1.5 numerically.
 
-Run:  conda run -n mogp-drug python /Users/calebsuh/MOGP-NTD/spec/qnehvi/check_decomposition_contract.py
+Run (from the repository root):  conda run -n mogp-drug python spec/qnehvi/check_decomposition_contract.py
 
 SPEC.md section 1.5 states what a box decomposition must deliver for the q=1
 estimator to be correct. Those are *assertions about an interface*, and an

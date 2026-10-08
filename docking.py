@@ -843,7 +843,11 @@ if __name__ == "__main__":
     # a negative control. Pyrimethamine is a textbook PfDHFR inhibitor, so a
     # correctly centered PfDHFR box must score it strongly. We also dock every
     # molecule against the human DHFR box (1U72) and report the Selectivity Index
-    # (hDHFR - PfDHFR): higher = more parasite-selective.
+    # (hDHFR - PfDHFR): higher = more parasite-selective. The index comes from
+    # ``evaluation.add_selectivity_index`` and is "n/a (non-viable)" whenever
+    # either dock found no binding mode (``evaluation.dock_is_viable`` False), so
+    # a steric clash on the negative control cannot print as a large positive
+    # selectivity. The raw affinities are still printed as Vina returned them.
     molecules = {
         "Pyrimethamine": "C1=CC(=NC(=N1)N)CC2=CC=C(C=C2)Cl",
         "Chloroquine":   "CCN(CC)CCCC(C)NC1=C2C=CC(=CC2=NC=C1)Cl",
@@ -858,16 +862,34 @@ if __name__ == "__main__":
     pf = scores["PfDHFR"]
     hu = scores["hDHFR"]
 
+    # Imported here, not at module top: the docking oracle does not otherwise
+    # depend on the evaluation layer, and only this self-test needs its
+    # viability rule.
+    import pandas as pd
+    import evaluation
+
+    def selectivity_cell(pf_kcal, hu_kcal):
+        """Selectivity Index text for one molecule's two RAW affinities.
+
+        The value is whatever ``evaluation.add_selectivity_index`` reports for a
+        one-row frame of raw affinities: the measured difference when both docks
+        are viable, ``NaN`` when either is not (a failed dock included). A
+        ``NaN`` prints as ``n/a (non-viable)``.
+        """
+        probe = pd.DataFrame({
+            "PfDHFR_Docking" + evaluation.RAW_KCAL_SUFFIX: [pf_kcal],
+            "hDHFR_Docking" + evaluation.RAW_KCAL_SUFFIX: [hu_kcal],
+        })
+        evaluation.add_selectivity_index(probe)
+        si = float(probe[evaluation.SELECTIVITY_COLUMN].iloc[0])
+        return f"{si:+.2f}" if np.isfinite(si) else "n/a (non-viable)"
+
     print()
-    print(f"{'molecule':<16}{'PfDHFR':>10}{'hDHFR':>10}{'Selectivity':>14}")
+    print(f"{'molecule':<16}{'PfDHFR':>10}{'hDHFR':>10}{'Selectivity':>20}")
     for i, name in enumerate(names):
         pf_s = f"{pf[i]:.2f}" if not np.isnan(pf[i]) else "fail"
         hu_s = f"{hu[i]:.2f}" if not np.isnan(hu[i]) else "fail"
-        # Selectivity Index = hDHFR - PfDHFR (higher = weaker human / stronger
-        # parasite binding = more selective).
-        si = (hu[i] - pf[i]) if not (np.isnan(pf[i]) or np.isnan(hu[i])) else np.nan
-        si_s = f"{si:+.2f}" if not np.isnan(si) else "n/a"
-        print(f"{name:<16}{pf_s:>10}{hu_s:>10}{si_s:>14}")
+        print(f"{name:<16}{pf_s:>10}{hu_s:>10}{selectivity_cell(pf[i], hu[i]):>20}")
 
     pyrimethamine_pf = pf[names.index("Pyrimethamine")]
     print()

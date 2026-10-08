@@ -15,6 +15,12 @@ Interpreting the output: a *weaker* (less negative) holo score is the correct re
 molecule whose apparent potency came from filling the empty cofactor cavity. Reference
 antifolates should barely move, which is what makes the collapse of the artifacts credible.
 
+Docking viability: a dock whose best Vina affinity found no binding mode
+(``evaluation.dock_is_viable`` False) is absence of evidence, not a score. Every raw
+PfDHFR score is still printed as measured, but a delta or Selectivity Index that
+needs a non-viable dock is printed ``n/a`` (never a number), and the row ends with a
+``! NON-VIABLE`` note naming each such dock and its raw affinity.
+
 Usage:
     ./go.sh python compare_apo_holo.py
 """
@@ -26,6 +32,10 @@ import sys
 os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import numpy as np  # noqa: E402
+import pandas as pd  # noqa: E402
+
+import evaluation  # noqa: E402
 from docking import (  # noqa: E402
     DEFAULT_EXHAUSTIVENESS,
     DEFAULT_VINA_SEED,
@@ -88,6 +98,75 @@ def receptors(target):
     return apo, holo
 
 
+def gated_si(pf_kcal, hd_kcal):
+    """Selectivity Index of two RAW affinities, ``NaN`` unless BOTH docks are viable.
+
+    The value is whatever ``evaluation.add_selectivity_index`` reports for a one-row frame
+    of raw affinities, so the arithmetic and the viability rule both live in ``evaluation``
+    and nothing here restates either.
+    """
+    probe = pd.DataFrame({
+        "PfDHFR_Docking" + evaluation.RAW_KCAL_SUFFIX: [pf_kcal],
+        "hDHFR_Docking" + evaluation.RAW_KCAL_SUFFIX: [hd_kcal],
+    })
+    evaluation.add_selectivity_index(probe)
+    return float(probe[evaluation.SELECTIVITY_COLUMN].iloc[0])
+
+
+def gated_delta(apo_kcal, holo_kcal):
+    """Holo-minus-apo score shift, ``NaN`` unless BOTH docks are viable.
+
+    Like the Selectivity Index it is a difference of two binding free energies, so it is
+    undefined when either dock found no binding mode (``evaluation.dock_is_viable``).
+    """
+    both = bool(evaluation.dock_is_viable(apo_kcal) and evaluation.dock_is_viable(holo_kcal))
+    return float(holo_kcal - apo_kcal) if both else float("nan")
+
+
+def non_viable_docks(scores):
+    """``[(target, receptor, kcal)]`` for every dock in ``scores`` with no binding mode.
+
+    ``scores`` maps ``(target, "apo" | "holo")`` to the raw best affinity. Order is the
+    mapping's own, so the note on a row reads in docking order.
+    """
+    return [(target, receptor, kcal) for (target, receptor), kcal in scores.items()
+            if not bool(evaluation.dock_is_viable(kcal))]
+
+
+def _signed_cell(value, width):
+    """``+x.xx`` right-aligned to ``width``, or ``n/a`` for a ``NaN`` (gated) value."""
+    return f"{value:+{width}.2f}" if np.isfinite(value) else f"{'n/a':>{width}}"
+
+
+def format_result_row(name, scores):
+    """One output line for a molecule, and whether it carried a non-viable dock.
+
+    ``scores`` maps ``(target, "apo" | "holo")`` to the raw best affinity in kcal/mol, or
+    ``None`` where Vina failed. Raw PfDHFR scores are printed as measured; the delta and
+    both Selectivity Indices are gated (``gated_delta`` / ``gated_si``) and read ``n/a``
+    where a dock they depend on is non-viable. A row with any non-viable dock ends with a
+    ``! NON-VIABLE`` note listing each such dock's raw affinity, so the reason for an
+    ``n/a`` is on the same line, including for hDHFR, whose scores are not columns here.
+
+    Returns:
+        ``(line, flagged)`` where ``flagged`` is True iff the note was added.
+    """
+    pf_apo, pf_holo = scores["PfDHFR", "apo"], scores["PfDHFR", "holo"]
+    hd_apo, hd_holo = scores["hDHFR", "apo"], scores["hDHFR", "holo"]
+    if None in (pf_apo, pf_holo, hd_apo, hd_holo):
+        return f"{name:34} {'VINA FAILED':>11}", False
+
+    line = (f"{name:34} {pf_apo:11.2f} {pf_holo:12.2f} "
+            f"{_signed_cell(gated_delta(pf_apo, pf_holo), 7)}   "
+            f"{_signed_cell(gated_si(pf_apo, hd_apo), 7)} "
+            f"{_signed_cell(gated_si(pf_holo, hd_holo), 8)}")
+    bad = non_viable_docks(scores)
+    if bad:
+        line += "   ! NON-VIABLE: " + ", ".join(
+            f"{target} {receptor} {kcal:+.2f}" for target, receptor, kcal in bad)
+    return line, bool(bad)
+
+
 def main():
     print(f"exhaustiveness={DEFAULT_EXHAUSTIVENESS}  seed={DEFAULT_VINA_SEED}  "
           f"cache bypassed  receptor is the only variable\n")
@@ -96,6 +175,7 @@ def main():
     print(header)
     print("-" * len(header))
 
+    any_flagged = False
     for name, smiles in MOLECULES:
         ligand = prepare_ligand(smiles)
         try:
@@ -107,18 +187,17 @@ def main():
         finally:
             os.remove(ligand)
 
-        pf_apo, pf_holo = scores["PfDHFR", "apo"], scores["PfDHFR", "holo"]
-        hd_apo, hd_holo = scores["hDHFR", "apo"], scores["hDHFR", "holo"]
-        if None in (pf_apo, pf_holo, hd_apo, hd_holo):
-            print(f"{name:34} {'VINA FAILED':>11}")
-            continue
-
-        print(f"{name:34} {pf_apo:11.2f} {pf_holo:12.2f} {pf_holo - pf_apo:+7.2f}   "
-              f"{hd_apo - pf_apo:+7.2f} {hd_holo - pf_holo:+8.2f}")
+        line, flagged = format_result_row(name, scores)
+        any_flagged = any_flagged or flagged
+        print(line)
 
     print("\ndelta > 0 means the molecule scored WEAKER once the cofactor was restored.")
     print("A large positive delta on a candidate, with references near zero, is the")
     print("signature of a score that came from filling the empty cofactor cavity.")
+    if any_flagged:
+        print("\n! NON-VIABLE: that dock found no binding mode (evaluation.dock_is_viable is")
+        print("False), so its raw affinity is not a binding energy. The delta and SI that")
+        print("need it are n/a; the raw value is listed on the row as measured.")
 
 
 if __name__ == "__main__":

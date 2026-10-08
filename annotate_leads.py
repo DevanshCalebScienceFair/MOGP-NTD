@@ -37,6 +37,11 @@ which is ``NaN`` whenever either dock found no binding mode
 ``gated_selectivity_index`` for the reasoning; the raw affinities are always kept
 and written, in ``PfDHFR_kcal``/``hDHFR_kcal``, with ``PfDHFR_viable`` /
 ``hDHFR_viable`` beside them.
+
+The MECHANISM label is gated the same way. ``classify`` reads a pose centroid only
+from a dock that found a binding mode: a non-viable hDHFR dock has no pose to
+measure, so it can never be called SIZE-EXCLUSION from where its centroid
+happens to sit. See ``classify`` for the label such a row receives instead.
 """
 
 import argparse
@@ -245,6 +250,26 @@ def annotate(smiles, target, ref):
             os.unlink(out)
 
 
+def _dock_is_viable_in(row, column):
+    """``evaluation.dock_is_viable`` of the raw affinity ``row[column]``.
+
+    ``row`` is a ``pandas.Series`` (the ``DataFrame.apply(axis=1)`` case) or a
+    ``dict``. The verdict is always recomputed from the raw affinity the row
+    carries, never read from a stored ``*_viable`` flag, so a stale or
+    hand-edited flag cannot change a label. A row WITHOUT the column raises
+    rather than defaulting: a missing affinity is not a viable dock and it is not
+    a non-viable one, it is a row this gate cannot judge, and silently picking
+    either answer would invent a label.
+    """
+    if column not in row:
+        raise ValueError(
+            f"classify: the row has no {column!r}. The mechanism label is "
+            f"gated on the RAW docking affinity (evaluation.dock_is_viable), "
+            f"which cannot be inferred from a stored viability flag or a "
+            f"centroid distance.")
+    return bool(evaluation.dock_is_viable(row[column]))
+
+
 def classify(row):
     """RECOGNITION / SIZE-EXCLUSION / WEAK / UNCLEAR from measured geometry.
 
@@ -255,14 +280,46 @@ def classify(row):
     The WEAK floor exists because pose overlap alone is not evidence of a lead:
     the spiro-oxindole sits 0.56 A from the crystal centroid while scoring
     -2.51 kcal/mol. It is wedged on-site, not bound there.
+
+    DOCKING VIABILITY. A pose centroid is evidence about a mechanism only when
+    its dock found a binding mode (``evaluation.dock_is_viable`` of the raw
+    affinity). A dock whose best affinity is ``>= 0`` still yields pose
+    coordinates (the archived rows with hDHFR +0.3932 and +5.694 kcal/mol carry
+    centroids), but that pose is the least-bad placement of a molecule that
+    found no favourable one, not a binding mode, so:
+
+      * SIZE-EXCLUSION requires a VIABLE hDHFR dock. A non-viable hDHFR dock
+        (a clash, or no number at all) does not reach this branch, whatever its
+        ``hDHFR_centroid_dist``. In the archived top-50 leads exactly one row was
+        labelled SIZE-EXCLUSION from such a dock (hDHFR +0.3932 kcal/mol; it
+        becomes WEAK).
+        Such a row FALLS THROUGH to the PfDHFR-based rules, because those read
+        only PfDHFR measurements and the PfDHFR dock is intact: RECOGNITION
+        still applies first (it never looks at hDHFR), then WEAK if its PfDHFR
+        affinity is above ``WEAK_KCAL``, otherwise UNCLEAR. UNCLEAR is the honest
+        label for a strong PfDHFR binder with no recognition geometry and no
+        valid hDHFR evidence: no mechanism is concluded for it.
+      * RECOGNITION requires a VIABLE PfDHFR dock. Today
+        ``RECOGNITION_MAX_KCAL`` already excludes every non-viable PfDHFR
+        affinity (``NaN`` and any non-negative value both fail ``<= -8.0``);
+        the explicit check keeps that true if the potency floor is ever moved.
+      * The WEAK test is left as it was: it compares the PfDHFR affinity with
+        ``WEAK_KCAL``, so a PfDHFR clash that reaches it is WEAK. A ``NaN``
+        PfDHFR affinity (no measurement) compares False there, so it is not.
+
+    ``row`` must carry the raw ``PfDHFR_kcal`` and ``hDHFR_kcal``; a row without
+    one raises ``ValueError`` (see ``_dock_is_viable_in``).
     """
-    if (row["PfDHFR_centroid_dist"] <= RECOGNITION_MAX_CENTROID
-            and row["PfDHFR_kcal"] <= RECOGNITION_MAX_KCAL
+    pf_viable = _dock_is_viable_in(row, PF_KCAL_COLUMN)
+    hd_viable = _dock_is_viable_in(row, HD_KCAL_COLUMN)
+    if (pf_viable
+            and row["PfDHFR_centroid_dist"] <= RECOGNITION_MAX_CENTROID
+            and row[PF_KCAL_COLUMN] <= RECOGNITION_MAX_KCAL
             and row["Asp54_contacts"] >= RECOGNITION_MIN_CONTACTS):
         return "RECOGNITION"
-    if row["hDHFR_centroid_dist"] > SIZE_EXCLUSION_OFFSITE:
+    if hd_viable and row["hDHFR_centroid_dist"] > SIZE_EXCLUSION_OFFSITE:
         return "SIZE-EXCLUSION"
-    if row["PfDHFR_kcal"] > WEAK_KCAL:
+    if row[PF_KCAL_COLUMN] > WEAK_KCAL:
         return "WEAK"
     return "UNCLEAR"
 

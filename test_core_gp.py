@@ -44,30 +44,33 @@ from the spec's reference implementation (see
 :func:`test_softplus_matches_live_torch_where_the_spec_reference_does_not`).
 
 THE SCALE THRESHOLD (SPEC §11) — CORRECTED 2026-09-27.  There is **no fixed
-threshold**.  ``linear_operator`` 0.6.1 takes the exact Cholesky route for the
-log-determinant iff ``fast_computations.log_prob.off() or N*T <=
-max_cholesky_size.value()`` (``operators/_linear_operator.py:1705``), and both of
-those are mutable **process globals**.  ``import botorch`` rewrites them
-permanently — measured here, in a subprocess, by
+threshold** in the live library.  In every configuration measured by this file
+the library takes the exact Cholesky route for the log-determinant when
+``fast_computations.log_prob`` is off **or** ``N*T <= max_cholesky_size``, and the
+stochastic route otherwise, and both of those are mutable **process globals**.
+``import botorch`` rewrites them — measured here, in a subprocess, by
 :func:`test_botorch_import_rewrites_the_gpytorch_globals_that_pick_the_route`::
 
     after gpytorch import   max_cholesky_size= 800   fast_computations(covar_root=True,  log_prob=True,  solves=True)
     after import botorch    max_cholesky_size=4096   fast_computations(covar_root=False, log_prob=False, solves=False)
 
 so with botorch imported the library is exact at *every* size and the stochastic
-route is unreachable.  That is not hypothetical: ``test_core_hv.py`` imports the
-repo's ``evaluation.py`` as an oracle, ``evaluation.py`` imports botorch, and
-running the two files in one pytest process is what used to make this module's
-threshold test fail.  Every production entry point (``loop.py``, ``run.py``, the
-baselines) imports botorch too, so the repo never runs in the ``N*T > 800`` is
-randomized regime that SPEC §11 describes.
+route is unreachable.  That is not hypothetical: ``test_core_hv.py`` and
+``test_core_qnehvi.py`` import botorch as their differential oracle (the repo's
+own ``evaluation.py`` did too, before the numpy port), and running such a file
+before this one in the same pytest process is what used to make this module's
+threshold test fail.  The pre-numpy pipeline imported botorch at module
+scope too, so it never ran in the ``N*T > 800`` randomized regime that SPEC §11
+describes; the numpy pipeline runs no library GP at all, and
+``mogp_core.gp`` is exact at every size (see its docstring).
 
 Under **vanilla gpytorch** the old statement does hold, and it is the regime
 ``spec/gp/capture_gp.py`` ran in: above ``N*T = 800`` the log-determinant is
 stochastic Lanczos quadrature with probe vectors from the **unseeded global torch
 RNG** and ``fast_pred_var()`` is a randomized, biased LOVE decomposition.  Every
-fixture case validated here is at ``N*T <= 800``, which is why
-``gp.MAX_CHOLESKY_SIZE`` is kept as a record of the capture conditions.
+fixture case validated here is at ``N*T <= 800``, so :data:`MAX_CHOLESKY_SIZE`
+below (this file's own copy of that boundary; ``mogp_core.gp`` no longer carries
+one) is what the cases are checked against.
 :func:`test_every_validated_case_is_below_the_stochastic_threshold` enumerates
 the cases; :func:`test_live_oracle_is_deterministic_below_and_random_above_threshold`
 reads the LIVE settings and asserts what follows from them, then forces each
@@ -90,9 +93,11 @@ WHAT HAPPENS WITHOUT TORCH — measured, not assumed.  Nothing in this file is
 gated by ``pytest.importorskip``, so no test here can go green while proving
 nothing.  MEASURED 2026-09-28 with torch, gpytorch, botorch, linear_operator,
 sklearn, joblib and scipy all made unimportable by a meta-path blocker:
-``101 passed, 37 failed, 0 skipped``.  The 37 are the ``LIVE`` tests, and they
-fail LOUDLY on the missing import rather than skipping — a deliberate choice: an
-honest red is a signal, a silent skip is not.  No evidence is lost when they go
+``101 passed, 37 failed, 0 skipped`` (counts as of that date;
+``test_oracle_is_exact_boundary_is_N_times_T``, a library-free test among the
+101, has since been removed together with ``gp.oracle_is_exact``).  The 37 are the
+``LIVE`` tests, and they fail LOUDLY on the missing import rather than skipping —
+a deliberate choice: an honest red is a signal, a silent skip is not.  No evidence is lost when they go
 red, because every claim they make is also made against the archived capture by a
 test that needs no library at all:
 
@@ -103,7 +108,7 @@ live test (needs torch)                                      unconditional archi
 ``..._reproduce_a_LIVE_gpytorch_fit`` (4)                     ``test_two_hundred_adam_steps_reproduce_the_archived_hyperparameters`` (7, same 1e-5 abs on theta / 1e-5 rel on tau)
 ``test_posterior_matches_a_LIVE_mogp_predict`` (4)            ``test_posterior_matches_the_archived_predict`` (6, same 1e-5 abs / 1e-5 rel)
 ``test_softplus_matches_live_torch_where_the_spec_...``       ``test_softplus_transforms_match_the_fixture_probe_grid``
-``test_live_oracle_is_deterministic_below_and_random_...``    ``test_oracle_is_exact_boundary_is_N_times_T`` + ``test_every_validated_case_is_below_the_stochastic_threshold``
+``test_live_oracle_is_deterministic_below_and_random_...``    ``test_every_validated_case_is_below_the_stochastic_threshold``
 ``test_the_float64_gram_has_no_library_witness_...``          its own half 1, which is unconditional by construction
 ``test_dloss_dv_sums_over_tasks_...`` / ``test_mean_gradient_carries_no_half_trace_term``  the positive halves are the fixture-autograd test above; the NEGATIVE controls (a task-0-only ``dloss/dv``, a spurious ``1/2 tr``) are live-only
 ``test_the_live_oracle_reproduces_the_capture_time_library_bitwise`` (12)  none, and none is possible: it exists to check the rebuilt oracle IS the shipped library, which is vacuous without the library
@@ -145,7 +150,10 @@ from mogp_core import transforms as mtr                       # noqa: E402
 FIXTURES = os.path.join(REPO, "spec", "gp", "fixtures")
 CORE_DIR = os.path.join(REPO, "mogp_core")
 
-#: ``linear_operator.settings.max_cholesky_size`` default (SPEC §11.2).
+#: ``linear_operator.settings.max_cholesky_size``'s vanilla-gpytorch default
+#: (SPEC §11.2) — the boundary ``spec/gp/capture_gp.py`` ran under, which keeps its
+#: own copy of the constant.  Test-local: it is a fact about the oracle library,
+#: not about ``mogp_core.gp``.
 MAX_CHOLESKY_SIZE = 800
 
 #: Measured multi-threaded-BLAS floor: the worst |loss - archived reference| over
@@ -512,17 +520,20 @@ def live_settings():
 
 
 def live_mll_route_is_exact(N, T, settings=None):
-    """Will ``inv_quad_logdet`` take the exact Cholesky branch at ``N*T``?
+    """Will the live library's log-likelihood take the exact Cholesky route at
+    ``N*T``?
 
-    Not a guess: this is ``linear_operator`` 0.6.1's own condition, from
-    ``linear_operator/operators/_linear_operator.py:1705``::
+    The predicate the measurements in this file follow, not a reading of library
+    source::
 
-        if settings.fast_computations.log_prob.off() or (
-                self.size(-1) <= settings.max_cholesky_size.value()):
-            ...  # exact Cholesky
+        exact  <=>  fast_computations.log_prob is off  or  N*T <= max_cholesky_size
 
     so an *off* ``log_prob`` flag makes the size irrelevant, and
     :data:`MAX_CHOLESKY_SIZE` alone cannot answer the question.
+    :func:`test_live_oracle_is_deterministic_below_and_random_above_threshold`
+    checks it against the spread of 8 identical live MLL calls (exactly 0 on the
+    exact route, non-zero on the stochastic one) in three settings regimes, and a
+    disagreement there is how a change in the library would show up.
     """
     s = live_settings() if settings is None else settings
     return (not s["fast_log_prob"]) or (N * T <= s["max_cholesky_size"])
@@ -1889,14 +1900,13 @@ def test_a_duplicate_training_row_does_change_the_posterior(fingerprints):
            f"max|dvar_f| = {dv:.3e} at 16 OTHER query points")
 
 
-def test_state_round_trips_and_records_the_threshold(fingerprints):
+def test_state_round_trips(fingerprints):
     """``GPState.to_dict`` must carry everything a run manifest needs."""
     X, Y5 = training_case(fingerprints, 30, 2)
     state, _, y_mean, y_std = gp.train_mogp(X, Y5, n_iterations=20)
     d = state.to_dict()
     json.dumps(d)
     assert d["n_train"] == 30 and d["n_tasks"] == 2
-    assert d["oracle_was_exact"] is True
     assert len(d["theta_raw"]) == 7
     assert np.allclose(d["natural"]["tau_effective"],
                        np.asarray(state.natural()[4], dtype=np.float64))
@@ -1911,25 +1921,6 @@ def test_state_round_trips_and_records_the_threshold(fingerprints):
 # ===========================================================================
 # TIER 5 — the stochastic threshold
 # ===========================================================================
-
-def test_oracle_is_exact_boundary_is_N_times_T():
-    """``N*T <= 800``, and it is the JOINT size that is compared, not ``N``.
-
-    A pure function of ``gp.MAX_CHOLESKY_SIZE``, and deliberately so: it answers
-    "is this size inside the envelope the fixtures were captured under", not
-    "will the live library be exact right now".  The live question depends on
-    process-global settings that ``import botorch`` rewrites — that is
-    :func:`live_mll_route_is_exact`'s job, and
-    :func:`test_live_oracle_is_deterministic_below_and_random_above_threshold`
-    measures both regimes.
-    """
-    assert gp.MAX_CHOLESKY_SIZE == MAX_CHOLESKY_SIZE == 800
-    assert gp.oracle_is_exact(400, 2) is True       # N*T = 800, inside
-    assert gp.oracle_is_exact(401, 2) is False      # N*T = 802, outside
-    assert gp.oracle_is_exact(420, 1) is True       # N*T = 420, inside at T=1
-    assert gp.oracle_is_exact(800, 1) is True       # N*T = 800, inside at T=1
-    assert gp.oracle_is_exact(420, 2) is False      # same N, T=2 -> outside
-
 
 def test_every_validated_case_is_below_the_stochastic_threshold():
     """Enumerate the cases and state each one's ``N*T`` explicitly."""
@@ -1960,8 +1951,8 @@ def test_botorch_import_rewrites_the_gpytorch_globals_that_pick_the_route():
     has pulled botorch in.  Two snapshots in a fresh interpreter instead.
 
     This test is the reason the threshold tests below read the live settings: if
-    botorch ever stops doing this, the corrected claim in ``mogp_core.gp``'s
-    docstring goes stale and this goes red, which is the point.
+    botorch ever stops doing this, the measured before/after table in
+    ``mogp_core.gp``'s docstring goes stale and this goes red, which is the point.
     """
     import subprocess
     src = (
@@ -2003,7 +1994,7 @@ def test_botorch_import_rewrites_the_gpytorch_globals_that_pick_the_route():
     assert after["max_cholesky_size"] >= before["max_cholesky_size"], (
         f"{before} -> {after}")
     assert before != after, "importing botorch changed nothing -- re-measure"
-    # And the capture-time constant mogp_core.gp records is the vanilla default.
+    # And this file's MAX_CHOLESKY_SIZE (capture_gp.py's too) is the vanilla default.
     assert before["max_cholesky_size"] == MAX_CHOLESKY_SIZE == 800, (
         f"gpytorch's default max_cholesky_size is now "
         f"{before['max_cholesky_size']}, not {MAX_CHOLESKY_SIZE}: every fixture "
@@ -2023,18 +2014,18 @@ def test_live_oracle_is_deterministic_below_and_random_above_threshold(
     ``max_cholesky_size=4096`` with the ``fast_computations`` flags off.  The
     failure was real and the assumption was the bug: there is no fixed threshold.
 
-    ``linear_operator`` 0.6.1 takes the exact Cholesky branch iff
-    ``fast_computations.log_prob.off() or N*T <= max_cholesky_size`` (see
-    :func:`live_mll_route_is_exact` for the source line), so this test:
+    The library takes the exact Cholesky route in every configuration measured
+    here when ``fast_computations.log_prob`` is off or ``N*T <=
+    max_cholesky_size`` (:func:`live_mll_route_is_exact`), so this test:
 
     A. reads the LIVE settings and asserts the determinism that FOLLOWS from
        them, at sizes on both sides of the live ceiling;
     B. forces the capture-time settings and demonstrates the ``N*T = 800``
-       boundary itself, which is what the fixtures were captured under and is
-       therefore what :func:`mogp_core.gp.oracle_is_exact` describes;
+       boundary itself, which is what the fixtures were captured under;
     C. forces the botorch-style settings and shows the *size* stops mattering —
-       the flags dominate, so the repo's production processes (all of which
-       import botorch) never take the stochastic path at any size.
+       the flags dominate, so a process that has imported botorch (as the
+       pre-numpy pipeline's processes all had) never takes the stochastic path at
+       any size.
 
     B and C do not depend on import order, so the boundary claim is still tested
     with teeth in either regime.
@@ -2131,7 +2122,3 @@ def test_live_oracle_is_deterministic_below_and_random_above_threshold(
            + "; ".join(f"N={N} T={T} N*T={NT} spread={sp:.3e} "
                        f"bias_vs_mine={b:+.3e}"
                        for N, T, NT, sp, b in flags_off))
-
-    # mogp_core's constant is a record of the capture conditions, so it keeps
-    # answering the capture-time question and must NOT track the live settings.
-    assert gp.oracle_is_exact(400, 2) and not gp.oracle_is_exact(410, 2)

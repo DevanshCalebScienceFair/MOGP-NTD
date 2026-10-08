@@ -14,7 +14,7 @@ results are superseded.  So where this file says "mirror" or "preserved", read
 it as a record of how a choice was arrived at, not of the standard it is held
 to.  The origin and status of each such choice is tracked in ``PROVENANCE.md``
 beside this file (``GT-4``, ``GT-5``, ``GT-8``, ``GT-12``, ``GT-25``,
-``GT-26``, ``GT-30``, ``GT-36``, ``GT-41``, ``GT-44``, ``GT-M2``, ``VER-9``).
+``GT-26``, ``GT-30``, ``GT-36``, ``GT-41``, ``GT-M2``, ``VER-9``).
 
 The model (SPEC §3, §4)
 ----------------------
@@ -67,40 +67,42 @@ Behaviours inherited from the gpytorch implementation, kept as they were
   (``GT-25``, ``GT-8``).  No schedule, no convergence check, no early stop.  The
   fit is not run to convergence; whether it should be is an open owner decision.
 
-Where the library stops being exact (SPEC §11) — CORRECTED 2026-09-27
---------------------------------------------------------------------
+Solver regime: this module is always exact (SPEC §11, revised)
+---------------------------------------------------------------
+Every ``K_t = s_t S + tau_t I`` is factorized by :func:`cholesky`, at every ``N``
+and ``T``.  The log-determinant is ``2 sum log diag(L)``, the solves are
+triangular and the traces come from an explicit ``K^-1``, so nothing is estimated
+stochastically.  There is no size threshold and no process-global state that
+selects between an exact and an estimated solve (``use_primitive_solves`` only
+chooses between two exact triangular-solve implementations).  The library-regime
+records this module used to carry (``MAX_CHOLESKY_SIZE``, ``oracle_is_exact`` and
+``GPState.oracle_was_exact``) described a switch that a numpy GP does not have, so
+they were removed (ledger ``GT-44``).
+
+What the gpytorch-based implementation did — kept as measured history
+---------------------------------------------------------------------
 SPEC §11 and an earlier version of this docstring stated, as measured fact, that
 gpytorch is exact at ``N*T <= 800`` and stochastic above it.  **That is only true
-in a process where botorch has not been imported, and the pipeline as it stood at
-``3c6573c`` (the last commit before the numpy port) always imported botorch**, so
-that pipeline never ran in the regime the old claim described.  The corrected
-statement:
+in a process where botorch has not been imported**, and the pipeline as it stood
+at ``3c6573c`` (the last commit before the numpy port) always imported botorch, so
+that pipeline never ran in the regime the old claim described.  What was measured
+(figures dated 2026-09-27 unless stated otherwise; ``test_core_gp.py`` re-checks
+the exact-versus-stochastic behaviour against the installed libraries):
 
-* The route is chosen from **live, process-global, mutable** settings, not from a
-  fixed size.  For the marginal log-likelihood, ``linear_operator`` 0.6.1
-  (``operators/_linear_operator.py:1705``, ``inv_quad_logdet``) takes the exact
-  Cholesky branch iff::
-
-      settings.fast_computations.log_prob.off()
-          or  N*T <= settings.max_cholesky_size.value()
-
-  and for the predictive-covariance root (``_choose_root_method``, line 557) it
-  returns ``"cholesky"`` iff ``N*T <= max_cholesky_size`` **or**
-  ``fast_computations.covar_root_decomposition.off()``.  In both cases an *off*
-  fast-computations flag makes the size irrelevant.
-* ``import botorch`` **permanently rewrites those globals** at import time
-  (botorch 0.18.1, ``botorch/__init__.py:50-55``): it sets
-  ``_fast_covar_root_decomposition``, ``_fast_log_prob`` and ``_fast_solves``
-  defaults to ``False``, ``max_cholesky_size`` to 4096, ``cholesky_max_tries``
-  3 -> 6, and ``gpytorch.settings.max_eager_kernel_size`` 512 -> 4096.  Measured
-  in this env::
+* The route was chosen from **live, process-global, mutable** settings, not from a
+  fixed size.  For the marginal log-likelihood, every configuration measured
+  below took the exact Cholesky route when ``fast_computations.log_prob`` was off
+  **or** ``N*T <= max_cholesky_size``, and the stochastic route otherwise: an
+  *off* fast-computations flag made the size irrelevant.
+* ``import botorch`` changes those defaults.  Measured in this env (botorch
+  0.18.1, 2026-10-07) by a fresh interpreter before and after the import::
 
       after gpytorch import   max_cholesky_size= 800   fast_computations(covar_root=True,  log_prob=True,  solves=True)
       after import botorch    max_cholesky_size=4096   fast_computations(covar_root=False, log_prob=False, solves=False)
 
-  There is no un-import: the mutation is to module-level defaults and it outlives
-  any context manager.
-* So there are two regimes, both measured (8 identical
+  The same snapshots also moved ``cholesky_max_tries`` 3 -> 6 and
+  ``gpytorch.settings.max_eager_kernel_size`` 512 -> 4096.
+* So there were two regimes, both measured (8 identical
   ``ExactMarginalLogLikelihood`` calls on one model, spread = max - min):
 
   ===========================  ==========  ==========  ===========  ============
@@ -134,20 +136,18 @@ statement:
   ``_build_botorch_adapters``, for callers that want the test oracle), and
   importing ``loop``, ``evaluation``, ``acquisition``, ``mogp``,
   ``mogp_coregionalized`` and ``kernel`` loads none of ``torch``, ``gpytorch``,
-  ``botorch`` or ``linear_operator`` (checked 2026-10-07).  There is no library
-  GP in the runtime path now, so this library-regime analysis matters only to
+  ``botorch`` or ``linear_operator`` (re-checked 2026-10-07).  There is no
+  library GP in the runtime path now, so this regime analysis matters only to
   code that imports those libraries on purpose: the differential oracle tests,
   the ``spec/*/capture_*.py`` scripts and the GP-MOBO comparator.  An earlier
   version of this docstring stated, in the present tense, that every production
   entry point imports botorch; that was false at HEAD (ledger ``GT-M2``) and is
   corrected here.
-* This module is exact at every size in either regime, so nothing here changes.
-  :data:`MAX_CHOLESKY_SIZE` and :func:`oracle_is_exact` are kept because the
-  archived fixtures in ``spec/gp/fixtures/`` were captured by ``capture_gp.py``
-  in a **vanilla-gpytorch** process, and 800 is the boundary that applied there.
-  They are a record of the capture conditions, **not** a live reading — see
-  :func:`oracle_is_exact` for the exact caveat.  They are library-regime
-  records kept in production code (``GT-44``, audit action ``remove``, open).
+* The archived fixtures in ``spec/gp/fixtures/`` were captured by
+  ``spec/gp/capture_gp.py`` in a **vanilla-gpytorch** process, where the boundary
+  was ``N*T = 800``, and every GP case in them sits at or below it.  Inside that
+  boundary the library was on its exact route, which is what made the fixtures
+  valid targets for this module.
 
 Oracle coverage: where there is no library witness
 --------------------------------------------------
@@ -196,7 +196,6 @@ __all__ = [
     "ADAM_LR",
     "DOCKING_TASK_INDICES",
     "GPState",
-    "MAX_CHOLESKY_SIZE",
     "N_ADAM_STEPS",
     "NOISE_LOWER_BOUND",
     "PARAM_ORDER",
@@ -207,7 +206,6 @@ __all__ = [
     "n_params",
     "natural",
     "nmll_and_grad",
-    "oracle_is_exact",
     "posterior",
     "predict",
     "predict_dropin",
@@ -245,18 +243,6 @@ ADAM_BETAS = _optim.DEFAULT_BETAS
 ADAM_EPS = _optim.DEFAULT_EPS
 N_ADAM_STEPS = _optim.DEFAULT_N_ITERATIONS
 
-#: ``linear_operator.settings.max_cholesky_size``'s **vanilla-gpytorch** default,
-#: which is what ``spec/gp/capture_gp.py`` ran under.  Compared against the JOINT
-#: operator size ``N*T``, not ``N`` (SPEC §11.2, measured).
-#:
-#: NOT a live reading, and not the value a process that has imported botorch
-#: sees: ``import botorch`` rewrites ``max_cholesky_size._global_value`` to 4096
-#: and turns the fast-computations defaults off (measured; the pre-numpy
-#: pipeline imported botorch, the numpy pipeline does not -- see the module
-#: docstring).  Treat this as the capture-time constant it is; read
-#: ``linear_operator.settings`` if you need the live value.
-MAX_CHOLESKY_SIZE = 800
-
 #: ``model.named_parameters()`` order, for splitting a flat gradient.
 PARAM_ORDER = _transforms.PARAM_NAMES
 
@@ -267,40 +253,6 @@ def n_params(n_tasks: int) -> int:
     if T < 1:
         raise ValueError(f"n_tasks must be >= 1, got {n_tasks}")
     return 3 * T + 1
-
-
-def oracle_is_exact(n_train: int, n_tasks: int) -> bool:
-    """``N*T <= 800``: was gpytorch exact at this size **under the conditions the
-    fixtures were captured in** (SPEC §11.2)?
-
-    Read this as "is this size inside the validated envelope of
-    ``spec/gp/fixtures/``", not as a live claim about the running process.  The
-    function is a pure function of :data:`MAX_CHOLESKY_SIZE` and cannot be
-    anything else: it takes no settings argument and does not import the library.
-
-    The live route is decided by mutable process globals, and the real predicate
-    for the marginal log-likelihood (``linear_operator`` 0.6.1,
-    ``inv_quad_logdet``) is::
-
-        exact  <=>  fast_computations.log_prob.off()
-                    or  N*T <= max_cholesky_size.value()
-
-    ``import botorch`` sets ``log_prob`` off and ``max_cholesky_size`` to 4096
-    permanently, so in any process that has imported botorch — which the
-    pre-numpy pipeline always did (see the module docstring) — the library is
-    exact at **every** size
-    and this function is pessimistic: it returns ``False`` at ``N*T > 800`` where
-    the live library is in fact exact.  Measured: at ``N*T = 820`` the spread over
-    8 identical MLL calls is ``3.87e-03`` without botorch and ``0.0`` with it.
-    Both regimes are tabulated in the module docstring.
-
-    It is deliberately NOT changed to read the live settings: the fixtures are
-    fixed artifacts, so the envelope they validate is fixed too, and making this
-    depend on import order would make the fixture tests order-dependent.  Callers
-    that need the live answer must read ``linear_operator.settings`` themselves
-    (``test_core_gp.live_mll_route_is_exact`` does exactly that).
-    """
-    return int(n_train) * int(n_tasks) <= MAX_CHOLESKY_SIZE
 
 
 # --------------------------------------------------------------------------
@@ -828,15 +780,6 @@ class GPState:
         """``(s, mu, d, sigma2, tau)`` at this state's ``theta``."""
         return natural(self.theta, self.n_tasks)
 
-    def oracle_was_exact(self) -> bool:
-        """``N*T <= 800``: is this size inside the fixtures' validated envelope?
-
-        Thin wrapper over :func:`oracle_is_exact` and carries all of its caveats:
-        it is a capture-time statement, not a live reading of the library, and it
-        is pessimistic in any process that has imported botorch.
-        """
-        return oracle_is_exact(self.n_train, self.n_tasks)
-
     def to_dict(self):
         """JSON-able summary.  ``X_train`` / ``Y_norm`` are left to the caller."""
         s, mu, d, sigma2, tau = self.natural()
@@ -853,7 +796,6 @@ class GPState:
                 "shared_sigma2": float(sigma2),
                 "tau_effective": [float(x) for x in tau],
             },
-            "oracle_was_exact": self.oracle_was_exact(),
             "final_loss": (None if self.losses is None
                            else float(self.losses[-1])),
         }

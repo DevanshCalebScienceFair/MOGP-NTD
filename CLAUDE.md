@@ -70,8 +70,11 @@ library is built (`data.py`), not carried as NaN.
   openbabel`), `meeko` + `biopython` (pip). `vina` must be on PATH.
 - **OMP Error #15** (duplicate libomp) is only reachable when torch is loaded next
   to sklearn, i.e. the GP-MOBO arm and the oracle tests. If you hit it, set
-  `KMP_DUPLICATE_LIB_OK=TRUE` (the entry points, including `loop.py` and
-  `run.py`, already do this at module top).
+  `KMP_DUPLICATE_LIB_OK=TRUE`. The entry points already do: `thread_pin.py`
+  (imported before numpy by `loop.py`, `run.py`, `run_all.py`, `run_ablation.py`,
+  `run_benchmark_seeds.py` and the baselines) sets it and pins BLAS/OpenMP to one
+  thread with `setdefault`, so an outer override wins. The pin only works if it
+  runs before numpy loads, which `test_defaults_and_threads.py` checks.
 
 ## Key files
 

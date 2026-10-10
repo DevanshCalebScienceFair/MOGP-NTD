@@ -1,0 +1,9 @@
+{
+ "rule": "contiguous prefix ranks 0..K-1 of np.random.default_rng(20261008).permutation(raw library rows), restricted to the gated pool (heavy-atom floor + quality screen), both targets OK in cache under the current oracle fingerprint; never a function of any score or of cache membership",
+ "prefix_K": 2177,
+ "n_arena": 1868,
+ "seed": 20261008,
+ "vina_seed": 42,
+ "exhaustiveness": 8,
+ "built_by": "scratchpad/overnight/arena_build/build_random_arena.py"
+}

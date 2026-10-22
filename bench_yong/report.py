@@ -8,18 +8,23 @@
 * Re-scores every molecule from its SMILES with her scalar oracle.  The
   ``mpo_logged`` column the runs wrote is only compared against, never used,
   so a logging bug in one arm cannot move the ranking.
-* Order of output is fixed by PREREGISTRATION.md: L1 (the random floor) first,
-  then the primary endpoint and verdict, then L2 (every rank, never only the
-  median), L3, L4, the reference arm, and the context tables.
+* Order of output is fixed by PREREGISTRATION.md as amended by
+  PREREGISTRATION_AMENDMENT_1.md: L1-REVISED (the random floor) first, with the
+  superseded L1-ORIGINAL printed beside it; then the primary endpoint and its
+  verdict (WIN, LOSS-REVISED, INCONCLUSIVE), with the verdict the superseded
+  LOSS rule would have given; then L2 (every rank, never only the median), L3,
+  L4, the reference arm, and the context tables.
 
 Writes ``<output-dir>/report/{report.md,report.json,per_cell.csv}``.
 """
 
 import argparse
 import csv
+import datetime
 import io
 import json
 import os
+import subprocess
 import sys
 
 BENCH_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -37,6 +42,7 @@ ALPHA = 0.05
 MIN_NONTIED = 6            # with <= 5 pairs the smallest two-sided p is 0.0625
 TASK_LIST = ["fexofenadine", "amlodipine", "perindopril"]
 PRIMARY = ("MOGP-ICM@FP2", "HER@FP2")
+AMENDMENT_1 = "bench_yong/PREREGISTRATION_AMENDMENT_1.md"
 
 
 # --------------------------------------------------------------------------
@@ -90,19 +96,84 @@ def task_category(res, p_key):
     return "positive, not significant"
 
 
+def _significant(r, sign):
+    """Holm p < 0.05, >= 6 non-tied seeds, median strictly on the ``sign`` side."""
+    return (r["holm_p"] < ALPHA and not r["inconclusive_by_construction"]
+            and sign * r["median_diff"] > 0)
+
+
 def verdict(per_task):
-    """PREREGISTRATION section 5, as written.  A task with no pairs has no
-    median, so it counts towards neither WIN nor LOSS; the report says which
-    tasks had no data and stamps the verdict PROVISIONAL while PARTIAL."""
-    wins = [t for t, r in per_task.items()
-            if r["holm_p"] < ALPHA and r["median_diff"] > 0
-            and not r["inconclusive_by_construction"]]
+    """PREREGISTRATION section 5 as amended by Amendment 1.
+
+    WIN: significant with a positive median on >= 2 of 3 tasks (unchanged).
+    LOSS (LOSS-REVISED): significant with a NEGATIVE median on >= 2 of 3 tasks.
+    Everything else is INCONCLUSIVE, a negative median without significance
+    included.  A task with no pairs has no median and counts towards neither;
+    the report names it and stamps the verdict PROVISIONAL while PARTIAL.
+    Returns ``(verdict, winning_tasks, losing_tasks)``.
+    """
+    wins = [t for t, r in per_task.items() if _significant(r, +1)]
+    losses = [t for t, r in per_task.items() if _significant(r, -1)]
+    if len(wins) >= 2:
+        return "WIN", wins, losses
+    if len(losses) >= 2:
+        return "LOSS", wins, losses
+    return "INCONCLUSIVE", wins, losses
+
+
+def verdict_original(per_task):
+    """SUPERSEDED by Amendment 1.  LOSS was a median <= 0 on >= 2 of 3 tasks
+    with no test, which fires ~50% of the time when the methods are identical.
+    Kept only so the report can show what the original rule would have said."""
+    wins = [t for t, r in per_task.items() if _significant(r, +1)]
     nonpos = [t for t, r in per_task.items() if r["median_diff"] <= 0]
     if len(wins) >= 2:
         return "WIN", wins, nonpos
     if len(nonpos) >= 2:
         return "LOSS", wins, nonpos
     return "INCONCLUSIVE", wins, nonpos
+
+
+def floor_revised(per_task):
+    """L1-REVISED (Amendment 1): cleared if MOGP-ICM beats RANDOM significantly
+    (Holm p < 0.05, median > 0, >= 6 non-tied) on >= 2 of 3 tasks; otherwise it
+    FIRES.  Undetermined while a task has no pairs and the floor is not yet
+    cleared."""
+    clearing = [t for t, r in per_task.items() if _significant(r, +1)]
+    no_data = [t for t, r in per_task.items() if r["n_pairs"] == 0]
+    cleared = len(clearing) >= 2
+    return {"cleared": cleared, "clearing_tasks": clearing, "no_data_tasks": no_data,
+            "determined": cleared or not no_data,
+            "fires": (not cleared) and not no_data}
+
+
+def amendment_commit():
+    """``(hash, committer ISO time)`` of the commit that added Amendment 1."""
+    try:
+        out = subprocess.run(["git", "-C", REPO, "log", "--diff-filter=A",
+                              "--format=%H %cI", "--", AMENDMENT_1],
+                             capture_output=True, text=True, check=True).stdout
+        line = out.strip().splitlines()[-1].split()
+        return line[0], line[1]
+    except Exception:
+        return None, None
+
+
+def last_cell_end(out_dir):
+    """Latest ``ended`` time over the cell_status.json files (operational data)."""
+    latest = None
+    cells_dir = os.path.join(out_dir, "cells")
+    for name in (os.listdir(cells_dir) if os.path.isdir(cells_dir) else []):
+        try:
+            with open(os.path.join(cells_dir, name, "cell_status.json")) as fh:
+                ended = json.load(fh).get("ended")
+        except (OSError, ValueError):
+            continue
+        if ended and (latest is None or ended > latest):
+            latest = ended
+    if latest is None:
+        return None
+    return datetime.datetime.fromtimestamp(latest).astimezone().isoformat(timespec="seconds")
 
 
 def l4_analysis(icm10, her10, icm20, her20, seeds):
@@ -281,13 +352,23 @@ def build(out_dir):
         return res
 
     T1, T2 = yc.PREREG_TIER1_SEEDS, yc.PREREG_TIER2_SEEDS
+    a_hash, a_time = amendment_commit()
     rep = {"sweep_status": status, "missing_cells": missing,
            "rejected_cells": rejected, "unplanned_cells": unplanned,
            "n_cells_found": len(found), "n_cells_planned": len(planned),
            "preregistration_commit": (manifest or {}).get("preregistration_commit"),
+           "amendment_1_commit": a_hash, "amendment_1_committed": a_time,
+           "sweep_last_cell_ended": last_cell_end(out_dir),
            "max_abs_logged_vs_rescored": worst_log}
 
-    # ---- L1 the floor --------------------------------------------------------
+    # ---- L1-REVISED, the floor (Amendment 1) ---------------------------------
+    l1r = {t: paired(t, "MOGP-ICM@FP2", "RANDOM", 20, T1) for t in TASK_LIST}
+    for t, a in zip(TASK_LIST, holm([l1r[t]["p"] for t in TASK_LIST])):
+        l1r[t]["holm_p"] = a
+    rep["L1_REVISED"] = dict(floor_revised(l1r), per_task=l1r,
+                             provisional=status != "COMPLETE")
+
+    # ---- L1-ORIGINAL (over-strict; superseded by Amendment 1) ---------------
     l1 = {}
     for t in TASK_LIST:
         icm = [v["best_acquired"] for v in series(t, "MOGP-ICM@FP2", 20, T1).values()]
@@ -300,17 +381,19 @@ def build(out_dir):
             l1[t] = {"icm_median": None, "random_p95": None, "n_icm": len(icm),
                      "n_random": len(rnd), "clears_floor": None}
     l1_fires = any(v["clears_floor"] is False for v in l1.values())
-    rep["L1"] = {"per_task": l1, "fires": l1_fires,
-                 "undetermined": any(v["clears_floor"] is None for v in l1.values())}
+    rep["L1_ORIGINAL"] = {"per_task": l1, "fires": l1_fires, "superseded": True,
+                          "undetermined": any(v["clears_floor"] is None
+                                              for v in l1.values())}
 
     # ---- primary -----------------------------------------------------------
     prim = {t: paired(t, *PRIMARY, 20, T1) for t in TASK_LIST}
     adj = holm([prim[t]["p"] for t in TASK_LIST])
     for t, a in zip(TASK_LIST, adj):
         prim[t]["holm_p"] = a
-    v, wins, nonpos = verdict(prim)
+    v, wins, losses = verdict(prim)
     rep["primary"] = {"per_task": prim, "verdict": v, "winning_tasks": wins,
-                      "nonpositive_tasks": nonpos,
+                      "losing_tasks": losses,
+                      "verdict_original_rule_superseded": verdict_original(prim)[0],
                       "no_data_tasks": [t for t in TASK_LIST if prim[t]["n_pairs"] == 0],
                       "provisional": status != "COMPLETE"}
 
@@ -378,6 +461,21 @@ def render(rep):
       f"`{rep['preregistration_commit']}`.  Built from files on disk; every "
       f"molecule re-scored with her oracle (max |logged - rescored| = "
       f"{rep['max_abs_logged_vs_rescored']:.2e}).\n\n")
+    a_hash, a_time, last = (rep["amendment_1_commit"], rep["amendment_1_committed"],
+                            rep["sweep_last_cell_ended"])
+    before = None
+    if a_time and last:
+        before = (datetime.datetime.fromisoformat(a_time) <
+                  datetime.datetime.fromisoformat(last))
+    w(f"Rules: PREREGISTRATION.md as amended by Amendment 1, commit `{a_hash}` "
+      f"({a_time}); the sweep's last cell ended {last}"
+      + ("" if before is None else
+         f" (amendment committed {'BEFORE' if before else 'AFTER'} the sweep "
+         f"finished)") + ".  Amendment 1 replaced L1 and LOSS; both originals "
+      "are still printed, labelled as superseded.\n\n")
+    if not a_hash:
+        w("**WARNING: Amendment 1 not found in git; the amended rules are applied "
+          "anyway, but their provenance is not verified.**\n\n")
     ci = rep["integrity"]["code"]
     if not ci["ok"] or not rep["integrity"]["start_set_shared_across_arms"]:
         w("**INTEGRITY FAILURE: the cells were not all produced by the same result "
@@ -389,15 +487,45 @@ def render(rep):
         w("Rejected cell directories: " + ", ".join(
             f"`{k}` ({v})" for k, v in rep["rejected_cells"].items()) + "\n\n")
 
-    w("## L1 THE FLOOR (reported first)\n\n")
-    w("MOGP-ICM's median best-of-acquired must exceed RANDOM's 95th percentile "
-      "on every task.\n\n| task | ICM median | RANDOM p95 | clears |\n|---|---|---|---|\n")
-    for t, v in rep["L1"]["per_task"].items():
+    L1R = rep["L1_REVISED"]
+    w("## L1-REVISED, THE FLOOR (Amendment 1; reported first)\n\n"
+      "Per task, paired two-sided Wilcoxon of MOGP-ICM@FP2 minus RANDOM over seeds "
+      "0-9, Holm across the three tasks.  The floor is cleared if ICM is "
+      "significantly better (Holm p < 0.05, median > 0, >= 6 non-tied seeds) on at "
+      "least 2 of 3 tasks.\n\n"
+      "| task | pairs | non-tied | median diff | p | Holm p | +/-/0 | missing seeds | note |\n"
+      "|---|---|---|---|---|---|---|---|---|\n")
+    for t, r in L1R["per_task"].items():
+        note = ("NO DATA" if r["n_pairs"] == 0 else
+                "INCONCLUSIVE BY CONSTRUCTION" if r["inconclusive_by_construction"] else "")
+        w(f"| {t} | {r['n_pairs']} | {r['n_nontied']} | {r['median_diff']:+.5f} | "
+          f"{r['p']:.4f} | {r['holm_p']:.4f} | {r['n_positive']}/{r['n_negative']}/"
+          f"{r['n_zero']} | {r['seeds_missing']} | {note} |\n")
+    if L1R["cleared"]:
+        l1_text = ("**L1-REVISED: floor cleared** (significantly better than RANDOM "
+                   "on " + ", ".join(L1R["clearing_tasks"]) + ")")
+    elif L1R["fires"]:
+        l1_text = "**L1-REVISED FIRES: published as a negative**"
+    else:
+        l1_text = ("L1-REVISED not yet determined: no pairs on "
+                   + ", ".join(L1R["no_data_tasks"]))
+    w("\n" + l1_text + (" (PROVISIONAL: sweep incomplete)" if L1R["provisional"] else "")
+      + "\n\n")
+
+    L1O = rep["L1_ORIGINAL"]
+    w("### L1-ORIGINAL (over-strict; superseded by Amendment 1)\n\n"
+      "The original rule: MOGP-ICM's median best-of-acquired must exceed RANDOM's "
+      "95th percentile on every task.  Superseded because it is not a floor test: "
+      "in Amendment 1's power analysis it passes only 31% of the time even when "
+      "ICM is 10x as efficient as random search.  Printed so nothing is hidden.\n\n"
+      "| task | ICM median | RANDOM p95 | clears |\n|---|---|---|---|\n")
+    for t, v in L1O["per_task"].items():
         w(f"| {t} | {fmt(v['icm_median'])} | {fmt(v['random_p95'])} | "
           f"{v['clears_floor']} (n={v['n_icm']}/{v['n_random']}) |\n")
-    w(f"\n**L1 {'FIRES: published as a negative' if rep['L1']['fires'] else 'does not fire'}**"
-      + (" (undetermined on some task: missing cells)" if rep["L1"]["undetermined"] else "")
-      + "\n\n")
+    w(f"\nL1-ORIGINAL (superseded) "
+      f"{'would fire' if L1O['fires'] else 'would not fire'}"
+      + (" (undetermined on some task: missing cells)" if L1O["undetermined"] else "")
+      + ".\n\n")
 
     P = rep["primary"]
     w("## Primary endpoint: MOGP-ICM@FP2 minus HER@FP2, best-of-acquired, seeds 0-9\n\n")
@@ -414,6 +542,14 @@ def render(rep):
     if P["no_data_tasks"]:
         w(f"No complete pairs yet on: {', '.join(P['no_data_tasks'])} (they count "
           f"towards neither WIN nor LOSS).\n\n")
+    w("Rules (Amendment 1): WIN = Holm p < 0.05 with a positive median on >= 2 of 3 "
+      "tasks; LOSS = Holm p < 0.05 with a negative median on >= 2 of 3 tasks; "
+      "anything else, a negative median without significance included, is "
+      "INCONCLUSIVE.  At 10 seeds the design has 80% power only for about a 6.5x "
+      "difference in sample efficiency (Amendment 1, section 3), so INCONCLUSIVE "
+      "must not be read as equivalence.  Under the superseded original LOSS rule "
+      f"(median <= 0 on >= 2 of 3 tasks, no test) the verdict would read: "
+      f"{P['verdict_original_rule_superseded']}.\n\n")
 
     w("## L2 THE INTERLEAVE: library rank of each arm's best acquired molecule\n\n"
       "Rank in the 10,000-row library table (the table Tables 8.4-8.6 are the "
@@ -477,11 +613,17 @@ def render(rep):
         w(f"| {t} | {a} | {ni} | {len(b)} | {np.median(b):.4f} | {min(b):.4f} | "
           f"{max(b):.4f} | {np.median(s):.4f} |\n")
 
-    w("\n## Standing asymmetry and modifications\n\n"
-      "Her arms score a separate 1,000-molecule hold-out block to set their GP "
-      "hyperparameters: about 1,040 oracle calls per run against our 40.  It is "
-      "kept because removing it would stop being her method, so a win reads as "
-      "conservative.  Modifications to her code: M1 import stand-ins "
+    w("\n## Oracle budget, her protocol, and modifications\n\n"
+      "The 1,040-evaluation recipe exists only inside this benchmark, because the "
+      "HER arms run her main-branch code (`ehvi_mc.py`), which scores a "
+      "1,000-molecule hold-out block to set its GP hyperparameters; that was our "
+      "choice.  Her published protocol used 10 starting molecules, fixed "
+      "hyperparameters (mean 0, amplitude 1, noise 1e-4) and 30 oracle evaluations "
+      "per run, fewer than our 40, and **NO ARM IN THIS SWEEP REPRODUCES IT**.  "
+      "Results against HER@FP2 and HER-PUB are results against her code under her "
+      "main-branch recipe, not against her published method (bench_yong/"
+      "HER_CONFIG.md; erratum in PREREGISTRATION_AMENDMENT_1.md).  "
+      "Modifications to her code: M1 import stand-ins "
       "(rdkit.six, utils.utils_final), M2 seeding, M3 batched predictions (if G3 "
       "passed), M4 evaluator binding for amlodipine/perindopril; HER@FP2 swaps "
       "her fingerprint by definition.  The thesis prints Fexofenadine widths 2 "

@@ -475,13 +475,36 @@ def test_report_tie_rule_and_exact_p():
 
 
 def test_report_verdict_rules():
+    """Amendment 1: LOSS needs significance with a negative median."""
     def t(med, hp, inc=False):
-        return {"median_diff": med, "holm_p": hp, "inconclusive_by_construction": inc}
-    assert report.verdict({"a": t(.1, .01), "b": t(.1, .02), "c": t(-.1, .9)})[0] == "WIN"
-    assert report.verdict({"a": t(0, 1), "b": t(-.1, .02), "c": t(.1, .01)})[0] == "LOSS"
-    assert report.verdict({"a": t(.1, .2), "b": t(.1, .3), "c": t(.1, .01)})[0] == "INCONCLUSIVE"
-    assert report.verdict({"a": t(.1, .01, True), "b": t(.1, .02), "c": t(.1, .5)})[0] \
-        == "INCONCLUSIVE"
+        return {"median_diff": med, "holm_p": hp, "inconclusive_by_construction": inc,
+                "n_pairs": 10}
+    v = report.verdict
+    assert v({"a": t(.1, .01), "b": t(.1, .02), "c": t(-.1, .9)})[0] == "WIN"
+    assert v({"a": t(-.1, .01), "b": t(-.1, .02), "c": t(.1, .9)})[0] == "LOSS"
+    assert v({"a": t(-.1, .3), "b": t(-.1, .4), "c": t(.1, .9)})[0] == "INCONCLUSIVE"
+    assert v({"a": t(0, 1), "b": t(-.1, .02), "c": t(.1, .01)})[0] == "INCONCLUSIVE"
+    assert v({"a": t(-.1, .01, True), "b": t(-.1, .02), "c": t(.1, .5)})[0] == "INCONCLUSIVE"
+    assert v({"a": t(.1, .01, True), "b": t(.1, .02), "c": t(.1, .5)})[0] == "INCONCLUSIVE"
+    assert v({"a": t(.1, .2), "b": t(.1, .3), "c": t(.1, .01)})[0] == "INCONCLUSIVE"
+    # the superseded original rule is still computable, labelled as such
+    assert report.verdict_original(
+        {"a": t(0, 1), "b": t(-.1, .02), "c": t(.1, .01)})[0] == "LOSS"
+    assert report.verdict_original(
+        {"a": t(-.1, .3), "b": t(-.1, .4), "c": t(.1, .9)})[0] == "LOSS"
+
+
+def test_report_floor_revised():
+    def t(med, hp, n=10, inc=False):
+        return {"median_diff": med, "holm_p": hp, "inconclusive_by_construction": inc,
+                "n_pairs": n}
+    f = report.floor_revised
+    r = f({"a": t(.1, .01), "b": t(.1, .03), "c": t(-.1, .9)})
+    assert r["cleared"] and not r["fires"] and r["determined"]
+    r = f({"a": t(.1, .01), "b": t(.1, .2), "c": t(.1, .3)})
+    assert not r["cleared"] and r["fires"]
+    r = f({"a": t(.1, .01), "b": t(.1, .2), "c": t(float("nan"), 1.0, n=0)})
+    assert not r["cleared"] and not r["fires"] and not r["determined"]
 
 
 def test_report_library_rank():
@@ -491,17 +514,21 @@ def test_report_library_rank():
     assert report.library_rank(0.5, lib) == 4
 
 
-def test_report_verdict_no_data_uses_the_rule_as_written():
-    """A task with no pairs counts towards neither WIN nor LOSS (section 5)."""
+def test_report_verdict_no_data_uses_the_amended_rule():
+    """A task with no pairs counts towards neither WIN nor LOSS (section 5 as
+    amended); a negative median needs significance to count as a loss."""
     empty = report.signed_rank([])
     empty["holm_p"] = 1.0
     win = {"median_diff": .1, "holm_p": .01, "inconclusive_by_construction": False,
            "n_pairs": 10}
-    loss = {"median_diff": -.02, "holm_p": .5, "inconclusive_by_construction": False,
-            "n_pairs": 10}
+    sig_loss = {"median_diff": -.02, "holm_p": .01, "inconclusive_by_construction": False,
+                "n_pairs": 10}
+    weak_loss = {"median_diff": -.02, "holm_p": .5, "inconclusive_by_construction": False,
+                 "n_pairs": 10}
     assert report.verdict({"a": empty, "b": win, "c": win})[0] == "WIN"
-    assert report.verdict({"a": empty, "b": loss, "c": loss})[0] == "LOSS"
-    assert report.verdict({"a": empty, "b": win, "c": loss})[0] == "INCONCLUSIVE"
+    assert report.verdict({"a": empty, "b": sig_loss, "c": sig_loss})[0] == "LOSS"
+    assert report.verdict({"a": empty, "b": weak_loss, "c": weak_loss})[0] == "INCONCLUSIVE"
+    assert report.verdict({"a": empty, "b": win, "c": sig_loss})[0] == "INCONCLUSIVE"
 
 
 def test_report_l4_uses_one_common_seed_set():

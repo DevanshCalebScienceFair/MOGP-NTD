@@ -60,3 +60,7 @@ matrix_results_run*/
 
 # Pre-NADPH-fix receptor + docking cache backup (generated)
 apo_backup_*/
+
+# GP-MOBO head-to-head (bench_yong/): sweep output and local gate records
+bench_yong_results_*/
+bench_yong/_gates/

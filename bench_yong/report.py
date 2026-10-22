@@ -91,9 +91,9 @@ def task_category(res, p_key):
 
 
 def verdict(per_task):
-    empty = [t for t, r in per_task.items() if r.get("n_pairs", 1) == 0]
-    if empty:
-        return "UNDETERMINED (no complete pairs: " + ", ".join(empty) + ")", [], []
+    """PREREGISTRATION section 5, as written.  A task with no pairs has no
+    median, so it counts towards neither WIN nor LOSS; the report says which
+    tasks had no data and stamps the verdict PROVISIONAL while PARTIAL."""
     wins = [t for t, r in per_task.items()
             if r["holm_p"] < ALPHA and r["median_diff"] > 0
             and not r["inconclusive_by_construction"]]
@@ -103,6 +103,50 @@ def verdict(per_task):
     if len(nonpos) >= 2:
         return "LOSS", wins, nonpos
     return "INCONCLUSIVE", wins, nonpos
+
+
+def l4_analysis(icm10, her10, icm20, her20, seeds):
+    """L4 on the seeds present in all four series (seed -> best-of-acquired).
+
+    The n_init 10 and n_init 20 differences must be computed on the SAME seeds,
+    or a single missing cell changes the attainable p and can flip the category
+    with identical per-seed differences.  No common seed -> undetermined.
+    """
+    common = sorted(set(seeds) & set(icm10) & set(her10) & set(icm20) & set(her20))
+    d10 = signed_rank([icm10[s] - her10[s] for s in common])
+    d20 = signed_rank([icm20[s] - her20[s] for s in common])
+    for d, (a, b) in ((d10, (icm10, her10)), (d20, (icm20, her20))):
+        d.update(seeds=common, seeds_missing=sorted(set(seeds) - set(common)),
+                 diffs=[float(a[s] - b[s]) for s in common])
+    if not common:
+        return {"n_init_10": d10, "n_init_20_same_seeds": d20, "determined": False,
+                "category_10": "no data", "category_20": "no data", "flips": None}
+    c10, c20 = task_category(d10, "p"), task_category(d20, "p")
+    return {"n_init_10": d10, "n_init_20_same_seeds": d20, "determined": True,
+            "category_10": c10, "category_20": c20, "flips": c10 != c20}
+
+
+def code_integrity(per_cell, manifest):
+    """Same result code, GP-MOBO commit and imported versions for every cell."""
+    import provenance
+    heads = sorted({r["repo_head"] for r in per_cell if r["repo_head"]})
+    ref_head = None
+    if manifest and manifest.get("invocations"):
+        ref_head = manifest["invocations"][0].get("repo_head")
+    ref_head = ref_head or (heads[0] if heads else None)
+    out = {"reference_head": ref_head, "cell_heads": heads, "differing_files": {},
+           "gp_mobo_heads": sorted({r["gp_mobo_head"] for r in per_cell}),
+           "cells_bench_yong_dirty": sum(bool(r["bench_yong_dirty"]) for r in per_cell),
+           "versions_seen": sorted({r["versions_key"] for r in per_cell})}
+    if ref_head:
+        _, ref_pairs = provenance.fingerprint_at(ref_head)
+        for h in heads:
+            changed = provenance.diff(ref_pairs, provenance.fingerprint_at(h)[1])
+            if changed:
+                out["differing_files"][h] = changed
+    out["ok"] = (not out["differing_files"] and len(out["versions_seen"]) <= 1 and
+                 out["gp_mobo_heads"] in ([], [yc.GP_MOBO_COMMIT]))
+    return out
 
 
 def library_rank(value, library_scores):
@@ -209,6 +253,12 @@ def build(out_dir):
             "best_start_excluded": float(max(sc[r["smiles"]] for r in ini)),
             "start_set_sha256": run["start_set_sha256"],
             "oracle_calls": run.get("oracle_calls"),
+            "repo_head": run.get("repo_head"),
+            "bench_yong_dirty": run.get("repo_dirty_bench_yong"),
+            "gp_mobo_head": run.get("gp_mobo_head"),
+            "versions_key": json.dumps({k: run["versions"].get(k) for k in
+                                        ("python", "numpy", "scipy", "pandas", "rdkit")},
+                                       sort_keys=True),
             "wall_clock_h": run["wall_clock_s"] / 3600,
             "peak_rss_gb": run["peak_rss_bytes"] / 1e9,
             "final_front_size": run["final_front_size"]})
@@ -261,6 +311,7 @@ def build(out_dir):
     v, wins, nonpos = verdict(prim)
     rep["primary"] = {"per_task": prim, "verdict": v, "winning_tasks": wins,
                       "nonpositive_tasks": nonpos,
+                      "no_data_tasks": [t for t in TASK_LIST if prim[t]["n_pairs"] == 0],
                       "provisional": status != "COMPLETE"}
 
     # ---- L2 interleave -------------------------------------------------------
@@ -284,16 +335,18 @@ def build(out_dir):
     for t, a in zip(TASK_LIST, holm([l3[t]["p"] for t in TASK_LIST])):
         l3[t]["holm_p"] = a
     l3v, l3w, _ = verdict(l3)
-    rep["L3"] = {"per_task": l3, "icm_beats_ind": l3v == "WIN",  # never on no data
-                 "verdict_shape": l3v}
+    rep["L3"] = {"per_task": l3, "icm_beats_ind": l3v == "WIN", "verdict_shape": l3v,
+                 "no_data_tasks": [t for t in TASK_LIST if l3[t]["n_pairs"] == 0]}
 
     # ---- L4 sensitivity ------------------------------------------------------
     s6 = yc.PREREG_TIER3_SEEDS
-    d10 = paired("fexofenadine", *PRIMARY, 10, s6)
-    d20 = paired("fexofenadine", *PRIMARY, 20, s6)
-    c10, c20 = task_category(d10, "p"), task_category(d20, "p")
-    rep["L4"] = {"n_init_10": d10, "n_init_20_same_seeds": d20,
-                 "category_10": c10, "category_20": c20, "flips": c10 != c20}
+
+    def best_by_seed(arm, n_init):
+        return {s: v["best_acquired"]
+                for s, v in series("fexofenadine", arm, n_init, s6).items()}
+    rep["L4"] = l4_analysis(best_by_seed("MOGP-ICM@FP2", 10), best_by_seed("HER@FP2", 10),
+                            best_by_seed("MOGP-ICM@FP2", 20), best_by_seed("HER@FP2", 20),
+                            s6)
 
     # ---- reference arm -----------------------------------------------------
     rep["reference_HER-PUB_minus_HER@FP2"] = {
@@ -310,7 +363,8 @@ def build(out_dir):
                         if r["task"] == t and r["seed"] == seed and r["n_init"] == n_init}
                 start_ok &= len(shas) <= 1
     rep["integrity"] = {"start_set_shared_across_arms": start_ok,
-                        "max_abs_logged_vs_rescored": worst_log}
+                        "max_abs_logged_vs_rescored": worst_log,
+                        "code": code_integrity(per_cell, manifest)}
     rep["per_cell"] = per_cell
     return rep
 
@@ -324,6 +378,10 @@ def render(rep):
       f"`{rep['preregistration_commit']}`.  Built from files on disk; every "
       f"molecule re-scored with her oracle (max |logged - rescored| = "
       f"{rep['max_abs_logged_vs_rescored']:.2e}).\n\n")
+    ci = rep["integrity"]["code"]
+    if not ci["ok"] or not rep["integrity"]["start_set_shared_across_arms"]:
+        w("**INTEGRITY FAILURE: the cells were not all produced by the same result "
+          f"code / environment / starting sets.** {json.dumps(ci)}\n\n")
     if rep["missing_cells"]:
         w(f"Missing cells ({len(rep['missing_cells'])}): "
           + ", ".join(f"`{m}`" for m in rep["missing_cells"]) + "\n\n")
@@ -353,6 +411,9 @@ def render(rep):
           f"{r['seeds_missing']} | {note} |\n")
     w(f"\n**Verdict: {P['verdict']}**" + (" (PROVISIONAL: sweep incomplete)"
                                           if P["provisional"] else "") + "\n\n")
+    if P["no_data_tasks"]:
+        w(f"No complete pairs yet on: {', '.join(P['no_data_tasks'])} (they count "
+          f"towards neither WIN nor LOSS).\n\n")
 
     w("## L2 THE INTERLEAVE: library rank of each arm's best acquired molecule\n\n"
       "Rank in the 10,000-row library table (the table Tables 8.4-8.6 are the "
@@ -373,19 +434,31 @@ def render(rep):
     for t, r in rep["L3"]["per_task"].items():
         w(f"| {t} | {r['median_diff']:+.5f} | {r['p']:.4f} | {r['holm_p']:.4f} | "
           f"{r['n_positive']}/{r['n_negative']}/{r['n_zero']} |\n")
-    w("\n" + ("**ICM beats IND: a surprise to explain, not a victory to bank.**"
-              if rep["L3"]["icm_beats_ind"] else
-              "No coregionalization benefit, as expected.") + "\n\n")
+    if rep["L3"]["icm_beats_ind"]:
+        l3_text = "**ICM beats IND: a surprise to explain, not a victory to bank.**"
+    elif rep["L3"]["no_data_tasks"]:
+        l3_text = ("L3 not yet determined: no ICM-IND pairs on "
+                   + ", ".join(rep["L3"]["no_data_tasks"]) + ".")
+    else:
+        l3_text = "No coregionalization benefit, as expected."
+    w("\n" + l3_text + "\n\n")
 
     L4 = rep["L4"]
-    w("## L4 SENSITIVITY: n_init 10 vs 20 (fexofenadine, seeds 0-5)\n\n"
-      f"- n_init 10: median {L4['n_init_10']['median_diff']:+.5f}, p "
-      f"{L4['n_init_10']['p']:.4f}, {L4['category_10']}\n"
-      f"- n_init 20: median {L4['n_init_20_same_seeds']['median_diff']:+.5f}, p "
-      f"{L4['n_init_20_same_seeds']['p']:.4f}, {L4['category_20']}\n\n"
-      + ("**L4 FIRES: the comparison is sensitive to a number her own sources "
-         "disagree about (prose 10, code 20).**" if L4["flips"] else
-         "L4 does not fire.") + "\n\n")
+    w("## L4 SENSITIVITY: n_init 10 vs 20 (fexofenadine, seeds 0-5)\n\n")
+    if not L4["determined"]:
+        w("L4 undetermined: no seed has all four cells (Tier 3 and Tier 1, both "
+          "arms).\n\n")
+    else:
+        w(f"Seeds used (common to all four series): {L4['n_init_10']['seeds']}; "
+          f"missing: {L4['n_init_10']['seeds_missing']}\n\n"
+          f"- n_init 10: median {L4['n_init_10']['median_diff']:+.5f}, p "
+          f"{L4['n_init_10']['p']:.4f}, {L4['category_10']}\n"
+          f"- n_init 20: median {L4['n_init_20_same_seeds']['median_diff']:+.5f}, p "
+          f"{L4['n_init_20_same_seeds']['p']:.4f}, {L4['category_20']}\n\n"
+          + ("**L4 FIRES: the comparison is sensitive to a number her own sources "
+             "disagree about (her main-branch driver uses 20, her GuacaMol "
+             "drivers and prose use 10).**" if L4["flips"] else
+             "L4 does not fire.") + "\n\n")
 
     w("## Reference arm: HER-PUB minus HER@FP2 (seeds 0-5)\n\n"
       "| task | median diff | p |\n|---|---|---|\n")
@@ -414,7 +487,12 @@ def render(rep):
       "her fingerprint by definition.  The thesis prints Fexofenadine widths 2 "
       "and 2; her code uses 10 and 1, and the code is used.\n\n")
     w(f"Integrity: starting set shared across arms = "
-      f"{rep['integrity']['start_set_shared_across_arms']}.\n")
+      f"{rep['integrity']['start_set_shared_across_arms']}; result code identical "
+      f"across cells = {not ci['differing_files']} (reference head "
+      f"`{ci['reference_head']}`, cell heads {ci['cell_heads']}); GP-MOBO "
+      f"{ci['gp_mobo_heads']}; environments {len(ci['versions_seen'])}; cells "
+      f"launched while bench_yong/ had uncommitted edits: "
+      f"{ci['cells_bench_yong_dirty']}.\n")
     return o.getvalue()
 
 

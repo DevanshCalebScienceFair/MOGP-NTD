@@ -19,6 +19,13 @@ breach of ``--mem-cap-gb`` (GB = 1e9 bytes) sends SIGTERM, then SIGKILL after
 30 s.  That fails the one cell, not the machine.  ``--per-run-timeout-h`` is
 enforced the same way.  Any ``vina`` process stops the whole sweep.
 
+Result code (provenance.py: run_one.py, yong_common.py and every repo module a
+cell imports) is fingerprinted into the manifest.  A ``--resume`` against
+different result code is refused, and the fingerprint is re-checked before
+every launch, so a cell can never start on code the sweep did not start with.
+One sweep per output directory: ``sweep.lock`` holds the live sweep's pid, and a
+cell whose previous child is still alive is never moved or relaunched.
+
 Sweep-level files follow the repo's sweep-file rule.  ``manifest.json`` holds
 the PLAN, written once; a later ``--resume`` invocation must match it exactly
 and is appended to ``invocations``.  ``sweep_status.json`` is rebuilt from the
@@ -37,6 +44,7 @@ import time
 BENCH_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(BENCH_DIR)
 sys.path.insert(0, BENCH_DIR)
+import provenance  # noqa: E402
 import yong_common as yc  # noqa: E402
 
 RUN_ONE = os.path.join(BENCH_DIR, "run_one.py")
@@ -104,6 +112,14 @@ def check_preregistered(args):
     t1 = sorted(yc.canonical_arm(a) for a in args.tier1_arms)
     if t1 != sorted(["HER@FP2", "MOGP-ICM@FP2", "MOGP-IND@FP2", "RANDOM"]):
         problems.append(f"tier1 arms {args.tier1_arms} are not the pre-registered four")
+    if sorted(args.tier2_tasks) != sorted(yc.TASKS) or \
+            [yc.canonical_arm(a) for a in args.tier2_arms] != ["HER-PUB"]:
+        problems.append("tier2 must be all three tasks x HER-PUB (it is not droppable)")
+    if args.tier3_tasks or args.tier3_arms:       # tier 3 may be dropped entirely
+        if args.tier3_tasks != ["fexofenadine"] or \
+                sorted(yc.canonical_arm(a) for a in args.tier3_arms) != \
+                sorted(["HER@FP2", "MOGP-ICM@FP2"]):
+            problems.append("tier3 must be fexofenadine x {HER@FP2, MOGP-ICM@FP2}")
     if args.n_init != 20 or args.tier3_n_init != 10 or args.n_iterations != 20:
         problems.append("budget differs from the pre-registered 20 + 20 (tier 3: 10)")
     return problems
@@ -198,10 +214,13 @@ def write_sweep_status(out_dir, plan):
             state = "running" if pid_alive(st.get("pid")) else "stale_running"
         else:
             state = f"failed:{st.get('reason')}"
+        st = st or {}
+        elapsed = st.get("elapsed_s")
+        if elapsed is None and st.get("started") and state == "running":
+            elapsed = time.time() - st["started"]
         cells[c["name"]] = {"state": state, "tier": c["tier"],
-                            "peak_rss_gb_watchdog":
-                                (st or {}).get("peak_rss_kb", 0) * 1024 / GB,
-                            "elapsed_h": ((st or {}).get("elapsed_s") or 0) / 3600}
+                            "peak_rss_gb_watchdog": st.get("peak_rss_kb", 0) * 1024 / GB,
+                            "elapsed_h": (elapsed or 0) / 3600}
         key = f"tier{c['tier']}|{c['arm']}"
         counts.setdefault(key, {}).setdefault(state.split(":")[0], 0)
         counts[key][state.split(":")[0]] += 1
@@ -224,6 +243,13 @@ def launch(out_dir, cell, args, her_predict):
     attempt = 1
     if os.path.isdir(d):
         prev = read_cell_status(out_dir, cell["name"]) or {}
+        if prev.get("ended") is None and pid_alive(prev.get("pid")):
+            log(f"NOT relaunching {cell['name']}: its previous child (pid "
+                f"{prev.get('pid')}) is still alive")
+            return None
+        if is_complete(out_dir, cell["name"]):
+            log(f"NOT relaunching {cell['name']}: it completed meanwhile")
+            return None
         attempt = int(prev.get("attempt", 0)) + 1
         keep = os.path.join(out_dir, "attempts", cell["name"], f"attempt_{attempt - 1}")
         os.makedirs(os.path.dirname(keep), exist_ok=True)
@@ -343,6 +369,14 @@ def main(argv=None):
     vina = vina_running()
     if vina:
         problems.append(f"vina processes are running: {vina}")
+    lock_path = os.path.join(out_dir, "sweep.lock")
+    try:
+        with open(lock_path) as fh:
+            other = int(fh.read().split()[0])
+        if other != os.getpid() and pid_alive(other):
+            problems.append(f"another sweep (pid {other}) holds {lock_path}")
+    except (OSError, ValueError, IndexError):
+        pass
     if problems:
         for pr in problems:
             log(f"REFUSING TO LAUNCH: {pr}")
@@ -368,6 +402,7 @@ def main(argv=None):
         log(f"gates passed; G3 -> her predictions {her_predict}; "
             f"G5 determinism record: {gate_records.get('G5')}")
 
+    code_digest, code_pairs = provenance.fingerprint_working_tree()
     top = subprocess.run(["ps", "-Ao", "pid,pcpu,rss,comm", "-r"],
                          capture_output=True, text=True).stdout.splitlines()[:12]
     invocation = {"time": time.strftime("%Y-%m-%d %H:%M:%S"), "argv": sys.argv,
@@ -375,6 +410,7 @@ def main(argv=None):
                   "per_run_timeout_h": args.per_run_timeout_h,
                   "gate_exit": gate_rc, "gate_records": gate_records,
                   "her_predict": her_predict, "repo_head": yc.git_head(),
+                  "result_code_sha256": code_digest,
                   "top_processes_at_launch": top}
     config = {"n_init": args.n_init, "tier3_n_init": args.tier3_n_init,
               "n_iterations": args.n_iterations, "batch_size": args.batch_size,
@@ -391,15 +427,25 @@ def main(argv=None):
             log(f"REFUSING TO LAUNCH: her_predict {her_predict} != the sweep's "
                 f"{manifest.get('her_predict')}")
             return 2
+        pinned = manifest.get("result_code_files")
+        if pinned is None:   # manifest written before fingerprints were pinned
+            pinned = provenance.fingerprint_at(manifest["invocations"][0]["repo_head"])[1]
+            manifest["result_code_files"] = pinned
+        changed = provenance.diff(pinned, code_pairs)
+        if changed:
+            log(f"REFUSING TO LAUNCH: result code differs from the sweep's: {changed}")
+            return 2
         manifest["invocations"].append(invocation)
     else:
         manifest = {"plan": plan, "config": config, "her_predict": her_predict,
+                    "result_code_sha256": code_digest, "result_code_files": code_pairs,
                     "preregistration_commit": prereg_commit,
                     "preregistration_sha256": (yc.sha256_file(PREREG)
                                                if os.path.exists(PREREG) else None),
                     "created": invocation["time"], "invocations": [invocation]}
     yc.write_json_atomic(manifest_path, manifest)
 
+    yc.write_text_atomic(lock_path, f"{os.getpid()}\n")
     queue = [c for c in plan if not is_complete(out_dir, c["name"])]
     log(f"plan: {len(plan)} cells; {len(plan) - len(queue)} already complete; "
         f"{len(queue)} to run with {args.jobs} jobs, cap {args.mem_cap_gb} GB, "
@@ -414,10 +460,41 @@ def main(argv=None):
 
     cap_kb = args.mem_cap_gb * GB / 1024
     timeout_s = args.per_run_timeout_h * 3600
+    try:
+        poll_loop(out_dir, plan, queue, running, stop, args, her_predict, cap_kb,
+                  timeout_s, code_pairs)
+    except BaseException as e:            # anything unexpected still stops children
+        stop["reason"] = stop["reason"] or f"exception_{type(e).__name__}: {e}"
+        log(f"sweep loop raised: {e!r}")
+    finally:
+        shutdown(out_dir, running, stop)
+        try:
+            os.remove(lock_path)
+        except OSError:
+            pass
+
+    n_done = write_sweep_status(out_dir, plan)
+    log(f"sweep finished: {n_done}/{len(plan)} cells complete (from disk)")
+    if not args.test_mode:
+        rc = subprocess.run([sys.executable, os.path.join(BENCH_DIR, "report.py"),
+                             "--output-dir", out_dir], cwd=REPO).returncode
+        log(f"report.py exit {rc}")
+    return 0 if n_done == len(plan) else 1
+
+
+def poll_loop(out_dir, plan, queue, running, stop, args, her_predict, cap_kb,
+              timeout_s, code_pairs):
     while (queue or running) and stop["reason"] is None:
         while queue and len(running) < args.jobs and stop["reason"] is None:
+            changed = provenance.diff(code_pairs, provenance.fingerprint_working_tree()[1])
+            if changed:
+                log(f"STOPPING: result code changed on disk since launch: {changed}")
+                stop["reason"] = "result_code_changed"
+                break
             cell = queue.pop(0)
-            running[cell["name"]] = launch(out_dir, cell, args, her_predict)
+            job = launch(out_dir, cell, args, her_predict)
+            if job is not None:
+                running[cell["name"]] = job
         time.sleep(args.poll_s)
 
         rss = sample_rss_kb([j["proc"].pid for j in running.values()])
@@ -454,7 +531,9 @@ def main(argv=None):
             stop["reason"] = "vina_detected"
         write_sweep_status(out_dir, plan)
 
-    if stop["reason"]:
+
+def shutdown(out_dir, running, stop):
+    if stop["reason"] and running:
         log(f"stopping ({stop['reason']}): terminating {len(running)} children")
         for job in running.values():
             signal_group(job, signal.SIGTERM)
@@ -467,14 +546,6 @@ def main(argv=None):
                 signal_group(job, signal.SIGKILL)
                 job["proc"].wait()
             finalize(out_dir, job, f"stopped_{stop['reason']}")
-
-    n_done = write_sweep_status(out_dir, plan)
-    log(f"sweep finished: {n_done}/{len(plan)} cells complete (from disk)")
-    if not args.test_mode:
-        rc = subprocess.run([sys.executable, os.path.join(BENCH_DIR, "report.py"),
-                             "--output-dir", out_dir], cwd=REPO).returncode
-        log(f"report.py exit {rc}")
-    return 0 if n_done == len(plan) else 1
 
 
 if __name__ == "__main__":

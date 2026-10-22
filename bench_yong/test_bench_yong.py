@@ -491,9 +491,27 @@ def test_report_library_rank():
     assert report.library_rank(0.5, lib) == 4
 
 
-def test_report_verdict_no_data():
-    t = {"median_diff": float("nan"), "holm_p": 1.0,
-         "inconclusive_by_construction": True, "n_pairs": 0}
-    ok = {"median_diff": .1, "holm_p": .01, "inconclusive_by_construction": False,
-          "n_pairs": 10}
-    assert report.verdict({"a": t, "b": ok, "c": ok})[0].startswith("UNDETERMINED")
+def test_report_verdict_no_data_uses_the_rule_as_written():
+    """A task with no pairs counts towards neither WIN nor LOSS (section 5)."""
+    empty = report.signed_rank([])
+    empty["holm_p"] = 1.0
+    win = {"median_diff": .1, "holm_p": .01, "inconclusive_by_construction": False,
+           "n_pairs": 10}
+    loss = {"median_diff": -.02, "holm_p": .5, "inconclusive_by_construction": False,
+            "n_pairs": 10}
+    assert report.verdict({"a": empty, "b": win, "c": win})[0] == "WIN"
+    assert report.verdict({"a": empty, "b": loss, "c": loss})[0] == "LOSS"
+    assert report.verdict({"a": empty, "b": win, "c": loss})[0] == "INCONCLUSIVE"
+
+
+def test_report_l4_uses_one_common_seed_set():
+    seeds = list(range(6))
+    icm20 = {s: 0.6 for s in seeds}
+    her20 = {s: 0.5 for s in seeds}
+    icm10 = {s: 0.6 for s in seeds if s != 4}          # one tier-3 cell missing
+    her10 = {s: 0.5 for s in seeds}
+    r = report.l4_analysis(icm10, her10, icm20, her20, seeds)
+    assert r["n_init_10"]["seeds"] == r["n_init_20_same_seeds"]["seeds"] == [0, 1, 2, 3, 5]
+    assert r["category_10"] == r["category_20"] and r["flips"] is False
+    r = report.l4_analysis({}, {}, icm20, her20, seeds)  # tier 3 dropped
+    assert r["determined"] is False and r["flips"] is None

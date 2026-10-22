@@ -91,6 +91,9 @@ def task_category(res, p_key):
 
 
 def verdict(per_task):
+    empty = [t for t, r in per_task.items() if r.get("n_pairs", 1) == 0]
+    if empty:
+        return "UNDETERMINED (no complete pairs: " + ", ".join(empty) + ")", [], []
     wins = [t for t, r in per_task.items()
             if r["holm_p"] < ALPHA and r["median_diff"] > 0
             and not r["inconclusive_by_construction"]]
@@ -281,7 +284,7 @@ def build(out_dir):
     for t, a in zip(TASK_LIST, holm([l3[t]["p"] for t in TASK_LIST])):
         l3[t]["holm_p"] = a
     l3v, l3w, _ = verdict(l3)
-    rep["L3"] = {"per_task": l3, "icm_beats_ind": l3v == "WIN",
+    rep["L3"] = {"per_task": l3, "icm_beats_ind": l3v == "WIN",  # never on no data
                  "verdict_shape": l3v}
 
     # ---- L4 sensitivity ------------------------------------------------------
@@ -343,7 +346,8 @@ def render(rep):
     w("| task | pairs | non-tied | median diff | W | p | Holm p | missing seeds | note |\n"
       "|---|---|---|---|---|---|---|---|---|\n")
     for t, r in P["per_task"].items():
-        note = "INCONCLUSIVE BY CONSTRUCTION" if r["inconclusive_by_construction"] else ""
+        note = ("NO DATA" if r["n_pairs"] == 0 else
+                "INCONCLUSIVE BY CONSTRUCTION" if r["inconclusive_by_construction"] else "")
         w(f"| {t} | {r['n_pairs']} | {r['n_nontied']} | {r['median_diff']:+.5f} | "
           f"{fmt(r['statistic'], 1)} | {r['p']:.4f} | {r['holm_p']:.4f} | "
           f"{r['seeds_missing']} | {note} |\n")

@@ -489,3 +489,11 @@ def test_report_library_rank():
     assert report.library_rank(0.9, lib) == 1
     assert report.library_rank(0.8, lib) == 2
     assert report.library_rank(0.5, lib) == 4
+
+
+def test_report_verdict_no_data():
+    t = {"median_diff": float("nan"), "holm_p": 1.0,
+         "inconclusive_by_construction": True, "n_pairs": 0}
+    ok = {"median_diff": .1, "holm_p": .01, "inconclusive_by_construction": False,
+          "n_pairs": 10}
+    assert report.verdict({"a": t, "b": ok, "c": ok})[0].startswith("UNDETERMINED")

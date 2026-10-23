@@ -26,6 +26,11 @@ every launch, so a cell can never start on code the sweep did not start with.
 One sweep per output directory: ``sweep.lock`` holds the live sweep's pid, and a
 cell whose previous child is still alive is never moved or relaunched.
 
+Tier 4 (HER-PUBLISHED, Amendment 2) runs as its own self-contained sweep in its
+own output directory and is refused in the same sweep as Tiers 1-3.  Its cells
+are dispatched to ``run_one_published.py``, which drives her ``guacamol-test``
+drivers; the pinned ``external/GP-MOBO`` tree is only ever read.
+
 Sweep-level files follow the repo's sweep-file rule.  ``manifest.json`` holds
 the PLAN, written once; a later ``--resume`` invocation must match it exactly
 and is appended to ``invocations``.  ``sweep_status.json`` is rebuilt from the
@@ -44,10 +49,12 @@ import time
 BENCH_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(BENCH_DIR)
 sys.path.insert(0, BENCH_DIR)
+import her_published as hp  # noqa: E402
 import provenance  # noqa: E402
 import yong_common as yc  # noqa: E402
 
 RUN_ONE = os.path.join(BENCH_DIR, "run_one.py")
+RUN_ONE_PUBLISHED = os.path.join(BENCH_DIR, "run_one_published.py")
 TEST_FILE = os.path.join(BENCH_DIR, "test_bench_yong.py")
 PREREG = os.path.join(BENCH_DIR, "PREREGISTRATION.md")
 KILL_GRACE_S = 30
@@ -55,8 +62,8 @@ GB = 1e9
 # --test-mode accepts pool-limited cells as complete; a real sweep never does.
 ACCEPT_POOL_LIMIT = False
 
-ARM_ORDER = {"HER@FP2": 0, "HER-PUB": 1, "MOGP-ICM@FP2": 2, "MOGP-IND@FP2": 3,
-             "RANDOM": 4}
+ARM_ORDER = {"HER-PUBLISHED": 0, "HER@FP2": 1, "HER-PUB": 2,
+             "MOGP-ICM@FP2": 3, "MOGP-IND@FP2": 4, "RANDOM": 5}
 TASK_ORDER = {"fexofenadine": 0, "amlodipine": 1, "perindopril": 2}
 
 
@@ -73,6 +80,7 @@ def build_plan(args):
         (1, args.tier1_tasks, args.tier1_arms, args.tier1_seeds, args.n_init),
         (2, args.tier2_tasks, args.tier2_arms, args.tier2_seeds, args.n_init),
         (3, args.tier3_tasks, args.tier3_arms, args.tier3_seeds, args.tier3_n_init),
+        (4, args.tier4_tasks, args.tier4_arms, args.tier4_seeds, args.tier4_n_init),
     ]
     plan, seen = [], set()
     for tier, tasks, arms, seeds, n_init in tiers:
@@ -100,7 +108,40 @@ def build_plan(args):
     return plan
 
 
+def check_preregistered_tier4(args):
+    """Amendment 2 section 5: 3 tasks x {HER-PUBLISHED, MOGP-ICM@FP2, RANDOM} x
+    seeds 0-9 at n_init 10.  Amendment 2 section 3 forbids any other grid."""
+    problems = []
+    if list(args.tier4_seeds) != yc.PREREG_TIER4_SEEDS:
+        problems.append(f"tier4 seeds {args.tier4_seeds} != pre-registered "
+                        f"{yc.PREREG_TIER4_SEEDS}")
+    if sorted(args.tier4_tasks) != sorted(yc.TASKS):
+        problems.append(f"tier4 tasks {args.tier4_tasks} != {sorted(yc.TASKS)}")
+    if sorted(yc.canonical_arm(a) for a in args.tier4_arms) != sorted(
+            yc.PREREG_TIER4_ARMS):
+        problems.append(f"tier4 arms {args.tier4_arms} are not the "
+                        f"pre-registered {yc.PREREG_TIER4_ARMS}")
+    if args.tier4_n_init != hp.RECIPE["n_init"]:
+        problems.append(f"tier4 n_init {args.tier4_n_init} != "
+                        f"{hp.RECIPE['n_init']} (her published protocol)")
+    if args.n_iterations != 20:
+        problems.append("tier4 keeps 20 BO iterations")
+    ok, _prov, bad = hp.verify_provenance()
+    if not ok:
+        problems += [f"tier4 provenance: {b}" for b in bad]
+    return problems
+
+
 def check_preregistered(args):
+    """Tier 1-3 (PREREGISTRATION.md section 4) or Tier 4 alone (Amendment 2)."""
+    tier123 = bool(args.tier1_tasks or args.tier2_tasks or args.tier3_tasks)
+    tier4 = bool(args.tier4_tasks or args.tier4_arms)
+    if tier4 and tier123:
+        return ["Tier 4 must run as its own sweep, in its own output directory "
+                "(Amendment 2 section 5): it is self-contained, so no Tier 4 "
+                "statistic is ever assembled from another sweep's files"]
+    if tier4:
+        return check_preregistered_tier4(args)
     problems = []
     for label, got, want in (("tier1", args.tier1_seeds, yc.PREREG_TIER1_SEEDS),
                              ("tier2", args.tier2_seeds, yc.PREREG_TIER2_SEEDS),
@@ -255,10 +296,15 @@ def launch(out_dir, cell, args, her_predict):
         os.makedirs(os.path.dirname(keep), exist_ok=True)
         shutil.move(d, keep)
     os.makedirs(d)
-    cmd = [sys.executable, "-u", RUN_ONE, "--task", cell["task"], "--arm",
+    # HER-PUBLISHED needs her guacamol-test tree, which must never share a
+    # process with the pinned one, so it has its own runner (Amendment 2).
+    published = cell["arm"] == yc.HER_PUBLISHED_ARM
+    runner = RUN_ONE_PUBLISHED if published else RUN_ONE
+    predict = her_predict[1] if published else her_predict[0]
+    cmd = [sys.executable, "-u", runner, "--task", cell["task"], "--arm",
            cell["arm"], "--seed", str(cell["seed"]), "--n-init", str(cell["n_init"]),
            "--n-iterations", str(args.n_iterations), "--batch-size",
-           str(args.batch_size), "--her-predict", her_predict, "--output-dir", d]
+           str(args.batch_size), "--her-predict", predict, "--output-dir", d]
     if args.pool_limit is not None:
         cmd += ["--pool-limit", str(args.pool_limit)]
     env = dict(os.environ, PYTHONUNBUFFERED="1", MPLBACKEND="Agg")
@@ -322,11 +368,12 @@ def finalize(out_dir, job, reason=None):
 
 def parse_args(argv=None):
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    for t in (1, 2, 3):
+    for t in (1, 2, 3, 4):
         p.add_argument(f"--tier{t}-tasks", nargs="+", default=[])
         p.add_argument(f"--tier{t}-arms", nargs="+", default=[])
         p.add_argument(f"--tier{t}-seeds", nargs="+", type=int, default=[])
     p.add_argument("--tier3-n-init", type=int, default=10)
+    p.add_argument("--tier4-n-init", type=int, default=hp.RECIPE["n_init"])
     p.add_argument("--n-init", type=int, default=20)
     p.add_argument("--n-iterations", type=int, default=20)
     p.add_argument("--batch-size", type=int, default=1)
@@ -388,7 +435,8 @@ def main(argv=None):
         return 2
 
     if args.test_mode:
-        gate_rc, gate_records, gate_dir, her_predict = 0, {}, None, "batched"
+        gate_rc, gate_records, gate_dir = 0, {}, None
+        her_predict = ("batched", "batched")
         log("TEST MODE: gates skipped")
     else:
         gate_rc, gate_records, gate_dir = run_gates(out_dir)
@@ -398,10 +446,26 @@ def main(argv=None):
                 f"failing records: {failed}")
             return 2
         with open(os.path.join(gate_dir, "G3.json")) as fh:
-            her_predict = json.load(fh)["her_predict"]
-        log(f"gates passed; G3 -> her predictions {her_predict}; "
-            f"G5 determinism record: {gate_records.get('G5')}")
+            main_predict = json.load(fh)["her_predict"]
+        published_predict = "unbatched"
+        g3t4 = os.path.join(gate_dir, "G3_TIER4.json")
+        if os.path.exists(g3t4):
+            with open(g3t4) as fh:
+                published_predict = json.load(fh)["her_predict"]
+        elif any(c["arm"] == yc.HER_PUBLISHED_ARM for c in plan):
+            log("REFUSING TO LAUNCH: the plan contains HER-PUBLISHED cells but "
+                "the Tier 4 batching gate wrote no G3_TIER4.json")
+            return 2
+        her_predict = (main_predict, published_predict)
+        log(f"gates passed; G3 -> her predictions {main_predict}, Tier 4 "
+            f"{published_predict}; G5 determinism record: {gate_records.get('G5')}")
 
+    if any(c["arm"] == yc.HER_PUBLISHED_ARM for c in plan):
+        try:
+            log(f"materialising her guacamol-test tree: {hp.materialize()}")
+        except Exception as e:
+            log(f"REFUSING TO LAUNCH: cannot materialise her tree: {e}")
+            return 2
     code_digest, code_pairs = provenance.fingerprint_working_tree()
     top = subprocess.run(["ps", "-Ao", "pid,pcpu,rss,comm", "-r"],
                          capture_output=True, text=True).stdout.splitlines()[:12]
@@ -409,7 +473,9 @@ def main(argv=None):
                   "jobs": args.jobs, "mem_cap_gb": args.mem_cap_gb,
                   "per_run_timeout_h": args.per_run_timeout_h,
                   "gate_exit": gate_rc, "gate_records": gate_records,
-                  "her_predict": her_predict, "repo_head": yc.git_head(),
+                  "her_predict": her_predict[0],
+                  "her_predict_published": her_predict[1],
+                  "repo_head": yc.git_head(),
                   "result_code_sha256": code_digest,
                   "top_processes_at_launch": top}
     config = {"n_init": args.n_init, "tier3_n_init": args.tier3_n_init,
@@ -423,9 +489,10 @@ def main(argv=None):
             log("REFUSING TO LAUNCH: --resume plan/config differs from the "
                 "manifest's; a recovery run may not redefine the sweep")
             return 2
-        if manifest.get("her_predict") != her_predict:
+        if (manifest.get("her_predict"),
+                manifest.get("her_predict_published")) != her_predict:
             log(f"REFUSING TO LAUNCH: her_predict {her_predict} != the sweep's "
-                f"{manifest.get('her_predict')}")
+                f"{(manifest.get('her_predict'), manifest.get('her_predict_published'))}")
             return 2
         pinned = manifest.get("result_code_files")
         if pinned is None:   # manifest written before fingerprints were pinned
@@ -437,7 +504,9 @@ def main(argv=None):
             return 2
         manifest["invocations"].append(invocation)
     else:
-        manifest = {"plan": plan, "config": config, "her_predict": her_predict,
+        manifest = {"plan": plan, "config": config,
+                    "her_predict": her_predict[0],
+                    "her_predict_published": her_predict[1],
                     "result_code_sha256": code_digest, "result_code_files": code_pairs,
                     "preregistration_commit": prereg_commit,
                     "preregistration_sha256": (yc.sha256_file(PREREG)

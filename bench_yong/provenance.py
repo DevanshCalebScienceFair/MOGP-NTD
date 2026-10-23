@@ -28,6 +28,9 @@ REPO = os.path.dirname(BENCH_DIR)
 RESULT_CODE_FILES = (
     "bench_yong/run_one.py", "bench_yong/yong_common.py", "acquisition.py",
     "mogp.py", "thread_pin.py", "utils/__init__.py", "utils/featurize.py",
+    # Tier 4 (Amendment 2).  Absent from the Tier 1-3 commits, so they are
+    # absent on both sides of that sweep's comparison and cannot affect it.
+    "bench_yong/run_one_published.py", "bench_yong/her_published.py",
 )
 RESULT_CODE_DIRS = ("mogp_core",)
 

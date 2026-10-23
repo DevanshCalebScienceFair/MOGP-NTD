@@ -78,6 +78,9 @@ HER_MC_DRAWS = 1000         # her estimator's N, left alone
 PREREG_TIER1_SEEDS = list(range(10))
 PREREG_TIER2_SEEDS = list(range(6))
 PREREG_TIER3_SEEDS = list(range(6))
+#: Tier 4 (PREREGISTRATION_AMENDMENT_2.md section 5): her published protocol.
+PREREG_TIER4_SEEDS = list(range(10))
+PREREG_TIER4_ARMS = ["HER-PUBLISHED", "MOGP-ICM@FP2", "RANDOM"]
 
 TASKS = {
     "fexofenadine": {
@@ -98,9 +101,16 @@ TASKS = {
     },
 }
 
-ARMS = ["HER@FP2", "HER-PUB", "MOGP-ICM@FP2", "MOGP-IND@FP2", "RANDOM"]
+#: ``HER-PUBLISHED`` is Tier 4 (Amendment 2) and is NOT in :data:`HER_ARMS`:
+#: ``run_one.py`` cannot run it (it refuses), because it needs her
+#: ``guacamol-test`` tree, which must never share a process with the pinned one.
+#: ``bench_yong/run_one_published.py`` runs it.  Listing the name here is a data
+#: addition only; no Tier 1-3 code path reads it.
+ARMS = ["HER@FP2", "HER-PUB", "HER-PUBLISHED", "MOGP-ICM@FP2", "MOGP-IND@FP2",
+        "RANDOM"]
 ARM_ALIASES = {"MOGP-ICM": "MOGP-ICM@FP2", "MOGP-IND": "MOGP-IND@FP2"}
 HER_ARMS = ("HER@FP2", "HER-PUB")
+HER_PUBLISHED_ARM = "HER-PUBLISHED"
 OUR_ARMS = ("MOGP-ICM@FP2", "MOGP-IND@FP2")
 
 # The thesis prints these widths; her CODE uses others, and the code wins.

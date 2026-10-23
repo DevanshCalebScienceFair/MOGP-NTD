@@ -43,6 +43,12 @@ MIN_NONTIED = 6            # with <= 5 pairs the smallest two-sided p is 0.0625
 TASK_LIST = ["fexofenadine", "amlodipine", "perindopril"]
 PRIMARY = ("MOGP-ICM@FP2", "HER@FP2")
 AMENDMENT_1 = "bench_yong/PREREGISTRATION_AMENDMENT_1.md"
+AMENDMENT_2 = "bench_yong/PREREGISTRATION_AMENDMENT_2.md"
+
+#: Tier 4 (Amendment 2): her published protocol, at her n_init, seeds 0-9.
+#: The RULES are Amendment 1's, unchanged; only the comparator and n_init move.
+TIER4 = {"primary": ("MOGP-ICM@FP2", "HER-PUBLISHED"), "n_init": 10,
+         "arms": ("HER-PUBLISHED", "MOGP-ICM@FP2", "RANDOM")}
 
 
 # --------------------------------------------------------------------------
@@ -147,11 +153,11 @@ def floor_revised(per_task):
             "fires": (not cleared) and not no_data}
 
 
-def amendment_commit():
-    """``(hash, committer ISO time)`` of the commit that added Amendment 1."""
+def amendment_commit(path=AMENDMENT_1):
+    """``(hash, committer ISO time)`` of the commit that added an amendment."""
     try:
         out = subprocess.run(["git", "-C", REPO, "log", "--diff-filter=A",
-                              "--format=%H %cI", "--", AMENDMENT_1],
+                              "--format=%H %cI", "--", path],
                              capture_output=True, text=True, check=True).stdout
         line = out.strip().splitlines()[-1].split()
         return line[0], line[1]
@@ -352,17 +358,39 @@ def build(out_dir):
         return res
 
     T1, T2 = yc.PREREG_TIER1_SEEDS, yc.PREREG_TIER2_SEEDS
+    # Which design is on disk?  A Tier 4 sweep is self-contained (Amendment 2
+    # section 5) and run_sweep refuses to mix it with Tiers 1-3.
+    tiers = {c.get("tier") for c in planned.values()} or \
+        {4 if any(r["arm"] == yc.HER_PUBLISHED_ARM for r in per_cell) else 1}
+    is_tier4 = tiers == {4}
+    if is_tier4:
+        primary_pair = TIER4["primary"]
+        p_init, p_seeds = TIER4["n_init"], yc.PREREG_TIER4_SEEDS
+        l2_arms = tuple((a, TIER4["n_init"], yc.PREREG_TIER4_SEEDS)
+                        for a in TIER4["arms"])
+    else:
+        primary_pair, p_init, p_seeds = PRIMARY, 20, T1
+        l2_arms = (("HER@FP2", 20, T1), ("HER-PUB", 20, T2),
+                   ("MOGP-ICM@FP2", 20, T1), ("MOGP-IND@FP2", 20, T1),
+                   ("RANDOM", 20, T1))
     a_hash, a_time = amendment_commit()
+    a2_hash, a2_time = amendment_commit(AMENDMENT_2)
     rep = {"sweep_status": status, "missing_cells": missing,
            "rejected_cells": rejected, "unplanned_cells": unplanned,
            "n_cells_found": len(found), "n_cells_planned": len(planned),
            "preregistration_commit": (manifest or {}).get("preregistration_commit"),
            "amendment_1_commit": a_hash, "amendment_1_committed": a_time,
+           "amendment_2_commit": a2_hash, "amendment_2_committed": a2_time,
+           "design": {"tier4": is_tier4, "tiers_present": sorted(t for t in tiers
+                                                                 if t is not None),
+                      "primary_pair": list(primary_pair), "n_init": p_init,
+                      "seeds": list(p_seeds)},
            "sweep_last_cell_ended": last_cell_end(out_dir),
            "max_abs_logged_vs_rescored": worst_log}
 
     # ---- L1-REVISED, the floor (Amendment 1) ---------------------------------
-    l1r = {t: paired(t, "MOGP-ICM@FP2", "RANDOM", 20, T1) for t in TASK_LIST}
+    l1r = {t: paired(t, "MOGP-ICM@FP2", "RANDOM", p_init, p_seeds)
+           for t in TASK_LIST}
     for t, a in zip(TASK_LIST, holm([l1r[t]["p"] for t in TASK_LIST])):
         l1r[t]["holm_p"] = a
     rep["L1_REVISED"] = dict(floor_revised(l1r), per_task=l1r,
@@ -371,8 +399,10 @@ def build(out_dir):
     # ---- L1-ORIGINAL (over-strict; superseded by Amendment 1) ---------------
     l1 = {}
     for t in TASK_LIST:
-        icm = [v["best_acquired"] for v in series(t, "MOGP-ICM@FP2", 20, T1).values()]
-        rnd = [v["best_acquired"] for v in series(t, "RANDOM", 20, T1).values()]
+        icm = [v["best_acquired"]
+               for v in series(t, "MOGP-ICM@FP2", p_init, p_seeds).values()]
+        rnd = [v["best_acquired"]
+               for v in series(t, "RANDOM", p_init, p_seeds).values()]
         if icm and rnd:
             med, p95 = float(np.median(icm)), float(np.percentile(rnd, 95))
             l1[t] = {"icm_median": med, "random_p95": p95, "n_icm": len(icm),
@@ -386,12 +416,15 @@ def build(out_dir):
                                               for v in l1.values())}
 
     # ---- primary -----------------------------------------------------------
-    prim = {t: paired(t, *PRIMARY, 20, T1) for t in TASK_LIST}
+    prim = {t: paired(t, *primary_pair, p_init, p_seeds) for t in TASK_LIST}
     adj = holm([prim[t]["p"] for t in TASK_LIST])
     for t, a in zip(TASK_LIST, adj):
         prim[t]["holm_p"] = a
     v, wins, losses = verdict(prim)
-    rep["primary"] = {"per_task": prim, "verdict": v, "winning_tasks": wins,
+    rep["primary"] = {"per_task": prim, "comparison":
+                      f"{primary_pair[0]} minus {primary_pair[1]}, n_init "
+                      f"{p_init}, seeds {min(p_seeds)}-{max(p_seeds)}",
+                      "verdict": v, "winning_tasks": wins,
                       "losing_tasks": losses,
                       "verdict_original_rule_superseded": verdict_original(prim)[0],
                       "no_data_tasks": [t for t in TASK_LIST if prim[t]["n_pairs"] == 0],
@@ -401,19 +434,23 @@ def build(out_dir):
     l2 = {}
     for t in TASK_LIST:
         l2[t] = {}
-        for arm, n_init, seeds in (("HER@FP2", 20, T1), ("HER-PUB", 20, T2),
-                                   ("MOGP-ICM@FP2", 20, T1), ("MOGP-IND@FP2", 20, T1),
-                                   ("RANDOM", 20, T1)):
+        for arm, n_init, seeds in l2_arms:
             s = series(t, arm, n_init, seeds)
             ranks = [s[k]["library_rank"] for k in sorted(s)]
             l2[t][arm] = {"seeds": sorted(s), "ranks": ranks,
                           "median_rank": float(np.median(ranks)) if ranks else None}
-    her_meds = {t: l2[t]["HER@FP2"]["median_rank"] for t in TASK_LIST}
-    rep["L2"] = {"per_task": l2, "her_median_rank": her_meds,
+    her_arm = primary_pair[1]
+    her_meds = {t: l2[t][her_arm]["median_rank"] for t in TASK_LIST}
+    rep["L2"] = {"per_task": l2, "her_arm": her_arm, "her_median_rank": her_meds,
                  "fires_on": [t for t, m in her_meds.items()
                               if m is not None and m <= 3]}
 
-    # ---- L3 coregionalization ---------------------------------------------
+    # ---- L3 coregionalization (Tier 1-3 only) ------------------------------
+    if is_tier4:
+        rep["L3"] = rep["L4"] = None
+        rep["reference_HER-PUB_minus_HER@FP2"] = None
+        rep["primary_vs_HER-PUB_context"] = None
+        return _finish(rep, per_cell, manifest, worst_log)
     l3 = {t: paired(t, "MOGP-ICM@FP2", "MOGP-IND@FP2", 20, T1) for t in TASK_LIST}
     for t, a in zip(TASK_LIST, holm([l3[t]["p"] for t in TASK_LIST])):
         l3[t]["holm_p"] = a
@@ -437,11 +474,15 @@ def build(out_dir):
     rep["primary_vs_HER-PUB_context"] = {
         t: paired(t, "MOGP-ICM@FP2", "HER-PUB", 20, T2) for t in TASK_LIST}
 
-    # ---- integrity ---------------------------------------------------------
+    return _finish(rep, per_cell, manifest, worst_log)
+
+
+def _finish(rep, per_cell, manifest, worst_log):
+    """The integrity block, shared by both designs."""
     start_ok = True
     for t in TASK_LIST:
         for n_init in (20, 10):
-            for seed in range(10):
+            for seed in range(10):  # noqa: B007 -- the pre-registered seed range
                 shas = {r["start_set_sha256"] for r in per_cell
                         if r["task"] == t and r["seed"] == seed and r["n_init"] == n_init}
                 start_ok &= len(shas) <= 1
@@ -467,6 +508,15 @@ def render(rep):
     if a_time and last:
         before = (datetime.datetime.fromisoformat(a_time) <
                   datetime.datetime.fromisoformat(last))
+    d = rep["design"]
+    if d["tier4"]:
+        w(f"**Design: TIER 4** (Amendment 2, commit `{rep['amendment_2_commit']}`, "
+          f"{rep['amendment_2_committed']}): her PUBLISHED protocol, 10 starting "
+          f"molecules and fixed hyperparameters, against MOGP-ICM@FP2 and RANDOM "
+          f"at the same n_init 10, so 30 oracle evaluations per run for every arm."
+          f"  Amendment 2 was written AFTER the Tier 1-3 results were read and "
+          f"says so in its own section 1; it adds no rule and expects "
+          f"INCONCLUSIVE.\n\n")
     w(f"Rules: PREREGISTRATION.md as amended by Amendment 1, commit `{a_hash}` "
       f"({a_time}); the sweep's last cell ended {last}"
       + ("" if before is None else
@@ -528,7 +578,7 @@ def render(rep):
       + ".\n\n")
 
     P = rep["primary"]
-    w("## Primary endpoint: MOGP-ICM@FP2 minus HER@FP2, best-of-acquired, seeds 0-9\n\n")
+    w(f"## Primary endpoint: {P['comparison']}, best-of-acquired\n\n")
     w("| task | pairs | non-tied | median diff | W | p | Holm p | missing seeds | note |\n"
       "|---|---|---|---|---|---|---|---|---|\n")
     for t, r in P["per_task"].items():
@@ -559,12 +609,20 @@ def render(rep):
         for arm, v in arms.items():
             w(f"| {arm} | {v['median_rank']} | {v['ranks']} (seeds {v['seeds']}) |\n")
         w("\n")
+    her_arm = rep["L2"]["her_arm"]
     for t, m in rep["L2"]["her_median_rank"].items():
         if m is not None and m <= 3:
-            w(f"**L2 FIRES on {t}: HER@FP2 median rank = {m:g}**\n\n")
+            w(f"**L2 FIRES on {t}: {her_arm} median rank = {m:g}**\n\n")
     if not rep["L2"]["fires_on"]:
-        w(f"L2 does not fire: HER@FP2 median ranks {rep['L2']['her_median_rank']}\n\n")
+        w(f"L2 does not fire: {her_arm} median ranks "
+          f"{rep['L2']['her_median_rank']}\n\n")
 
+    if rep["L3"] is None:
+        w("## L3, L4 and the HER-PUB reference arm\n\nNot applicable in a Tier 4 "
+          "sweep: L3 (coregionalization), L4 (n_init sensitivity) and the HER-PUB "
+          "reference arm are Tier 1-3 analyses, reported in that sweep's own "
+          "report.  Amendment 2 adds no analysis of its own.\n\n")
+        return _render_tail(o, w, rep)
     w("## L3 THE EXPECTED NULL: MOGP-ICM minus MOGP-IND\n\n"
       "| task | median diff | p | Holm p | +/-/0 |\n|---|---|---|---|---|\n")
     for t, r in rep["L3"]["per_task"].items():
@@ -601,6 +659,12 @@ def render(rep):
     for t, r in rep["reference_HER-PUB_minus_HER@FP2"].items():
         w(f"| {t} | {r['median_diff']:+.5f} | {r['p']:.4f} |\n")
 
+    return _render_tail(o, w, rep)
+
+
+def _render_tail(o, w, rep):
+    """Per-arm table, the budget paragraph and the integrity line."""
+    ci = rep["integrity"]["code"]
     w("\n## Per-arm best-of-acquired (starting set excluded)\n\n"
       "| task | arm | n_init | n | median | min | max | start-set best (excluded) |\n"
       "|---|---|---|---|---|---|---|---|\n")
@@ -623,6 +687,11 @@ def render(rep):
       "Results against HER@FP2 and HER-PUB are results against her code under her "
       "main-branch recipe, not against her published method (bench_yong/"
       "HER_CONFIG.md; erratum in PREREGISTRATION_AMENDMENT_1.md).  "
+      + ("**This Tier 4 sweep is the arm that does reproduce her published "
+         "protocol**, at 30 oracle evaluations for every arm; it confounds her "
+         "protocol with her fingerprint, as Amendment 2 section 6 states, so its "
+         "finding is about her published configuration as a whole.  "
+         if rep["design"]["tier4"] else "") +
       "Modifications to her code: M1 import stand-ins "
       "(rdkit.six, utils.utils_final), M2 seeding, M3 batched predictions (if G3 "
       "passed), M4 evaluator binding for amlodipine/perindopril; HER@FP2 swaps "

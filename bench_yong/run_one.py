@@ -364,6 +364,12 @@ def main(argv=None):
     args = p.parse_args(argv)
 
     arm = yc.canonical_arm(args.arm)
+    if arm == yc.HER_PUBLISHED_ARM:
+        # Tier 4 (Amendment 2) needs her guacamol-test tree, which must never
+        # share a process with the pinned one.  Refuse rather than fall through
+        # to the RANDOM branch, which would silently produce a wrong result.
+        raise SystemExit(f"{arm} is Tier 4: run it with "
+                         f"bench_yong/run_one_published.py, not run_one.py")
     if args.batch_size != 1:
         raise SystemExit("batch size must be 1: her loop is q=1 greedy")
     out = os.path.abspath(args.output_dir)

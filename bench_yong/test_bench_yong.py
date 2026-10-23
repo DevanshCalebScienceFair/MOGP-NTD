@@ -252,7 +252,10 @@ def test_G3_batched_predictions_record():
 # --------------------------------------------------------------------------
 
 def test_G5_determinism_record(tmp_path):
-    cells = [("fexofenadine", a) for a in yc.ARMS] + [("amlodipine", "HER@FP2"),
+    # The arms run_one.py actually runs.  HER-PUBLISHED is Tier 4 and belongs to
+    # run_one_published.py, which this gate's Tier 4 twin (G5_TIER4) covers.
+    runnable = [a for a in yc.ARMS if a != yc.HER_PUBLISHED_ARM]
+    cells = [("fexofenadine", a) for a in runnable] + [("amlodipine", "HER@FP2"),
                                                        ("amlodipine", "MOGP-ICM@FP2")]
     env = dict(os.environ, PYTHONUNBUFFERED="1", MPLBACKEND="Agg")
     procs = []
@@ -542,3 +545,286 @@ def test_report_l4_uses_one_common_seed_set():
     assert r["category_10"] == r["category_20"] and r["flips"] is False
     r = report.l4_analysis({}, {}, icm20, her20, seeds)  # tier 3 dropped
     assert r["determined"] is False and r["flips"] is None
+
+
+# --------------------------------------------------------------------------
+# Tier 4 gates: HER-PUBLISHED (PREREGISTRATION_AMENDMENT_2.md section 5)
+#
+# Every one of these shells out.  Her two revisions ship the same package names,
+# and the Tier 1-3 gates above put the PINNED tree on this process's sys.path, so
+# nothing here may import her guacamol-test tree in-process.
+# --------------------------------------------------------------------------
+
+import her_published as hp  # noqa: E402
+
+T4_TASKS = ["fexofenadine", "amlodipine", "perindopril"]
+
+
+def _t4(body, *args, expect_ok=True):
+    """Run ``body`` in a fresh interpreter with bench_yong importable.
+
+    The last line it prints must be JSON.  Returns the decoded object.
+    """
+    script = ("import json, sys\n"
+              f"sys.path.insert(0, {BENCH_DIR!r})\n" + body)
+    p = subprocess.run([PY, "-B", "-W", "ignore", "-c", script, *map(str, args)],
+                       capture_output=True, text=True, cwd=REPO, timeout=3600,
+                       env=dict(os.environ, PYTHONDONTWRITEBYTECODE="1",
+                                MPLBACKEND="Agg"))
+    if expect_ok:
+        assert p.returncode == 0, p.stderr[-3000:]
+    out = [l for l in p.stdout.splitlines() if l.startswith(("{", "["))]
+    assert out, f"no JSON on stdout.\nstdout:\n{p.stdout[-2000:]}\nstderr:\n{p.stderr[-2000:]}"
+    return json.loads(out[-1])
+
+
+def test_G10_her_published_provenance():
+    """Her guacamol-test tree is the one Amendment 2 names, and the pinned tree
+    is untouched; her scoring code is identical on both her branches."""
+    ok, prov, bad = hp.verify_provenance()
+    same, detail = hp.mpo_source_identical()
+    materialized = _t4("import her_published as hp\n"
+                       "p = hp.materialize()\n"
+                       "print(json.dumps({'path': p, 'stamp': "
+                       "open(p + '/.tier4_tree').read().strip()}))")
+    record("G10", {"pass": ok and same and materialized["stamp"] == hp.TREE,
+                   "provenance": prov, "problems": bad,
+                   "materialized": materialized,
+                   "shared_source_identical": same, "shared_source": detail,
+                   "expected_tree": hp.TREE, "driver_blobs": hp.DRIVER_BLOBS})
+    assert ok, bad
+    assert same, {k: v for k, v in detail.items() if v != "identical"}
+    assert materialized["stamp"] == hp.TREE
+
+
+def test_G11_her_published_imports():
+    """Her drivers import with the M5-M7 stand-ins and fail without them."""
+    shipped = _t4(
+        "import her_published as hp\n"
+        "out = {}\n"
+        "path = hp.add_path()            # her tree on sys.path, no stand-ins\n"
+        "try:\n"
+        "    import ehvi_amlodipine\n"
+        "    out['as_shipped'] = 'imported'\n"
+        "except Exception as e:\n"
+        "    out['as_shipped'] = f'{type(e).__name__}: {e}'\n"
+        "out['package_init_bytes'] = __import__('os').path.getsize(\n"
+        "    path + '/tdc_oracles_modified/__init__.py')\n"
+        "src = open(path + '/utils/utils_final.py').read()\n"
+        "out['utils_final_defines'] = sorted(\n"
+        "    n for n in ('evaluate_fex_objectives', 'evaluate_amlo_objectives',\n"
+        "                'evaluate_perin_objectives') if 'def ' + n in src)\n"
+        "print(json.dumps(out))")
+    with_standins = _t4(
+        "import inspect, os\n"
+        "import her_published as hp\n"
+        "out = {}\n"
+        "for task in ('fexofenadine', 'amlodipine', 'perindopril'):\n"
+        "    d = hp.load_driver(task)\n"
+        "    out[task] = {\n"
+        "        'file': os.path.basename(d.__file__),\n"
+        "        'from_her_tree': d.__file__.startswith(hp.tree_dir()),\n"
+        "        'loop': callable(d.bayesian_optimization_loop),\n"
+        "        'mc_default': inspect.signature(\n"
+        "            d.expected_hypervolume_improvement).parameters['N'].default,\n"
+        "        'fingerprint': inspect.getsource(\n"
+        "            d.independent_tanimoto_gp_predict.__globals__[\n"
+        "                'get_fingerprint']).strip().splitlines()[-1].strip()}\n"
+        "print(json.dumps(out))")
+    record("G11", {"pass": True, "as_shipped": shipped, "with_stand_ins": with_standins})
+    # M5: her package __init__ is empty, so `from tdc_oracles_modified import
+    # Oracle` inside her own utils_final dies.  M6: her utils_final does not
+    # define the two evaluators her amlodipine / perindopril drivers import.
+    assert shipped["package_init_bytes"] == 0
+    assert shipped["utils_final_defines"] == ["evaluate_fex_objectives"]
+    assert "Error" in shipped["as_shipped"], (
+        "her driver imported without the stand-ins: her branch changed")
+    for task in T4_TASKS:
+        g = with_standins[task]
+        assert g["from_her_tree"] and g["loop"] and g["mc_default"] == yc.HER_MC_DRAWS
+        assert "radius=3" in g["fingerprint"] and "nBits" not in g["fingerprint"], (
+            f"{task}: not her unfolded count fingerprint: {g['fingerprint']}")
+
+
+@pytest.mark.parametrize("task", T4_TASKS)
+def test_G11_order_hazard_is_pinned(task):
+    """Her split and her scalar MPO cannot share a process, in EITHER order.
+
+    Measured on her branch and recorded in ``her_published.ORDER_HAZARD``.  Her
+    published driver only calls the split, so her own runs are unaffected; a Tier
+    4 cell never calls her scalar MPO.  If she ever repaired this, the numbers
+    would not move but the gate must notice, so the hazard is asserted, not
+    merely avoided.
+    """
+    probe = (
+        "import her_published as hp\n"
+        "task, order = sys.argv[1], sys.argv[2]\n"
+        "mols = __import__('yong_common').read_library_lines()[:30]\n"
+        "def split(): return hp.task_evaluator(task)(mols)\n"
+        "def scalar():\n"
+        "    hp.install_stand_ins()\n"
+        "    from tdc_oracles_modified.oracles import Oracle\n"
+        "    import yong_common as yc\n"
+        "    return Oracle(yc.TASKS[task]['oracle'])(mols)\n"
+        "steps = {'split_only': [split], 'scalar_then_split': [scalar, split],\n"
+        "         'split_then_scalar': [split, scalar]}[order]\n"
+        "try:\n"
+        "    for s in steps: s()\n"
+        "    print(json.dumps({order: 'ok'}))\n"
+        "except Exception as e:\n"
+        "    print(json.dumps({order: type(e).__name__}))")
+    results = {}
+    for order in ("split_only", "scalar_then_split", "split_then_scalar"):
+        results.update(_t4(probe, task, order))   # a FRESH process per order
+    expected = {k: v for k, v in hp.ORDER_HAZARD[task].items() if k != "global"}
+    record(f"G11_order_{task}", {"pass": results == expected, "measured": results,
+                                 "expected": expected,
+                                 "global": hp.ORDER_HAZARD[task]["global"]})
+    assert results == expected, (results, expected)
+
+
+@pytest.mark.parametrize("task", T4_TASKS)
+def test_G12_her_published_recipe(task):
+    """Her recipe, READ FROM HER DRIVER'S SOURCE: 10 starts, 0 / 1 / 1e-4, 1000
+    draws, 20 iterations, no hold-out block."""
+    r = hp.driver_recipe(task)
+    n_obj = len(yc.TASKS[task]["objectives"])
+    hyper = _t4("import run_one_published as rp\n"
+                "h, r = rp.her_hyperparameters(sys.argv[1], int(sys.argv[2]))\n"
+                "print(json.dumps({k: v.tolist() for k, v in h.items()}))",
+                task, n_obj)
+    ok = (r["n_init"] == 10 and r["gp_means"] == [0.0] and
+          r["gp_amplitudes"] == [1.0] and r["gp_noises"] == [1e-4] and
+          r["mc_draws"] == yc.HER_MC_DRAWS and r["n_iterations"] == 20 and
+          not r["mentions_holdout"] and
+          all(len(v) == n_obj for v in hyper.values()))
+    record(f"G12_{task}", {"pass": ok, "recipe_from_her_source": r,
+                           "hyperparameters_passed_to_her_loop": hyper,
+                           "oracle_calls_per_run": 10 + 20})
+    assert r["n_init"] == 10, r
+    assert r["gp_means"] == [0.0] and r["gp_amplitudes"] == [1.0]
+    assert r["gp_noises"] == [1e-4], r
+    assert r["mc_draws"] == yc.HER_MC_DRAWS and r["n_iterations"] == 20
+    assert not r["mentions_holdout"], "her driver now scores a hold-out block"
+    assert hyper["gp_means"] == [0.0] * n_obj
+    assert hyper["gp_amplitudes"] == [1.0] * n_obj
+    assert hyper["gp_noises"] == [1e-4] * n_obj
+
+
+def test_G13_her_split_equals_the_scoring_oracle(tmp_path):
+    """G2 for Tier 4's evaluators, across her two branches.
+
+    The geometric mean of HER split components (guacamol-test) equals the PINNED
+    main-branch scalar oracle -- the instrument ``report.py`` scores with and the
+    one Tier 1-3 used -- to 1e-12 on 500 library molecules.  Also retro-validates
+    Tier 1's M4: her own split functions and the ones written for Tier 1 must
+    agree on the same molecules.  Two processes, because her trees cannot mix.
+    """
+    dump = tmp_path / "hers.json"
+    hers = _t4(
+        "import her_published as hp, yong_common as yc, numpy as np\n"
+        "lines = yc.read_library_lines()[:yc.N_LIBRARY][::20][:500]\n"
+        "out = {t: np.asarray(hp.task_evaluator(t)(lines)).tolist()\n"
+        "       for t in ('fexofenadine', 'amlodipine', 'perindopril')}\n"
+        "open(sys.argv[1], 'w').write(json.dumps(out))\n"
+        "print(json.dumps({'n': len(lines)}))", dump)
+    assert hers["n"] == 500
+    got = _t4(
+        "import numpy as np, yong_common as yc\n"
+        "from scipy.stats.mstats import gmean\n"
+        "hers = json.load(open(sys.argv[1]))\n"
+        "lines = yc.read_library_lines()[:yc.N_LIBRARY][::20][:500]\n"
+        "out = {}\n"
+        "for t in ('fexofenadine', 'amlodipine', 'perindopril'):\n"
+        "    h = np.asarray(hers[t])\n"
+        "    g = np.array([float(gmean(list(r))) for r in h])\n"
+        "    pinned = yc.score_scalar(t, lines)\n"
+        "    mine = np.asarray(yc.task_evaluator(t)(lines))\n"
+        "    out[t] = {'gmean_vs_pinned_oracle': float(np.abs(g - pinned).max()),\n"
+        "              'her_components_vs_tier1_M4': float(np.abs(h - mine).max()),\n"
+        "              'min': float(h.min()), 'max': float(h.max())}\n"
+        "print(json.dumps(out))", dump)
+    worst = max(v["gmean_vs_pinned_oracle"] for v in got.values())
+    worst_m4 = max(v["her_components_vs_tier1_M4"] for v in got.values())
+    record("G13", {"pass": worst <= 1e-12 and worst_m4 <= 1e-12, "n": 500,
+                   "tolerance": 1e-12, "per_task": got})
+    assert worst <= 1e-12, got
+    assert worst_m4 <= 1e-12, ("her split functions and Tier 1's M4 disagree", got)
+    for v in got.values():
+        assert v["min"] >= 0.0 and v["max"] <= 1.0
+
+
+def test_G3_TIER4_batched_predictions_record():
+    """Non-aborting: batched vs per-candidate predictions of HER GP on HER count
+    fingerprint.  Writes ``her_predict`` for the Tier 4 sweep, as G3 does for
+    Tiers 1-3; ``run_sweep.py`` refuses to launch HER-PUBLISHED without it."""
+    got = _t4(
+        "import numpy as np, her_published as hp, yong_common as yc\n"
+        "hp.install_stand_ins()\n"
+        "from kern_gp import gp_model\n"
+        "out = {}\n"
+        "for task in ('fexofenadine', 'amlodipine'):\n"
+        "    start, pool, _h, _i = yc.split_for_seed(0, hp.RECIPE['n_init'])\n"
+        "    ev = hp.task_evaluator(task)\n"
+        "    Y = ev(start)\n"
+        "    k = Y.shape[1]\n"
+        "    kw = dict(known_smiles=start, known_Y=Y,\n"
+        "              gp_means=np.zeros(k), gp_amplitudes=np.ones(k),\n"
+        "              gp_noises=np.full(k, 1e-4))\n"
+        "    cands = pool[:500]\n"
+        "    mb, vb = gp_model.independent_tanimoto_gp_predict(query_smiles=cands, **kw)\n"
+        "    one = [gp_model.independent_tanimoto_gp_predict(query_smiles=[s], **kw)\n"
+        "           for s in cands]\n"
+        "    mu = np.vstack([m for m, _ in one]); va = np.vstack([v for _, v in one])\n"
+        "    out[task] = {'max_abs_mean': float(np.abs(mb - mu).max()),\n"
+        "                 'max_abs_var': float(np.abs(vb - va).max()),\n"
+        "                 'bitwise': bool(np.array_equal(mb, mu) and np.array_equal(vb, va))}\n"
+        "print(json.dumps(out))")
+    ok = all(v["max_abs_mean"] <= 1e-12 and v["max_abs_var"] <= 1e-12
+             for v in got.values())
+    record("G3_TIER4", {"pass": ok, "her_predict": "batched" if ok else "unbatched",
+                        "tolerance": 1e-12, "n_candidates": 500,
+                        "fingerprint": "her unfolded count Morgan r=3",
+                        "results": got})
+
+
+def test_G5_TIER4_determinism_record(tmp_path):
+    """Non-aborting: a HER-PUBLISHED cell run twice gives a byte-identical
+    evaluated.csv.  Reduced scope (pool 120, 3 iterations), as G5 is."""
+    results = {}
+    for task in T4_TASKS:
+        outs = []
+        for copy in ("a", "b"):
+            d = tmp_path / f"{task}_{copy}"
+            p = subprocess.run(
+                [PY, "-B", "-W", "ignore", "-u",
+                 os.path.join(BENCH_DIR, "run_one_published.py"),
+                 "--task", task, "--seed", "1", "--n-iterations", "3",
+                 "--pool-limit", "120", "--her-predict", "batched",
+                 "--output-dir", str(d)],
+                capture_output=True, text=True, cwd=REPO, timeout=3600,
+                env=dict(os.environ, PYTHONDONTWRITEBYTECODE="1", MPLBACKEND="Agg"))
+            outs.append((p.returncode, d / "evaluated.csv", p.stderr[-400:]))
+        (rc_a, a, err_a), (rc_b, b, _) = outs
+        same = a.exists() and b.exists() and a.read_bytes() == b.read_bytes()
+        results[task] = {"identical": same, "returncodes": [rc_a, rc_b],
+                         "stderr": err_a if rc_a else ""}
+    record("G5_TIER4", {"pass": all(v["identical"] for v in results.values()),
+                        "scope": "reduced: pool 120, 3 iterations, seed 1",
+                        "results": results})
+
+
+def test_tier4_runner_separation():
+    """``run_one.py`` must refuse HER-PUBLISHED rather than mis-run it."""
+    p = subprocess.run([PY, "-B", "-W", "ignore",
+                        os.path.join(BENCH_DIR, "run_one.py"),
+                        "--task", "amlodipine", "--arm", yc.HER_PUBLISHED_ARM,
+                        "--seed", "0", "--output-dir",
+                        os.path.join(GATE_DIR, "_never")],
+                       capture_output=True, text=True, cwd=REPO, timeout=600,
+                       env=dict(os.environ, PYTHONDONTWRITEBYTECODE="1"))
+    assert p.returncode != 0
+    assert "run_one_published.py" in (p.stdout + p.stderr)
+    assert not os.path.exists(os.path.join(GATE_DIR, "_never", "evaluated.csv"))
+    assert yc.HER_PUBLISHED_ARM not in yc.HER_ARMS
+    assert yc.HER_PUBLISHED_ARM not in yc.OUR_ARMS

@@ -1,0 +1,2 @@
+512327680
+# bytes, peak of ps rss sampled every poll (1062 samples)

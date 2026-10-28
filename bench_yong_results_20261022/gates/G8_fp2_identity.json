@@ -1,0 +1,8 @@
+{
+  "bench_yong_dirty": false,
+  "gate": "G8_fp2_identity",
+  "mismatches": 0,
+  "n": 500,
+  "pass": true,
+  "repo_head": "0cdc0d0494a940f01288c24242ed5cad65766f5e"
+}

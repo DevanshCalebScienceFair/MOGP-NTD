@@ -1,0 +1,41 @@
+{
+  "bench_yong_dirty": false,
+  "gate": "G12_fexofenadine",
+  "hyperparameters_passed_to_her_loop": {
+    "gp_amplitudes": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "gp_means": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "gp_noises": [
+      0.0001,
+      0.0001,
+      0.0001
+    ]
+  },
+  "oracle_calls_per_run": 30,
+  "pass": true,
+  "recipe_from_her_source": {
+    "gp_amplitudes": [
+      1.0
+    ],
+    "gp_means": [
+      0.0
+    ],
+    "gp_noises": [
+      0.0001
+    ],
+    "mc_draws": 1000,
+    "mentions_holdout": false,
+    "n_init": 10,
+    "n_iterations": 20,
+    "pool_hi": 10000,
+    "source": "/Users/devanshsanghavi/Downloads/MOGP-rewrite/external/GP-MOBO-guacamol-test/ehvi_fexofenadine.py"
+  },
+  "repo_head": "0e9af208627960be7de06edf7e50ed698865d8f3"
+}

@@ -1,0 +1,17 @@
+{
+  "bench_yong_dirty": false,
+  "expected": {
+    "scalar_then_split": "ok",
+    "split_only": "ok",
+    "split_then_scalar": "ok"
+  },
+  "gate": "G11_order_fexofenadine",
+  "global": null,
+  "measured": {
+    "scalar_then_split": "ok",
+    "split_only": "ok",
+    "split_then_scalar": "ok"
+  },
+  "pass": true,
+  "repo_head": "0e9af208627960be7de06edf7e50ed698865d8f3"
+}

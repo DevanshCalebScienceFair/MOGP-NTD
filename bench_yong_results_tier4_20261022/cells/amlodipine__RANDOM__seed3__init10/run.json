@@ -1,0 +1,70 @@
+{
+  "arm": "RANDOM",
+  "batch_size": 1,
+  "best_acquired_logged": 0.4898979485566356,
+  "docking_imported": false,
+  "fexofenadine_width_discrepancy": {
+    "code_ca623180": {
+      "TPSA": "MaxGaussianModifier(mu=90, sigma=10)",
+      "logP": "MinGaussianModifier(mu=4, sigma=1)"
+    },
+    "note": "Using the thesis widths moves top-20 values by up to 0.1239 and reorders the table (measured before this benchmark).",
+    "thesis_table_2_1": {
+      "TPSA": "MaxGaussian(90, 2)",
+      "logP": "MinGaussian(4, 2)"
+    },
+    "used": "code"
+  },
+  "final_front_size": 1,
+  "gp_mobo_expected": "ca623180f42fc24a33ed371b295841d2cce815ba",
+  "gp_mobo_head": "ca623180f42fc24a33ed371b295841d2cce815ba",
+  "her_code_modifications": [
+    "M1a rdkit.six stand-in",
+    "M1b utils.utils_final stand-in",
+    "M2 random.seed + np.random.seed",
+    "M3 batched predictions (if G3)",
+    "M4 evaluator rebinding for amlodipine/perindopril"
+  ],
+  "library": {
+    "candidate_rows": "0-9999",
+    "holdout_rows": "10000-10999",
+    "path": "external/GP-MOBO/guacamol_dataset/guacamol_v1_train.smiles",
+    "rows_read": 11000,
+    "sha256": "3c67ee945f351dbbdc02d9016da22efaffc32a39d882021b6f213d5cd60b6a80",
+    "split": "random.seed(seed); random.shuffle(rows 0-9999); start = first n_init, pool = the rest"
+  },
+  "n_acquired": 20,
+  "n_init": 10,
+  "n_iterations": 20,
+  "objectives": [
+    "ecfp4_count_similarity",
+    "num_rings_gauss_3_0p5"
+  ],
+  "oracle_calls": 30,
+  "peak_rss_bytes": 391151616,
+  "pool_limit": null,
+  "pool_sha256": "5e115982b9198bd303d45255dfcade73e5806f1166b96811418b0f439fbb74cd",
+  "pool_size": 9990,
+  "random": "acquisition.draw_without_replacement(keyed_generator(seed, 0, 'random_batch'), len(pool), n_iterations)",
+  "repo_dirty_bench_yong": false,
+  "repo_head": "0e9af208627960be7de06edf7e50ed698865d8f3",
+  "scalar_oracle": "amlodipine_mpo",
+  "seed": 3,
+  "start_set_sha256": "21a52e6a6fb8f18df14b6974cbae055697151d1614f468ea5584ac287a0ebe17",
+  "status": "complete",
+  "task": "amlodipine",
+  "torch_imported": false,
+  "versions": {
+    "executable": "/opt/homebrew/Caskroom/miniconda/base/envs/mogp-drug/bin/python",
+    "matplotlib": "3.11.1",
+    "networkx": "3.6.1",
+    "numpy": "2.2.6",
+    "pandas": "2.3.3",
+    "platform": "macOS-15.8.1-arm64-arm-64bit",
+    "python": "3.11.16",
+    "rdkit": "2026.03.1",
+    "scipy": "1.17.1",
+    "sklearn": "1.9.0"
+  },
+  "wall_clock_s": 2.902456045150757
+}

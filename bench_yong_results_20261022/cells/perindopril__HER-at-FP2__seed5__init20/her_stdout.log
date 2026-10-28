@@ -1,0 +1,124 @@
+[13:28:57] GP Means: [0.08741799 0.37920895]
+[13:28:57] GP Amplitudes: [0.00177171 0.18420453]
+[13:28:57] GP Noises: [0.00017717 0.01842045]
+[13:28:57] 
+[13:28:57] Start BO iteration 0. Dataset size=(20, 2)
+[13:32:44] Max acquisition value: 0.0035146240909888055
+[13:32:44] Chosen SMILES: OCC1C(c2ccc(-c3cccc(F)c3)cc2)C2CN(CCC(F)(F)F)CCCCN12 with acquisition function value = 0.0035146240909888055
+[13:32:44] Value of chosen SMILES: [[0.11188811 1.        ]]
+[13:32:44] Updated dataset size: (21, 2)
+[13:32:44] Hypervolume: 0.16194048120463628
+[13:32:44] Start BO iteration 1. Dataset size=(21, 2)
+[13:36:34] Max acquisition value: 0.003684537538804191
+[13:36:34] Chosen SMILES: CCCCOc1ccc(-c2ccc(C(=O)O)c(C)c2)cc1CNC(=O)c1ccc(C(F)(F)F)cc1F with acquisition function value = 0.003684537538804191
+[13:36:34] Value of chosen SMILES: [[0.11111111 0.13533528]]
+[13:36:34] Updated dataset size: (22, 2)
+[13:36:34] Hypervolume: 0.16194048120463628
+[13:36:34] Start BO iteration 2. Dataset size=(22, 2)
+[13:40:31] Max acquisition value: 0.0038295829363032565
+[13:40:31] Chosen SMILES: O=C(OCCN1CCCCC1)C1(C2CCCCC2)CCCCC1 with acquisition function value = 0.0038295829363032565
+[13:40:31] Value of chosen SMILES: [[0.16806723 0.00033546]]
+[13:40:31] Updated dataset size: (23, 2)
+[13:40:31] Hypervolume: 0.16208049024348392
+[13:40:31] Start BO iteration 3. Dataset size=(23, 2)
+[13:44:56] Max acquisition value: 0.0032137026199415704
+[13:44:56] Chosen SMILES: O=C(c1ccc(C(F)(F)F)cc1)C1CCCN(Cc2ccc(CO)o2)C1 with acquisition function value = 0.0032137026199415704
+[13:44:56] Value of chosen SMILES: [[0.10769231 1.        ]]
+[13:44:56] Updated dataset size: (24, 2)
+[13:44:56] Hypervolume: 0.1622345001862163
+[13:44:56] Start BO iteration 4. Dataset size=(24, 2)
+[13:49:17] Max acquisition value: 0.0043285990150877035
+[13:49:17] Chosen SMILES: CC(NCC1CCN(CCO)CC1)c1ccc(C(F)(F)F)cc1 with acquisition function value = 0.0043285990150877035
+[13:49:17] Value of chosen SMILES: [[0.13445378 0.13533528]]
+[13:49:17] Updated dataset size: (25, 2)
+[13:49:17] Hypervolume: 0.1622345001862163
+[13:49:17] Start BO iteration 5. Dataset size=(25, 2)
+[13:53:44] Max acquisition value: 0.0033529340725229977
+[13:53:44] Chosen SMILES: NNC(=O)CNC(=O)c1ccc(C(F)(F)F)cc1 with acquisition function value = 0.0033529340725229977
+[13:53:44] Value of chosen SMILES: [[0.07207207 0.13533528]]
+[13:53:44] Updated dataset size: (26, 2)
+[13:53:44] Hypervolume: 0.1622345001862163
+[13:53:44] Start BO iteration 6. Dataset size=(26, 2)
+[13:58:18] Max acquisition value: 0.0033130020671956733
+[13:58:18] Chosen SMILES: COCc1ccc(CN2CCCC(C(=O)c3sccc3C)C2)o1 with acquisition function value = 0.0033130020671956733
+[13:58:18] Value of chosen SMILES: [[0.1322314 1.       ]]
+[13:58:18] Updated dataset size: (27, 2)
+[13:58:18] Hypervolume: 0.1622345001862163
+[13:58:18] Start BO iteration 7. Dataset size=(27, 2)
+[14:02:49] Max acquisition value: 0.005508151776906813
+[14:02:49] Chosen SMILES: COc1cc(OC)c(OC)cc1CN1CCCC(C(=O)c2sccc2C)C1 with acquisition function value = 0.005508151776906813
+[14:02:49] Value of chosen SMILES: [[0.1221374 1.       ]]
+[14:02:49] Updated dataset size: (28, 2)
+[14:02:49] Hypervolume: 0.1622345001862163
+[14:02:49] Start BO iteration 8. Dataset size=(28, 2)
+[14:07:01] Max acquisition value: 0.005157607169076559
+[14:07:01] Chosen SMILES: COc1ccc(F)cc1C(=O)C1CCCN(Cc2ccc(C)s2)C1 with acquisition function value = 0.005157607169076559
+[14:07:01] Value of chosen SMILES: [[0.12096774 1.        ]]
+[14:07:01] Updated dataset size: (29, 2)
+[14:07:01] Hypervolume: 0.1622345001862163
+[14:07:01] Start BO iteration 9. Dataset size=(29, 2)
+[14:11:28] Max acquisition value: 0.006190136874211384
+[14:11:28] Chosen SMILES: COCc1cc(CN2CCCC(C(=O)c3cccc(C(F)(F)F)c3)C2)ccc1OC with acquisition function value = 0.006190136874211384
+[14:11:28] Value of chosen SMILES: [[0.11510791 1.        ]]
+[14:11:28] Updated dataset size: (30, 2)
+[14:11:28] Hypervolume: 0.1622345001862163
+[14:11:28] Start BO iteration 10. Dataset size=(30, 2)
+[14:15:52] Max acquisition value: 0.006309836296516042
+[14:15:52] Chosen SMILES: COc1cc(CN2CCCC(C(=O)c3ccccc3SC)C2)cc(OC)c1 with acquisition function value = 0.006309836296516042
+[14:15:52] Value of chosen SMILES: [[0.12121212 1.        ]]
+[14:15:52] Updated dataset size: (31, 2)
+[14:15:52] Hypervolume: 0.1622345001862163
+[14:15:52] Start BO iteration 11. Dataset size=(31, 2)
+[14:20:23] Max acquisition value: 0.00683921316095734
+[14:20:23] Chosen SMILES: COc1cc(CN2CCCC(C(=O)c3ccc(SC)cc3)C2)cc(Cl)c1O with acquisition function value = 0.00683921316095734
+[14:20:23] Value of chosen SMILES: [[0.1221374 1.       ]]
+[14:20:23] Updated dataset size: (32, 2)
+[14:20:23] Hypervolume: 0.1622345001862163
+[14:20:23] Start BO iteration 12. Dataset size=(32, 2)
+[14:24:47] Max acquisition value: 0.008587160950435173
+[14:24:47] Chosen SMILES: COc1cc(CN2CCCC(C(=O)c3sccc3C)C2)cc(Cl)c1O with acquisition function value = 0.008587160950435173
+[14:24:47] Value of chosen SMILES: [[0.128 1.   ]]
+[14:24:47] Updated dataset size: (33, 2)
+[14:24:47] Hypervolume: 0.1622345001862163
+[14:24:47] Start BO iteration 13. Dataset size=(33, 2)
+[14:29:12] Max acquisition value: 0.005585514150037377
+[14:29:12] Chosen SMILES: COc1ccccc1C(=CCCN1CCCC(C(=O)O)C1)c1ccccc1 with acquisition function value = 0.005585514150037377
+[14:29:12] Value of chosen SMILES: [[0.14615385 1.        ]]
+[14:29:12] Updated dataset size: (34, 2)
+[14:29:12] Hypervolume: 0.1622345001862163
+[14:29:12] Start BO iteration 14. Dataset size=(34, 2)
+[14:33:35] Max acquisition value: 0.00628886834139599
+[14:33:35] Chosen SMILES: COc1ccc(N2CCN(C3CCCN(Cc4cccc(C)c4)C3)CC2)cc1 with acquisition function value = 0.00628886834139599
+[14:33:35] Value of chosen SMILES: [[0.09285714 1.        ]]
+[14:33:35] Updated dataset size: (35, 2)
+[14:33:35] Hypervolume: 0.1622345001862163
+[14:33:35] Start BO iteration 15. Dataset size=(35, 2)
+[14:38:02] Max acquisition value: 0.006713530375134622
+[14:38:02] Chosen SMILES: COc1cc2[nH]c(=O)c(CN3CCCC(CO)C3)cc2c(OC)c1OC with acquisition function value = 0.006713530375134622
+[14:38:02] Value of chosen SMILES: [[0.125 1.   ]]
+[14:38:02] Updated dataset size: (36, 2)
+[14:38:02] Hypervolume: 0.1622345001862163
+[14:38:02] Start BO iteration 16. Dataset size=(36, 2)
+[14:42:23] Max acquisition value: 0.00652626236082184
+[14:42:23] Chosen SMILES: COc1ccc(CN(C)CC2CCCN(CCc3ccccc3C)C2)cc1O with acquisition function value = 0.00652626236082184
+[14:42:23] Value of chosen SMILES: [[0.11851852 1.        ]]
+[14:42:23] Updated dataset size: (37, 2)
+[14:42:23] Hypervolume: 0.1622345001862163
+[14:42:23] Start BO iteration 17. Dataset size=(37, 2)
+[14:46:56] Max acquisition value: 0.006385028126955279
+[14:46:56] Chosen SMILES: COc1ccc(CC(=O)N(C)CCN2CCCC2)cc1 with acquisition function value = 0.006385028126955279
+[14:46:56] Value of chosen SMILES: [[0.14285714 0.13533528]]
+[14:46:56] Updated dataset size: (38, 2)
+[14:46:56] Hypervolume: 0.1622345001862163
+[14:46:56] Start BO iteration 18. Dataset size=(38, 2)
+[14:51:40] Max acquisition value: 0.006826953903016232
+[14:51:40] Chosen SMILES: CC(C)Oc1ccc(CN2CCN3CCN(C)CC3C2)cc1CO with acquisition function value = 0.006826953903016232
+[14:51:40] Value of chosen SMILES: [[0.1300813  0.13533528]]
+[14:51:40] Updated dataset size: (39, 2)
+[14:51:40] Hypervolume: 0.1622345001862163
+[14:51:40] Start BO iteration 19. Dataset size=(39, 2)
+[14:56:14] Max acquisition value: 0.0066292095488834305
+[14:56:14] Chosen SMILES: O=C(O)C1CCCN(CCOCCN2c3ccccc3Sc3ccccc32)C1 with acquisition function value = 0.0066292095488834305
+[14:56:14] Value of chosen SMILES: [[0.13333333 1.        ]]
+[14:56:14] Updated dataset size: (40, 2)
+[14:56:14] Hypervolume: 0.1622345001862163

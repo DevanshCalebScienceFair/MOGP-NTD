@@ -1,0 +1,8 @@
+{
+  "bench_yong_dirty": false,
+  "gate": "G8_dense_amlodipine_MOGP-IND@FP2",
+  "max_abs_mean": 5.551115123125783e-17,
+  "max_abs_var": 2.7755575615628914e-17,
+  "pass": true,
+  "repo_head": "0e9af208627960be7de06edf7e50ed698865d8f3"
+}

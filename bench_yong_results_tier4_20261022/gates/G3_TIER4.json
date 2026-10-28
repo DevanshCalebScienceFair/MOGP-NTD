@@ -1,0 +1,22 @@
+{
+  "bench_yong_dirty": false,
+  "fingerprint": "her unfolded count Morgan r=3",
+  "gate": "G3_TIER4",
+  "her_predict": "batched",
+  "n_candidates": 500,
+  "pass": true,
+  "repo_head": "0e9af208627960be7de06edf7e50ed698865d8f3",
+  "results": {
+    "amlodipine": {
+      "bitwise": false,
+      "max_abs_mean": 5.551115123125783e-17,
+      "max_abs_var": 0.0
+    },
+    "fexofenadine": {
+      "bitwise": false,
+      "max_abs_mean": 1.1102230246251565e-16,
+      "max_abs_var": 0.0
+    }
+  },
+  "tolerance": 1e-12
+}

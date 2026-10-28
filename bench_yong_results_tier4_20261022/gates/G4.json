@@ -1,0 +1,10 @@
+{
+  "bench_yong_dirty": false,
+  "duplicates": 0,
+  "gate": "G4",
+  "library_holdout_overlap": 0,
+  "library_sha256": "3c67ee945f351dbbdc02d9016da22efaffc32a39d882021b6f213d5cd60b6a80",
+  "pass": true,
+  "repo_head": "0e9af208627960be7de06edf7e50ed698865d8f3",
+  "unparseable": []
+}

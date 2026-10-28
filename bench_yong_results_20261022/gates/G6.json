@@ -1,0 +1,23 @@
+{
+  "as_shipped": "ValueError: ('osimertinib_tpsa_score', 'does not match to available values. Please double check.')",
+  "bench_yong_dirty": false,
+  "ehvi_N_default": 1000,
+  "ehvi_mc_file": "/Users/devanshsanghavi/Downloads/MOGP-rewrite/external/GP-MOBO/ehvi_mc.py",
+  "evaluator_source": "/Users/devanshsanghavi/Downloads/MOGP-rewrite/external/GP-MOBO/utils/utils_final.py",
+  "gate": "G6",
+  "loop_callable": true,
+  "loop_params": [
+    "known_smiles",
+    "query_smiles",
+    "known_Y",
+    "gp_means",
+    "gp_amplitudes",
+    "gp_noises",
+    "max_ref_point",
+    "scale",
+    "scale_max_ref_point",
+    "n_iterations"
+  ],
+  "pass": true,
+  "repo_head": "0cdc0d0494a940f01288c24242ed5cad65766f5e"
+}

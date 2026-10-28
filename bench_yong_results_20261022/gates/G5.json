@@ -1,0 +1,65 @@
+{
+  "bench_yong_dirty": false,
+  "gate": "G5",
+  "pass": true,
+  "repo_head": "0cdc0d0494a940f01288c24242ed5cad65766f5e",
+  "results": {
+    "amlodipine|HER@FP2": {
+      "identical": true,
+      "returncodes": [
+        0,
+        0
+      ],
+      "stderr": ""
+    },
+    "amlodipine|MOGP-ICM@FP2": {
+      "identical": true,
+      "returncodes": [
+        0,
+        0
+      ],
+      "stderr": ""
+    },
+    "fexofenadine|HER-PUB": {
+      "identical": true,
+      "returncodes": [
+        0,
+        0
+      ],
+      "stderr": ""
+    },
+    "fexofenadine|HER@FP2": {
+      "identical": true,
+      "returncodes": [
+        0,
+        0
+      ],
+      "stderr": ""
+    },
+    "fexofenadine|MOGP-ICM@FP2": {
+      "identical": true,
+      "returncodes": [
+        0,
+        0
+      ],
+      "stderr": ""
+    },
+    "fexofenadine|MOGP-IND@FP2": {
+      "identical": true,
+      "returncodes": [
+        0,
+        0
+      ],
+      "stderr": ""
+    },
+    "fexofenadine|RANDOM": {
+      "identical": true,
+      "returncodes": [
+        0,
+        0
+      ],
+      "stderr": ""
+    }
+  },
+  "scope": "reduced: pool 120, 3 iterations, seed 1; the full-size check is the duplicated smoke cell"
+}

@@ -1,0 +1,16 @@
+{
+  "bench_yong_dirty": false,
+  "best": 390,
+  "best_score": -5.86671981740909,
+  "gate": "G8_reference_fexofenadine_MOGP-IND@FP2",
+  "max_abs_diff": {
+    "mu_b": 0.0,
+    "mu_c": 0.0,
+    "scores": 0.0,
+    "var_b": 0.0,
+    "var_c": 0.0
+  },
+  "pass": true,
+  "ref_best": 390,
+  "repo_head": "0cdc0d0494a940f01288c24242ed5cad65766f5e"
+}

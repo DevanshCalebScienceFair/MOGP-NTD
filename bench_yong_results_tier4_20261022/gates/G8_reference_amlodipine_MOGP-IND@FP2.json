@@ -1,0 +1,16 @@
+{
+  "bench_yong_dirty": false,
+  "best": 362,
+  "best_score": -6.167962396633294,
+  "gate": "G8_reference_amlodipine_MOGP-IND@FP2",
+  "max_abs_diff": {
+    "mu_b": 0.0,
+    "mu_c": 0.0,
+    "scores": 0.0,
+    "var_b": 0.0,
+    "var_c": 0.0
+  },
+  "pass": true,
+  "ref_best": 362,
+  "repo_head": "0e9af208627960be7de06edf7e50ed698865d8f3"
+}

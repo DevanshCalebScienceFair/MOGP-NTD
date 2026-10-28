@@ -1,0 +1,16 @@
+{
+  "bench_yong_dirty": false,
+  "best": 390,
+  "best_score": -5.8556674289640736,
+  "gate": "G8_reference_fexofenadine_MOGP-ICM@FP2",
+  "max_abs_diff": {
+    "mu_b": 0.0,
+    "mu_c": 0.0,
+    "scores": 0.0,
+    "var_b": 0.0,
+    "var_c": 0.0
+  },
+  "pass": true,
+  "ref_best": 390,
+  "repo_head": "0e9af208627960be7de06edf7e50ed698865d8f3"
+}

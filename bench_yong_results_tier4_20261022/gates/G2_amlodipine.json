@@ -1,0 +1,20 @@
+{
+  "bench_yong_dirty": false,
+  "component_max": [
+    0.2734375,
+    1.0
+  ],
+  "component_min": [
+    0.027777777777777776,
+    1.9287498479639178e-22
+  ],
+  "components": [
+    "ecfp4_count_similarity",
+    "num_rings_gauss_3_0p5"
+  ],
+  "gate": "G2_amlodipine",
+  "max_abs_diff": 0.0,
+  "n": 500,
+  "pass": true,
+  "repo_head": "0e9af208627960be7de06edf7e50ed698865d8f3"
+}

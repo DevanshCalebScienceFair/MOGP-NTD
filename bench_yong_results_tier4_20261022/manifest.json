@@ -1,0 +1,863 @@
+{
+  "config": {
+    "batch_size": 1,
+    "n_init": 20,
+    "n_iterations": 20,
+    "pool_limit": null,
+    "test_mode": false,
+    "tier3_n_init": 10
+  },
+  "created": "2026-10-22 20:48:19",
+  "her_predict": "batched",
+  "her_predict_published": "batched",
+  "invocations": [
+    {
+      "argv": [
+        "bench_yong/run_sweep.py",
+        "--tier4-tasks",
+        "fexofenadine",
+        "amlodipine",
+        "perindopril",
+        "--tier4-arms",
+        "HER-PUBLISHED",
+        "MOGP-ICM@FP2",
+        "RANDOM",
+        "--tier4-seeds",
+        "0",
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "--n-init",
+        "20",
+        "--n-iterations",
+        "20",
+        "--batch-size",
+        "1",
+        "--jobs",
+        "16",
+        "--mem-cap-gb",
+        "2.0",
+        "--per-run-timeout-h",
+        "12",
+        "--resume",
+        "--output-dir",
+        "bench_yong_results_tier4_20261022"
+      ],
+      "gate_exit": 0,
+      "gate_records": {
+        "G10": true,
+        "G11": true,
+        "G11_order_amlodipine": true,
+        "G11_order_fexofenadine": true,
+        "G11_order_perindopril": true,
+        "G12_amlodipine": true,
+        "G12_fexofenadine": true,
+        "G12_perindopril": true,
+        "G13": true,
+        "G1_amlodipine": true,
+        "G1_fexofenadine": true,
+        "G1_perindopril": true,
+        "G2_amlodipine": true,
+        "G2_fexofenadine": true,
+        "G2_perindopril": true,
+        "G3": true,
+        "G3_TIER4": true,
+        "G4": true,
+        "G5": true,
+        "G5_TIER4": true,
+        "G6": true,
+        "G7": true,
+        "G8_bruteforce_amlodipine_MOGP-ICM@FP2": true,
+        "G8_bruteforce_fexofenadine_MOGP-ICM@FP2": true,
+        "G8_dense_amlodipine_MOGP-ICM@FP2": true,
+        "G8_dense_amlodipine_MOGP-IND@FP2": true,
+        "G8_dense_fexofenadine_MOGP-ICM@FP2": true,
+        "G8_dense_fexofenadine_MOGP-IND@FP2": true,
+        "G8_fp2_identity": true,
+        "G8_reference_amlodipine_MOGP-ICM@FP2": true,
+        "G8_reference_amlodipine_MOGP-IND@FP2": true,
+        "G8_reference_fexofenadine_MOGP-ICM@FP2": true,
+        "G8_reference_fexofenadine_MOGP-IND@FP2": true
+      },
+      "her_predict": "batched",
+      "her_predict_published": "batched",
+      "jobs": 16,
+      "mem_cap_gb": 2.0,
+      "per_run_timeout_h": 12.0,
+      "repo_head": "0e9af208627960be7de06edf7e50ed698865d8f3",
+      "result_code_sha256": "9cf05aa3694023a9e2ba39e1c73a4d3e70aacbcd51ba477532bae597d1c1bce3",
+      "time": "2026-10-22 20:48:19",
+      "top_processes_at_launch": [
+        "  PID  %CPU    RSS COMM",
+        " 3399  84.9 2830704 /Applications/Roblox.app/Contents/MacOS/RobloxPlayer",
+        "  606  46.5 323264 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer",
+        " 1708  14.3 275152 /System/Applications/Messages.app/Contents/MacOS/Messages",
+        "14781   7.3 107712 /Applications/Claude.app/Contents/Frameworks/Claude Helper.app/Contents/MacOS/Claude Helper",
+        " 3395   3.4 611968 /Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/155.0.8059.85/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Google Chrome Helper (Renderer)",
+        "  625   3.4  64128 /usr/sbin/coreaudiod",
+        "52992   3.3 151376 /Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/155.0.8059.85/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Google Chrome Helper (Renderer)",
+        "14802   3.0 752160 /Applications/Claude.app/Contents/Frameworks/Claude Helper (Renderer).app/Contents/MacOS/Claude Helper (Renderer)",
+        " 1713   2.4 115392 /Applications/Karabiner-Elements.app/Contents/MacOS/Karabiner-Elements",
+        " 3107   2.3 1876960 /Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/155.0.8059.85/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Google Chrome Helper (Renderer)",
+        " 1700   2.2 1216544 /Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+      ]
+    }
+  ],
+  "plan": [
+    {
+      "arm": "HER-PUBLISHED",
+      "n_init": 10,
+      "name": "fexofenadine__HER-PUBLISHED__seed0__init10",
+      "seed": 0,
+      "task": "fexofenadine",
+      "tier": 4
+    },
+    {
+      "arm": "HER-PUBLISHED",
+      "n_init": 10,
+      "name": "fexofenadine__HER-PUBLISHED__seed1__init10",
+      "seed": 1,
+      "task": "fexofenadine",
+      "tier": 4
+    },
+    {
+      "arm": "HER-PUBLISHED",
+      "n_init": 10,
+      "name": "fexofenadine__HER-PUBLISHED__seed2__init10",
+      "seed": 2,
+      "task": "fexofenadine",
+      "tier": 4
+    },
+    {
+      "arm": "HER-PUBLISHED",
+      "n_init": 10,
+      "name": "fexofenadine__HER-PUBLISHED__seed3__init10",
+      "seed": 3,
+      "task": "fexofenadine",
+      "tier": 4
+    },
+    {
+      "arm": "HER-PUBLISHED",
+      "n_init": 10,
+      "name": "fexofenadine__HER-PUBLISHED__seed4__init10",
+      "seed": 4,
+      "task": "fexofenadine",
+      "tier": 4
+    },
+    {
+      "arm": "HER-PUBLISHED",
+      "n_init": 10,
+      "name": "fexofenadine__HER-PUBLISHED__seed5__init10",
+      "seed": 5,
+      "task": "fexofenadine",
+      "tier": 4
+    },
+    {
+      "arm": "HER-PUBLISHED",
+      "n_init": 10,
+      "name": "fexofenadine__HER-PUBLISHED__seed6__init10",
+      "seed": 6,
+      "task": "fexofenadine",
+      "tier": 4
+    },
+    {
+      "arm": "HER-PUBLISHED",
+      "n_init": 10,
+      "name": "fexofenadine__HER-PUBLISHED__seed7__init10",
+      "seed": 7,
+      "task": "fexofenadine",
+      "tier": 4
+    },
+    {
+      "arm": "HER-PUBLISHED",
+      "n_init": 10,
+      "name": "fexofenadine__HER-PUBLISHED__seed8__init10",
+      "seed": 8,
+      "task": "fexofenadine",
+      "tier": 4
+    },
+    {
+      "arm": "HER-PUBLISHED",
+      "n_init": 10,
+      "name": "fexofenadine__HER-PUBLISHED__seed9__init10",
+      "seed": 9,
+      "task": "fexofenadine",
+      "tier": 4
+    },
+    {
+      "arm": "HER-PUBLISHED",
+      "n_init": 10,
+      "name": "amlodipine__HER-PUBLISHED__seed0__init10",
+      "seed": 0,
+      "task": "amlodipine",
+      "tier": 4
+    },
+    {
+      "arm": "HER-PUBLISHED",
+      "n_init": 10,
+      "name": "amlodipine__HER-PUBLISHED__seed1__init10",
+      "seed": 1,
+      "task": "amlodipine",
+      "tier": 4
+    },
+    {
+      "arm": "HER-PUBLISHED",
+      "n_init": 10,
+      "name": "amlodipine__HER-PUBLISHED__seed2__init10",
+      "seed": 2,
+      "task": "amlodipine",
+      "tier": 4
+    },
+    {
+      "arm": "HER-PUBLISHED",
+      "n_init": 10,
+      "name": "amlodipine__HER-PUBLISHED__seed3__init10",
+      "seed": 3,
+      "task": "amlodipine",
+      "tier": 4
+    },
+    {
+      "arm": "HER-PUBLISHED",
+      "n_init": 10,
+      "name": "amlodipine__HER-PUBLISHED__seed4__init10",
+      "seed": 4,
+      "task": "amlodipine",
+      "tier": 4
+    },
+    {
+      "arm": "HER-PUBLISHED",
+      "n_init": 10,
+      "name": "amlodipine__HER-PUBLISHED__seed5__init10",
+      "seed": 5,
+      "task": "amlodipine",
+      "tier": 4
+    },
+    {
+      "arm": "HER-PUBLISHED",
+      "n_init": 10,
+      "name": "amlodipine__HER-PUBLISHED__seed6__init10",
+      "seed": 6,
+      "task": "amlodipine",
+      "tier": 4
+    },
+    {
+      "arm": "HER-PUBLISHED",
+      "n_init": 10,
+      "name": "amlodipine__HER-PUBLISHED__seed7__init10",
+      "seed": 7,
+      "task": "amlodipine",
+      "tier": 4
+    },
+    {
+      "arm": "HER-PUBLISHED",
+      "n_init": 10,
+      "name": "amlodipine__HER-PUBLISHED__seed8__init10",
+      "seed": 8,
+      "task": "amlodipine",
+      "tier": 4
+    },
+    {
+      "arm": "HER-PUBLISHED",
+      "n_init": 10,
+      "name": "amlodipine__HER-PUBLISHED__seed9__init10",
+      "seed": 9,
+      "task": "amlodipine",
+      "tier": 4
+    },
+    {
+      "arm": "HER-PUBLISHED",
+      "n_init": 10,
+      "name": "perindopril__HER-PUBLISHED__seed0__init10",
+      "seed": 0,
+      "task": "perindopril",
+      "tier": 4
+    },
+    {
+      "arm": "HER-PUBLISHED",
+      "n_init": 10,
+      "name": "perindopril__HER-PUBLISHED__seed1__init10",
+      "seed": 1,
+      "task": "perindopril",
+      "tier": 4
+    },
+    {
+      "arm": "HER-PUBLISHED",
+      "n_init": 10,
+      "name": "perindopril__HER-PUBLISHED__seed2__init10",
+      "seed": 2,
+      "task": "perindopril",
+      "tier": 4
+    },
+    {
+      "arm": "HER-PUBLISHED",
+      "n_init": 10,
+      "name": "perindopril__HER-PUBLISHED__seed3__init10",
+      "seed": 3,
+      "task": "perindopril",
+      "tier": 4
+    },
+    {
+      "arm": "HER-PUBLISHED",
+      "n_init": 10,
+      "name": "perindopril__HER-PUBLISHED__seed4__init10",
+      "seed": 4,
+      "task": "perindopril",
+      "tier": 4
+    },
+    {
+      "arm": "HER-PUBLISHED",
+      "n_init": 10,
+      "name": "perindopril__HER-PUBLISHED__seed5__init10",
+      "seed": 5,
+      "task": "perindopril",
+      "tier": 4
+    },
+    {
+      "arm": "HER-PUBLISHED",
+      "n_init": 10,
+      "name": "perindopril__HER-PUBLISHED__seed6__init10",
+      "seed": 6,
+      "task": "perindopril",
+      "tier": 4
+    },
+    {
+      "arm": "HER-PUBLISHED",
+      "n_init": 10,
+      "name": "perindopril__HER-PUBLISHED__seed7__init10",
+      "seed": 7,
+      "task": "perindopril",
+      "tier": 4
+    },
+    {
+      "arm": "HER-PUBLISHED",
+      "n_init": 10,
+      "name": "perindopril__HER-PUBLISHED__seed8__init10",
+      "seed": 8,
+      "task": "perindopril",
+      "tier": 4
+    },
+    {
+      "arm": "HER-PUBLISHED",
+      "n_init": 10,
+      "name": "perindopril__HER-PUBLISHED__seed9__init10",
+      "seed": 9,
+      "task": "perindopril",
+      "tier": 4
+    },
+    {
+      "arm": "MOGP-ICM@FP2",
+      "n_init": 10,
+      "name": "fexofenadine__MOGP-ICM-at-FP2__seed0__init10",
+      "seed": 0,
+      "task": "fexofenadine",
+      "tier": 4
+    },
+    {
+      "arm": "MOGP-ICM@FP2",
+      "n_init": 10,
+      "name": "fexofenadine__MOGP-ICM-at-FP2__seed1__init10",
+      "seed": 1,
+      "task": "fexofenadine",
+      "tier": 4
+    },
+    {
+      "arm": "MOGP-ICM@FP2",
+      "n_init": 10,
+      "name": "fexofenadine__MOGP-ICM-at-FP2__seed2__init10",
+      "seed": 2,
+      "task": "fexofenadine",
+      "tier": 4
+    },
+    {
+      "arm": "MOGP-ICM@FP2",
+      "n_init": 10,
+      "name": "fexofenadine__MOGP-ICM-at-FP2__seed3__init10",
+      "seed": 3,
+      "task": "fexofenadine",
+      "tier": 4
+    },
+    {
+      "arm": "MOGP-ICM@FP2",
+      "n_init": 10,
+      "name": "fexofenadine__MOGP-ICM-at-FP2__seed4__init10",
+      "seed": 4,
+      "task": "fexofenadine",
+      "tier": 4
+    },
+    {
+      "arm": "MOGP-ICM@FP2",
+      "n_init": 10,
+      "name": "fexofenadine__MOGP-ICM-at-FP2__seed5__init10",
+      "seed": 5,
+      "task": "fexofenadine",
+      "tier": 4
+    },
+    {
+      "arm": "MOGP-ICM@FP2",
+      "n_init": 10,
+      "name": "fexofenadine__MOGP-ICM-at-FP2__seed6__init10",
+      "seed": 6,
+      "task": "fexofenadine",
+      "tier": 4
+    },
+    {
+      "arm": "MOGP-ICM@FP2",
+      "n_init": 10,
+      "name": "fexofenadine__MOGP-ICM-at-FP2__seed7__init10",
+      "seed": 7,
+      "task": "fexofenadine",
+      "tier": 4
+    },
+    {
+      "arm": "MOGP-ICM@FP2",
+      "n_init": 10,
+      "name": "fexofenadine__MOGP-ICM-at-FP2__seed8__init10",
+      "seed": 8,
+      "task": "fexofenadine",
+      "tier": 4
+    },
+    {
+      "arm": "MOGP-ICM@FP2",
+      "n_init": 10,
+      "name": "fexofenadine__MOGP-ICM-at-FP2__seed9__init10",
+      "seed": 9,
+      "task": "fexofenadine",
+      "tier": 4
+    },
+    {
+      "arm": "MOGP-ICM@FP2",
+      "n_init": 10,
+      "name": "amlodipine__MOGP-ICM-at-FP2__seed0__init10",
+      "seed": 0,
+      "task": "amlodipine",
+      "tier": 4
+    },
+    {
+      "arm": "MOGP-ICM@FP2",
+      "n_init": 10,
+      "name": "amlodipine__MOGP-ICM-at-FP2__seed1__init10",
+      "seed": 1,
+      "task": "amlodipine",
+      "tier": 4
+    },
+    {
+      "arm": "MOGP-ICM@FP2",
+      "n_init": 10,
+      "name": "amlodipine__MOGP-ICM-at-FP2__seed2__init10",
+      "seed": 2,
+      "task": "amlodipine",
+      "tier": 4
+    },
+    {
+      "arm": "MOGP-ICM@FP2",
+      "n_init": 10,
+      "name": "amlodipine__MOGP-ICM-at-FP2__seed3__init10",
+      "seed": 3,
+      "task": "amlodipine",
+      "tier": 4
+    },
+    {
+      "arm": "MOGP-ICM@FP2",
+      "n_init": 10,
+      "name": "amlodipine__MOGP-ICM-at-FP2__seed4__init10",
+      "seed": 4,
+      "task": "amlodipine",
+      "tier": 4
+    },
+    {
+      "arm": "MOGP-ICM@FP2",
+      "n_init": 10,
+      "name": "amlodipine__MOGP-ICM-at-FP2__seed5__init10",
+      "seed": 5,
+      "task": "amlodipine",
+      "tier": 4
+    },
+    {
+      "arm": "MOGP-ICM@FP2",
+      "n_init": 10,
+      "name": "amlodipine__MOGP-ICM-at-FP2__seed6__init10",
+      "seed": 6,
+      "task": "amlodipine",
+      "tier": 4
+    },
+    {
+      "arm": "MOGP-ICM@FP2",
+      "n_init": 10,
+      "name": "amlodipine__MOGP-ICM-at-FP2__seed7__init10",
+      "seed": 7,
+      "task": "amlodipine",
+      "tier": 4
+    },
+    {
+      "arm": "MOGP-ICM@FP2",
+      "n_init": 10,
+      "name": "amlodipine__MOGP-ICM-at-FP2__seed8__init10",
+      "seed": 8,
+      "task": "amlodipine",
+      "tier": 4
+    },
+    {
+      "arm": "MOGP-ICM@FP2",
+      "n_init": 10,
+      "name": "amlodipine__MOGP-ICM-at-FP2__seed9__init10",
+      "seed": 9,
+      "task": "amlodipine",
+      "tier": 4
+    },
+    {
+      "arm": "MOGP-ICM@FP2",
+      "n_init": 10,
+      "name": "perindopril__MOGP-ICM-at-FP2__seed0__init10",
+      "seed": 0,
+      "task": "perindopril",
+      "tier": 4
+    },
+    {
+      "arm": "MOGP-ICM@FP2",
+      "n_init": 10,
+      "name": "perindopril__MOGP-ICM-at-FP2__seed1__init10",
+      "seed": 1,
+      "task": "perindopril",
+      "tier": 4
+    },
+    {
+      "arm": "MOGP-ICM@FP2",
+      "n_init": 10,
+      "name": "perindopril__MOGP-ICM-at-FP2__seed2__init10",
+      "seed": 2,
+      "task": "perindopril",
+      "tier": 4
+    },
+    {
+      "arm": "MOGP-ICM@FP2",
+      "n_init": 10,
+      "name": "perindopril__MOGP-ICM-at-FP2__seed3__init10",
+      "seed": 3,
+      "task": "perindopril",
+      "tier": 4
+    },
+    {
+      "arm": "MOGP-ICM@FP2",
+      "n_init": 10,
+      "name": "perindopril__MOGP-ICM-at-FP2__seed4__init10",
+      "seed": 4,
+      "task": "perindopril",
+      "tier": 4
+    },
+    {
+      "arm": "MOGP-ICM@FP2",
+      "n_init": 10,
+      "name": "perindopril__MOGP-ICM-at-FP2__seed5__init10",
+      "seed": 5,
+      "task": "perindopril",
+      "tier": 4
+    },
+    {
+      "arm": "MOGP-ICM@FP2",
+      "n_init": 10,
+      "name": "perindopril__MOGP-ICM-at-FP2__seed6__init10",
+      "seed": 6,
+      "task": "perindopril",
+      "tier": 4
+    },
+    {
+      "arm": "MOGP-ICM@FP2",
+      "n_init": 10,
+      "name": "perindopril__MOGP-ICM-at-FP2__seed7__init10",
+      "seed": 7,
+      "task": "perindopril",
+      "tier": 4
+    },
+    {
+      "arm": "MOGP-ICM@FP2",
+      "n_init": 10,
+      "name": "perindopril__MOGP-ICM-at-FP2__seed8__init10",
+      "seed": 8,
+      "task": "perindopril",
+      "tier": 4
+    },
+    {
+      "arm": "MOGP-ICM@FP2",
+      "n_init": 10,
+      "name": "perindopril__MOGP-ICM-at-FP2__seed9__init10",
+      "seed": 9,
+      "task": "perindopril",
+      "tier": 4
+    },
+    {
+      "arm": "RANDOM",
+      "n_init": 10,
+      "name": "fexofenadine__RANDOM__seed0__init10",
+      "seed": 0,
+      "task": "fexofenadine",
+      "tier": 4
+    },
+    {
+      "arm": "RANDOM",
+      "n_init": 10,
+      "name": "fexofenadine__RANDOM__seed1__init10",
+      "seed": 1,
+      "task": "fexofenadine",
+      "tier": 4
+    },
+    {
+      "arm": "RANDOM",
+      "n_init": 10,
+      "name": "fexofenadine__RANDOM__seed2__init10",
+      "seed": 2,
+      "task": "fexofenadine",
+      "tier": 4
+    },
+    {
+      "arm": "RANDOM",
+      "n_init": 10,
+      "name": "fexofenadine__RANDOM__seed3__init10",
+      "seed": 3,
+      "task": "fexofenadine",
+      "tier": 4
+    },
+    {
+      "arm": "RANDOM",
+      "n_init": 10,
+      "name": "fexofenadine__RANDOM__seed4__init10",
+      "seed": 4,
+      "task": "fexofenadine",
+      "tier": 4
+    },
+    {
+      "arm": "RANDOM",
+      "n_init": 10,
+      "name": "fexofenadine__RANDOM__seed5__init10",
+      "seed": 5,
+      "task": "fexofenadine",
+      "tier": 4
+    },
+    {
+      "arm": "RANDOM",
+      "n_init": 10,
+      "name": "fexofenadine__RANDOM__seed6__init10",
+      "seed": 6,
+      "task": "fexofenadine",
+      "tier": 4
+    },
+    {
+      "arm": "RANDOM",
+      "n_init": 10,
+      "name": "fexofenadine__RANDOM__seed7__init10",
+      "seed": 7,
+      "task": "fexofenadine",
+      "tier": 4
+    },
+    {
+      "arm": "RANDOM",
+      "n_init": 10,
+      "name": "fexofenadine__RANDOM__seed8__init10",
+      "seed": 8,
+      "task": "fexofenadine",
+      "tier": 4
+    },
+    {
+      "arm": "RANDOM",
+      "n_init": 10,
+      "name": "fexofenadine__RANDOM__seed9__init10",
+      "seed": 9,
+      "task": "fexofenadine",
+      "tier": 4
+    },
+    {
+      "arm": "RANDOM",
+      "n_init": 10,
+      "name": "amlodipine__RANDOM__seed0__init10",
+      "seed": 0,
+      "task": "amlodipine",
+      "tier": 4
+    },
+    {
+      "arm": "RANDOM",
+      "n_init": 10,
+      "name": "amlodipine__RANDOM__seed1__init10",
+      "seed": 1,
+      "task": "amlodipine",
+      "tier": 4
+    },
+    {
+      "arm": "RANDOM",
+      "n_init": 10,
+      "name": "amlodipine__RANDOM__seed2__init10",
+      "seed": 2,
+      "task": "amlodipine",
+      "tier": 4
+    },
+    {
+      "arm": "RANDOM",
+      "n_init": 10,
+      "name": "amlodipine__RANDOM__seed3__init10",
+      "seed": 3,
+      "task": "amlodipine",
+      "tier": 4
+    },
+    {
+      "arm": "RANDOM",
+      "n_init": 10,
+      "name": "amlodipine__RANDOM__seed4__init10",
+      "seed": 4,
+      "task": "amlodipine",
+      "tier": 4
+    },
+    {
+      "arm": "RANDOM",
+      "n_init": 10,
+      "name": "amlodipine__RANDOM__seed5__init10",
+      "seed": 5,
+      "task": "amlodipine",
+      "tier": 4
+    },
+    {
+      "arm": "RANDOM",
+      "n_init": 10,
+      "name": "amlodipine__RANDOM__seed6__init10",
+      "seed": 6,
+      "task": "amlodipine",
+      "tier": 4
+    },
+    {
+      "arm": "RANDOM",
+      "n_init": 10,
+      "name": "amlodipine__RANDOM__seed7__init10",
+      "seed": 7,
+      "task": "amlodipine",
+      "tier": 4
+    },
+    {
+      "arm": "RANDOM",
+      "n_init": 10,
+      "name": "amlodipine__RANDOM__seed8__init10",
+      "seed": 8,
+      "task": "amlodipine",
+      "tier": 4
+    },
+    {
+      "arm": "RANDOM",
+      "n_init": 10,
+      "name": "amlodipine__RANDOM__seed9__init10",
+      "seed": 9,
+      "task": "amlodipine",
+      "tier": 4
+    },
+    {
+      "arm": "RANDOM",
+      "n_init": 10,
+      "name": "perindopril__RANDOM__seed0__init10",
+      "seed": 0,
+      "task": "perindopril",
+      "tier": 4
+    },
+    {
+      "arm": "RANDOM",
+      "n_init": 10,
+      "name": "perindopril__RANDOM__seed1__init10",
+      "seed": 1,
+      "task": "perindopril",
+      "tier": 4
+    },
+    {
+      "arm": "RANDOM",
+      "n_init": 10,
+      "name": "perindopril__RANDOM__seed2__init10",
+      "seed": 2,
+      "task": "perindopril",
+      "tier": 4
+    },
+    {
+      "arm": "RANDOM",
+      "n_init": 10,
+      "name": "perindopril__RANDOM__seed3__init10",
+      "seed": 3,
+      "task": "perindopril",
+      "tier": 4
+    },
+    {
+      "arm": "RANDOM",
+      "n_init": 10,
+      "name": "perindopril__RANDOM__seed4__init10",
+      "seed": 4,
+      "task": "perindopril",
+      "tier": 4
+    },
+    {
+      "arm": "RANDOM",
+      "n_init": 10,
+      "name": "perindopril__RANDOM__seed5__init10",
+      "seed": 5,
+      "task": "perindopril",
+      "tier": 4
+    },
+    {
+      "arm": "RANDOM",
+      "n_init": 10,
+      "name": "perindopril__RANDOM__seed6__init10",
+      "seed": 6,
+      "task": "perindopril",
+      "tier": 4
+    },
+    {
+      "arm": "RANDOM",
+      "n_init": 10,
+      "name": "perindopril__RANDOM__seed7__init10",
+      "seed": 7,
+      "task": "perindopril",
+      "tier": 4
+    },
+    {
+      "arm": "RANDOM",
+      "n_init": 10,
+      "name": "perindopril__RANDOM__seed8__init10",
+      "seed": 8,
+      "task": "perindopril",
+      "tier": 4
+    },
+    {
+      "arm": "RANDOM",
+      "n_init": 10,
+      "name": "perindopril__RANDOM__seed9__init10",
+      "seed": 9,
+      "task": "perindopril",
+      "tier": 4
+    }
+  ],
+  "preregistration_commit": "f8e52549f0cc3e85a318b549c9ebca47e141c030",
+  "preregistration_sha256": "656fad1f6885584184246faed4ba5568c359379ddfd670de23ea5d8cfea04ee4",
+  "result_code_files": {
+    "acquisition.py": "c4f45474db323195abc21aa8ed2a13fe2417e92c",
+    "bench_yong/her_published.py": "f4ede5a1da02c35383219883d44c24c2ae964b4b",
+    "bench_yong/run_one.py": "8b609374856e50ad664e9c312fc4cdcf39889be8",
+    "bench_yong/run_one_published.py": "176cc58495e59c0c218b19e4fc6026b0de62b961",
+    "bench_yong/yong_common.py": "5a274a8fac2c99d1d38411ddf745a574c03bdf9d",
+    "mogp.py": "14d3b4abbe634f745536459e797e5be6455dc511",
+    "mogp_core/__init__.py": "34683af6a7c2efdcbeda39ae734f0acb8352b2ba",
+    "mogp_core/admet_trees.py": "4bf70bb981d975d74ab1f605b4ce658abcc6318a",
+    "mogp_core/boxdecomp.py": "900ad52ba2a7a12f4f7443672c2dbe795aaf975a",
+    "mogp_core/gp.py": "d3044ed5d8f086982df6e6275f1420bafedd9b44",
+    "mogp_core/hypervolume.py": "4597bd43ac21411c006e24011b2b640e9c777fc2",
+    "mogp_core/icm.py": "b5d2f935c00f43eabb3a326fa6cefb82dbae75d7",
+    "mogp_core/linalg.py": "6f4dcdff31375eac37aefa5899fa7451db918b12",
+    "mogp_core/objective.py": "c8677b9f86dd0a7b794321418ffee4b5f4a799b8",
+    "mogp_core/optim.py": "b280270788c613c17e9ec617dadc12ba983d1439",
+    "mogp_core/pareto.py": "444407adc2abfa591cf17e6d151fd5a94b507dc0",
+    "mogp_core/qnehvi.py": "082adf84368c148de90eab5bdfb3ff31f14c82e9",
+    "mogp_core/sobol.py": "7ddea0b99cce6c0c65c210d58d800a193d27bba0",
+    "mogp_core/stats.py": "421601912a86b6dd40e37bd085e6947f1152985a",
+    "mogp_core/tanimoto.py": "f9ea8a308477f9f6b1d42944b2ddb7c4d43cd91f",
+    "mogp_core/transforms.py": "1ad193928b0d40d3926a4aa3d74bfe8c636b5638",
+    "thread_pin.py": "5c4ce6f5ecaec7a5ac11d2a69b7115773d7b19ef",
+    "utils/__init__.py": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+    "utils/featurize.py": "a0194ce7081ec5bf0b229c38c2df18977b6aa16f"
+  },
+  "result_code_sha256": "9cf05aa3694023a9e2ba39e1c73a4d3e70aacbcd51ba477532bae597d1c1bce3"
+}

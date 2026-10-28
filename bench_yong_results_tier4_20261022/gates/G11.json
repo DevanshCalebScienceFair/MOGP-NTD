@@ -1,0 +1,36 @@
+{
+  "as_shipped": {
+    "as_shipped": "ModuleNotFoundError: No module named 'utils.utils_final'",
+    "package_init_bytes": 0,
+    "utils_final_defines": [
+      "evaluate_fex_objectives"
+    ]
+  },
+  "bench_yong_dirty": false,
+  "gate": "G11",
+  "pass": true,
+  "repo_head": "0e9af208627960be7de06edf7e50ed698865d8f3",
+  "with_stand_ins": {
+    "amlodipine": {
+      "file": "ehvi_amlodipine.py",
+      "fingerprint": "return AllChem.GetMorganFingerprint(mol, radius=3, useCounts=True)",
+      "from_her_tree": true,
+      "loop": true,
+      "mc_default": 1000
+    },
+    "fexofenadine": {
+      "file": "ehvi_fexofenadine.py",
+      "fingerprint": "return AllChem.GetMorganFingerprint(mol, radius=3, useCounts=True)",
+      "from_her_tree": true,
+      "loop": true,
+      "mc_default": 1000
+    },
+    "perindopril": {
+      "file": "ehvi_perindopril.py",
+      "fingerprint": "return AllChem.GetMorganFingerprint(mol, radius=3, useCounts=True)",
+      "from_her_tree": true,
+      "loop": true,
+      "mc_default": 1000
+    }
+  }
+}

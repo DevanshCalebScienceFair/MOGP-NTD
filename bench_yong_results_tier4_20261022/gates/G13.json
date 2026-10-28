@@ -1,0 +1,28 @@
+{
+  "bench_yong_dirty": false,
+  "gate": "G13",
+  "n": 500,
+  "pass": true,
+  "per_task": {
+    "amlodipine": {
+      "gmean_vs_pinned_oracle": 0.0,
+      "her_components_vs_tier1_M4": 0.0,
+      "max": 1.0,
+      "min": 1.9287498479639178e-22
+    },
+    "fexofenadine": {
+      "gmean_vs_pinned_oracle": 0.0,
+      "her_components_vs_tier1_M4": 0.0,
+      "max": 1.0,
+      "min": 2.576757109154981e-18
+    },
+    "perindopril": {
+      "gmean_vs_pinned_oracle": 0.0,
+      "her_components_vs_tier1_M4": 0.0,
+      "max": 1.0,
+      "min": 0.0
+    }
+  },
+  "repo_head": "0e9af208627960be7de06edf7e50ed698865d8f3",
+  "tolerance": 1e-12
+}

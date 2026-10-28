@@ -1,0 +1,20 @@
+{
+  "bench_yong_dirty": false,
+  "component_max": [
+    0.24561403508771928,
+    1.0
+  ],
+  "component_min": [
+    0.0,
+    1.9287498479639178e-22
+  ],
+  "components": [
+    "ecfp4_count_similarity",
+    "aromatic_rings_gauss_2_0p5"
+  ],
+  "gate": "G2_perindopril",
+  "max_abs_diff": 0.0,
+  "n": 500,
+  "pass": true,
+  "repo_head": "0cdc0d0494a940f01288c24242ed5cad65766f5e"
+}

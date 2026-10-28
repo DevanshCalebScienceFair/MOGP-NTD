@@ -1,0 +1,9 @@
+{
+  "bench_yong_dirty": false,
+  "gate": "G8_bruteforce_amlodipine_MOGP-ICM@FP2",
+  "m": 2,
+  "max_abs_diff": 4.553649124439119e-18,
+  "nonzero_candidates": 12,
+  "pass": true,
+  "repo_head": "0e9af208627960be7de06edf7e50ed698865d8f3"
+}

@@ -1,0 +1,12 @@
+{
+  "bench_yong_dirty": false,
+  "gate": "G1_fexofenadine",
+  "matched": 20,
+  "max_abs_value_diff": 4.645510975898048e-09,
+  "mismatches": [],
+  "pass": true,
+  "rank20_rank21_gap": 0.000272408275154179,
+  "repo_head": "0cdc0d0494a940f01288c24242ed5cad65766f5e",
+  "table": "8.4",
+  "tie_rule": "np.argsort(-score, kind='stable'), file order"
+}

@@ -1,0 +1,23 @@
+{
+  "bench_yong_dirty": false,
+  "component_max": [
+    1.0,
+    1.0,
+    0.4334677419354839
+  ],
+  "component_min": [
+    2.576757109154981e-18,
+    1.5179622432326304e-07,
+    0.008029978586723769
+  ],
+  "components": [
+    "tpsa_maxgauss_90_10",
+    "logp_mingauss_4_1",
+    "ap_similarity_clip_0p8"
+  ],
+  "gate": "G2_fexofenadine",
+  "max_abs_diff": 0.0,
+  "n": 500,
+  "pass": true,
+  "repo_head": "0e9af208627960be7de06edf7e50ed698865d8f3"
+}

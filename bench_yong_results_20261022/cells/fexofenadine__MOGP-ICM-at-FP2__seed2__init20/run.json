@@ -1,0 +1,86 @@
+{
+  "arm": "MOGP-ICM@FP2",
+  "batch_size": 1,
+  "best_acquired_logged": 0.6558779340029374,
+  "docking_imported": false,
+  "fexofenadine_width_discrepancy": {
+    "code_ca623180": {
+      "TPSA": "MaxGaussianModifier(mu=90, sigma=10)",
+      "logP": "MinGaussianModifier(mu=4, sigma=1)"
+    },
+    "note": "Using the thesis widths moves top-20 values by up to 0.1239 and reorders the table (measured before this benchmark).",
+    "thesis_table_2_1": {
+      "TPSA": "MaxGaussian(90, 2)",
+      "logP": "MinGaussian(4, 2)"
+    },
+    "used": "code"
+  },
+  "final_front_size": 7,
+  "gp_mobo_expected": "ca623180f42fc24a33ed371b295841d2cce815ba",
+  "gp_mobo_head": "ca623180f42fc24a33ed371b295841d2cce815ba",
+  "her_code_modifications": [
+    "M1a rdkit.six stand-in",
+    "M1b utils.utils_final stand-in",
+    "M2 random.seed + np.random.seed",
+    "M3 batched predictions (if G3)",
+    "M4 evaluator rebinding for amlodipine/perindopril"
+  ],
+  "library": {
+    "candidate_rows": "0-9999",
+    "holdout_rows": "10000-10999",
+    "path": "external/GP-MOBO/guacamol_dataset/guacamol_v1_train.smiles",
+    "rows_read": 11000,
+    "sha256": "3c67ee945f351dbbdc02d9016da22efaffc32a39d882021b6f213d5cd60b6a80",
+    "split": "random.seed(seed); random.shuffle(rows 0-9999); start = first n_init, pool = the rest"
+  },
+  "n_acquired": 20,
+  "n_init": 20,
+  "n_iterations": 20,
+  "objectives": [
+    "tpsa_maxgauss_90_10",
+    "logp_mingauss_4_1",
+    "ap_similarity_clip_0p8"
+  ],
+  "oracle_calls": 40,
+  "our_config": {
+    "adam_lr": 0.1,
+    "adam_steps": 200,
+    "bounds": "[0, 1] per component, signs +1, ref 0 (mogp_core.qnehvi frame)",
+    "candidate_chunk": 128,
+    "estimator": "log",
+    "fingerprint": "FP2: utils.featurize.smiles_to_morgan r=2, 2048 bits",
+    "icm_rank": 1,
+    "layout": "CRN",
+    "n_mc": 128,
+    "observation_noise": true,
+    "posterior_call": "plain mogp.predict in 1024-row chunks (not acquisition.py's stacked cat(X_baseline, X) layout, recorded there as numerically inert, QN-23)",
+    "sampler": "sobol",
+    "selection": "np.argsort(-scores)[0] (select_batch's ranking, q=1)",
+    "var_floor": 1e-09
+  },
+  "peak_rss_bytes": 664371200,
+  "pool_limit": null,
+  "pool_sha256": "e915daf82923dcb3845842c706ca07f7470afb4f5a3d5514c7868d98b628104a",
+  "pool_size": 9980,
+  "repo_dirty_bench_yong": false,
+  "repo_head": "e040d65ecebf9cc1bdd918d9f364f2abfcd84fd0",
+  "scalar_oracle": "fexofenadine_mpo",
+  "seed": 2,
+  "start_set_sha256": "8f3855e93e273d3b0ab6dfaa484d7362cdf1da25bd71dd4f64111f1ecde45490",
+  "status": "complete",
+  "task": "fexofenadine",
+  "torch_imported": false,
+  "versions": {
+    "executable": "/opt/homebrew/Caskroom/miniconda/base/envs/mogp-drug/bin/python",
+    "matplotlib": "3.11.1",
+    "networkx": "3.6.1",
+    "numpy": "2.2.6",
+    "pandas": "2.3.3",
+    "platform": "macOS-15.8.1-arm64-arm-64bit",
+    "python": "3.11.16",
+    "rdkit": "2026.03.1",
+    "scipy": "1.17.1",
+    "sklearn": "1.9.0"
+  },
+  "wall_clock_s": 174.60074305534363
+}

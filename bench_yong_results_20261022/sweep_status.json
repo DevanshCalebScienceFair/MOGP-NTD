@@ -1,0 +1,932 @@
+{
+  "built_from": "cell directories on disk",
+  "cells": {
+    "amlodipine__HER-PUB__seed0__init20": {
+      "elapsed_h": 1.3246012308200201,
+      "peak_rss_gb_watchdog": 0.5525504,
+      "state": "complete",
+      "tier": 2
+    },
+    "amlodipine__HER-PUB__seed1__init20": {
+      "elapsed_h": 1.3023037208451165,
+      "peak_rss_gb_watchdog": 0.552517632,
+      "state": "complete",
+      "tier": 2
+    },
+    "amlodipine__HER-PUB__seed2__init20": {
+      "elapsed_h": 1.3332038652234608,
+      "peak_rss_gb_watchdog": 0.517226496,
+      "state": "complete",
+      "tier": 2
+    },
+    "amlodipine__HER-PUB__seed3__init20": {
+      "elapsed_h": 1.1339385103517108,
+      "peak_rss_gb_watchdog": 0.550879232,
+      "state": "complete",
+      "tier": 2
+    },
+    "amlodipine__HER-PUB__seed4__init20": {
+      "elapsed_h": 1.1648144035869175,
+      "peak_rss_gb_watchdog": 0.558678016,
+      "state": "complete",
+      "tier": 2
+    },
+    "amlodipine__HER-PUB__seed5__init20": {
+      "elapsed_h": 1.2013131952285767,
+      "peak_rss_gb_watchdog": 0.565248,
+      "state": "complete",
+      "tier": 2
+    },
+    "amlodipine__HER-at-FP2__seed0__init20": {
+      "elapsed_h": 1.3205404071675406,
+      "peak_rss_gb_watchdog": 0.500187136,
+      "state": "complete",
+      "tier": 1
+    },
+    "amlodipine__HER-at-FP2__seed1__init20": {
+      "elapsed_h": 1.3261415036519368,
+      "peak_rss_gb_watchdog": 0.490471424,
+      "state": "complete",
+      "tier": 1
+    },
+    "amlodipine__HER-at-FP2__seed2__init20": {
+      "elapsed_h": 1.2224334688981373,
+      "peak_rss_gb_watchdog": 0.508166144,
+      "state": "complete",
+      "tier": 1
+    },
+    "amlodipine__HER-at-FP2__seed3__init20": {
+      "elapsed_h": 1.1467518003119364,
+      "peak_rss_gb_watchdog": 0.520077312,
+      "state": "complete",
+      "tier": 1
+    },
+    "amlodipine__HER-at-FP2__seed4__init20": {
+      "elapsed_h": 1.2925068494346408,
+      "peak_rss_gb_watchdog": 0.50946048,
+      "state": "complete",
+      "tier": 1
+    },
+    "amlodipine__HER-at-FP2__seed5__init20": {
+      "elapsed_h": 1.2981124158038033,
+      "peak_rss_gb_watchdog": 0.507314176,
+      "state": "complete",
+      "tier": 1
+    },
+    "amlodipine__HER-at-FP2__seed6__init20": {
+      "elapsed_h": 1.272661581966612,
+      "peak_rss_gb_watchdog": 0.50847744,
+      "state": "complete",
+      "tier": 1
+    },
+    "amlodipine__HER-at-FP2__seed7__init20": {
+      "elapsed_h": 1.1689349019527435,
+      "peak_rss_gb_watchdog": 0.495009792,
+      "state": "complete",
+      "tier": 1
+    },
+    "amlodipine__HER-at-FP2__seed8__init20": {
+      "elapsed_h": 1.17456456720829,
+      "peak_rss_gb_watchdog": 0.497025024,
+      "state": "complete",
+      "tier": 1
+    },
+    "amlodipine__HER-at-FP2__seed9__init20": {
+      "elapsed_h": 1.2110290350516637,
+      "peak_rss_gb_watchdog": 0.538017792,
+      "state": "complete",
+      "tier": 1
+    },
+    "amlodipine__MOGP-ICM-at-FP2__seed0__init20": {
+      "elapsed_h": 0.014009583526187473,
+      "peak_rss_gb_watchdog": 0.58662912,
+      "state": "complete",
+      "tier": 1
+    },
+    "amlodipine__MOGP-ICM-at-FP2__seed1__init20": {
+      "elapsed_h": 0.016810548967785305,
+      "peak_rss_gb_watchdog": 0.61784064,
+      "state": "complete",
+      "tier": 1
+    },
+    "amlodipine__MOGP-ICM-at-FP2__seed2__init20": {
+      "elapsed_h": 0.016800842417611015,
+      "peak_rss_gb_watchdog": 0.606191616,
+      "state": "complete",
+      "tier": 1
+    },
+    "amlodipine__MOGP-ICM-at-FP2__seed3__init20": {
+      "elapsed_h": 0.013999555243386162,
+      "peak_rss_gb_watchdog": 0.609386496,
+      "state": "complete",
+      "tier": 1
+    },
+    "amlodipine__MOGP-ICM-at-FP2__seed4__init20": {
+      "elapsed_h": 0.013999689751201206,
+      "peak_rss_gb_watchdog": 0.603963392,
+      "state": "complete",
+      "tier": 1
+    },
+    "amlodipine__MOGP-ICM-at-FP2__seed5__init20": {
+      "elapsed_h": 0.013999006085925633,
+      "peak_rss_gb_watchdog": 0.589692928,
+      "state": "complete",
+      "tier": 1
+    },
+    "amlodipine__MOGP-ICM-at-FP2__seed6__init20": {
+      "elapsed_h": 0.016805770066049365,
+      "peak_rss_gb_watchdog": 0.58687488,
+      "state": "complete",
+      "tier": 1
+    },
+    "amlodipine__MOGP-ICM-at-FP2__seed7__init20": {
+      "elapsed_h": 0.014004636406898498,
+      "peak_rss_gb_watchdog": 0.60915712,
+      "state": "complete",
+      "tier": 1
+    },
+    "amlodipine__MOGP-ICM-at-FP2__seed8__init20": {
+      "elapsed_h": 0.016805720859103732,
+      "peak_rss_gb_watchdog": 0.57499648,
+      "state": "complete",
+      "tier": 1
+    },
+    "amlodipine__MOGP-ICM-at-FP2__seed9__init20": {
+      "elapsed_h": 0.014003193378448487,
+      "peak_rss_gb_watchdog": 0.589611008,
+      "state": "complete",
+      "tier": 1
+    },
+    "amlodipine__MOGP-IND-at-FP2__seed0__init20": {
+      "elapsed_h": 0.016815069450272453,
+      "peak_rss_gb_watchdog": 0.585711616,
+      "state": "complete",
+      "tier": 1
+    },
+    "amlodipine__MOGP-IND-at-FP2__seed1__init20": {
+      "elapsed_h": 0.01680569416946835,
+      "peak_rss_gb_watchdog": 0.5865472,
+      "state": "complete",
+      "tier": 1
+    },
+    "amlodipine__MOGP-IND-at-FP2__seed2__init20": {
+      "elapsed_h": 0.01679591331217024,
+      "peak_rss_gb_watchdog": 0.57614336,
+      "state": "complete",
+      "tier": 1
+    },
+    "amlodipine__MOGP-IND-at-FP2__seed3__init20": {
+      "elapsed_h": 0.016797318591011894,
+      "peak_rss_gb_watchdog": 0.60243968,
+      "state": "complete",
+      "tier": 1
+    },
+    "amlodipine__MOGP-IND-at-FP2__seed4__init20": {
+      "elapsed_h": 0.01679907030529446,
+      "peak_rss_gb_watchdog": 0.606273536,
+      "state": "complete",
+      "tier": 1
+    },
+    "amlodipine__MOGP-IND-at-FP2__seed5__init20": {
+      "elapsed_h": 0.016803761389520434,
+      "peak_rss_gb_watchdog": 0.59465728,
+      "state": "complete",
+      "tier": 1
+    },
+    "amlodipine__MOGP-IND-at-FP2__seed6__init20": {
+      "elapsed_h": 0.01681124058034685,
+      "peak_rss_gb_watchdog": 0.57720832,
+      "state": "complete",
+      "tier": 1
+    },
+    "amlodipine__MOGP-IND-at-FP2__seed7__init20": {
+      "elapsed_h": 0.016811013089285957,
+      "peak_rss_gb_watchdog": 0.594788352,
+      "state": "complete",
+      "tier": 1
+    },
+    "amlodipine__MOGP-IND-at-FP2__seed8__init20": {
+      "elapsed_h": 0.016809216141700743,
+      "peak_rss_gb_watchdog": 0.571654144,
+      "state": "complete",
+      "tier": 1
+    },
+    "amlodipine__MOGP-IND-at-FP2__seed9__init20": {
+      "elapsed_h": 0.01680766443411509,
+      "peak_rss_gb_watchdog": 0.576815104,
+      "state": "complete",
+      "tier": 1
+    },
+    "amlodipine__RANDOM__seed0__init20": {
+      "elapsed_h": 0.002785858048333062,
+      "peak_rss_gb_watchdog": 0.0,
+      "state": "complete",
+      "tier": 1
+    },
+    "amlodipine__RANDOM__seed1__init20": {
+      "elapsed_h": 0.0027853172355228,
+      "peak_rss_gb_watchdog": 0.0,
+      "state": "complete",
+      "tier": 1
+    },
+    "amlodipine__RANDOM__seed2__init20": {
+      "elapsed_h": 0.0027848297357559205,
+      "peak_rss_gb_watchdog": 0.0,
+      "state": "complete",
+      "tier": 1
+    },
+    "amlodipine__RANDOM__seed3__init20": {
+      "elapsed_h": 0.0027843175331751504,
+      "peak_rss_gb_watchdog": 0.0,
+      "state": "complete",
+      "tier": 1
+    },
+    "amlodipine__RANDOM__seed4__init20": {
+      "elapsed_h": 0.0027837047311994765,
+      "peak_rss_gb_watchdog": 0.0,
+      "state": "complete",
+      "tier": 1
+    },
+    "amlodipine__RANDOM__seed5__init20": {
+      "elapsed_h": 0.0027836883068084717,
+      "peak_rss_gb_watchdog": 0.0,
+      "state": "complete",
+      "tier": 1
+    },
+    "amlodipine__RANDOM__seed6__init20": {
+      "elapsed_h": 0.0027833361095852324,
+      "peak_rss_gb_watchdog": 0.0,
+      "state": "complete",
+      "tier": 1
+    },
+    "amlodipine__RANDOM__seed7__init20": {
+      "elapsed_h": 0.0027828128470314874,
+      "peak_rss_gb_watchdog": 0.0,
+      "state": "complete",
+      "tier": 1
+    },
+    "amlodipine__RANDOM__seed8__init20": {
+      "elapsed_h": 0.0027820327546861437,
+      "peak_rss_gb_watchdog": 0.0,
+      "state": "complete",
+      "tier": 1
+    },
+    "amlodipine__RANDOM__seed9__init20": {
+      "elapsed_h": 0.0027813636594348485,
+      "peak_rss_gb_watchdog": 0.0,
+      "state": "complete",
+      "tier": 1
+    },
+    "fexofenadine__HER-PUB__seed0__init20": {
+      "elapsed_h": 3.3724771214193767,
+      "peak_rss_gb_watchdog": 0.549240832,
+      "state": "complete",
+      "tier": 2
+    },
+    "fexofenadine__HER-PUB__seed1__init20": {
+      "elapsed_h": 3.3080744153261183,
+      "peak_rss_gb_watchdog": 0.515883008,
+      "state": "complete",
+      "tier": 2
+    },
+    "fexofenadine__HER-PUB__seed2__init20": {
+      "elapsed_h": 2.823448875082864,
+      "peak_rss_gb_watchdog": 0.526647296,
+      "state": "complete",
+      "tier": 2
+    },
+    "fexofenadine__HER-PUB__seed3__init20": {
+      "elapsed_h": 1.7007011118862363,
+      "peak_rss_gb_watchdog": 0.54575104,
+      "state": "complete",
+      "tier": 2
+    },
+    "fexofenadine__HER-PUB__seed4__init20": {
+      "elapsed_h": 2.4056343286567263,
+      "peak_rss_gb_watchdog": 0.558596096,
+      "state": "complete",
+      "tier": 2
+    },
+    "fexofenadine__HER-PUB__seed5__init20": {
+      "elapsed_h": 2.4168677505519653,
+      "peak_rss_gb_watchdog": 0.535052288,
+      "state": "complete",
+      "tier": 2
+    },
+    "fexofenadine__HER-at-FP2__seed0__init10": {
+      "elapsed_h": 1.9763127369350857,
+      "peak_rss_gb_watchdog": 0.522027008,
+      "state": "complete",
+      "tier": 3
+    },
+    "fexofenadine__HER-at-FP2__seed0__init20": {
+      "elapsed_h": 3.6677440005540847,
+      "peak_rss_gb_watchdog": 0.535855104,
+      "state": "complete",
+      "tier": 1
+    },
+    "fexofenadine__HER-at-FP2__seed1__init10": {
+      "elapsed_h": 2.703313796321551,
+      "peak_rss_gb_watchdog": 0.510656512,
+      "state": "complete",
+      "tier": 3
+    },
+    "fexofenadine__HER-at-FP2__seed1__init20": {
+      "elapsed_h": 3.1935653497113123,
+      "peak_rss_gb_watchdog": 0.514899968,
+      "state": "complete",
+      "tier": 1
+    },
+    "fexofenadine__HER-at-FP2__seed2__init10": {
+      "elapsed_h": 2.7256061663892535,
+      "peak_rss_gb_watchdog": 0.478773248,
+      "state": "complete",
+      "tier": 3
+    },
+    "fexofenadine__HER-at-FP2__seed2__init20": {
+      "elapsed_h": 2.8260649538702434,
+      "peak_rss_gb_watchdog": 0.526516224,
+      "state": "complete",
+      "tier": 1
+    },
+    "fexofenadine__HER-at-FP2__seed3__init10": {
+      "elapsed_h": 1.6180012914207247,
+      "peak_rss_gb_watchdog": 0.49627136,
+      "state": "complete",
+      "tier": 3
+    },
+    "fexofenadine__HER-at-FP2__seed3__init20": {
+      "elapsed_h": 1.6513255027929943,
+      "peak_rss_gb_watchdog": 0.51494912,
+      "state": "complete",
+      "tier": 1
+    },
+    "fexofenadine__HER-at-FP2__seed4__init10": {
+      "elapsed_h": 1.4752210403150983,
+      "peak_rss_gb_watchdog": 0.513212416,
+      "state": "complete",
+      "tier": 3
+    },
+    "fexofenadine__HER-at-FP2__seed4__init20": {
+      "elapsed_h": 2.3605423080921173,
+      "peak_rss_gb_watchdog": 0.508444672,
+      "state": "complete",
+      "tier": 1
+    },
+    "fexofenadine__HER-at-FP2__seed5__init10": {
+      "elapsed_h": 1.905701113873058,
+      "peak_rss_gb_watchdog": 0.498335744,
+      "state": "complete",
+      "tier": 3
+    },
+    "fexofenadine__HER-at-FP2__seed5__init20": {
+      "elapsed_h": 2.35774153775639,
+      "peak_rss_gb_watchdog": 0.521437184,
+      "state": "complete",
+      "tier": 1
+    },
+    "fexofenadine__HER-at-FP2__seed6__init20": {
+      "elapsed_h": 2.436254321138064,
+      "peak_rss_gb_watchdog": 0.518651904,
+      "state": "complete",
+      "tier": 1
+    },
+    "fexofenadine__HER-at-FP2__seed7__init20": {
+      "elapsed_h": 2.049396253824234,
+      "peak_rss_gb_watchdog": 0.494829568,
+      "state": "complete",
+      "tier": 1
+    },
+    "fexofenadine__HER-at-FP2__seed8__init20": {
+      "elapsed_h": 2.3185037185748416,
+      "peak_rss_gb_watchdog": 0.54411264,
+      "state": "complete",
+      "tier": 1
+    },
+    "fexofenadine__HER-at-FP2__seed9__init20": {
+      "elapsed_h": 3.858637248873711,
+      "peak_rss_gb_watchdog": 0.54419456,
+      "state": "complete",
+      "tier": 1
+    },
+    "fexofenadine__MOGP-ICM-at-FP2__seed0__init10": {
+      "elapsed_h": 0.06762096504370371,
+      "peak_rss_gb_watchdog": 0.650379264,
+      "state": "complete",
+      "tier": 3
+    },
+    "fexofenadine__MOGP-ICM-at-FP2__seed0__init20": {
+      "elapsed_h": 0.04485636916425493,
+      "peak_rss_gb_watchdog": 0.666140672,
+      "state": "complete",
+      "tier": 1
+    },
+    "fexofenadine__MOGP-ICM-at-FP2__seed1__init10": {
+      "elapsed_h": 0.04773076249493493,
+      "peak_rss_gb_watchdog": 0.647954432,
+      "state": "complete",
+      "tier": 3
+    },
+    "fexofenadine__MOGP-ICM-at-FP2__seed1__init20": {
+      "elapsed_h": 0.05046027196778191,
+      "peak_rss_gb_watchdog": 0.657113088,
+      "state": "complete",
+      "tier": 1
+    },
+    "fexofenadine__MOGP-ICM-at-FP2__seed2__init10": {
+      "elapsed_h": 0.05622370216581556,
+      "peak_rss_gb_watchdog": 0.642105344,
+      "state": "complete",
+      "tier": 3
+    },
+    "fexofenadine__MOGP-ICM-at-FP2__seed2__init20": {
+      "elapsed_h": 0.05045843693945143,
+      "peak_rss_gb_watchdog": 0.664338432,
+      "state": "complete",
+      "tier": 1
+    },
+    "fexofenadine__MOGP-ICM-at-FP2__seed3__init10": {
+      "elapsed_h": 0.03654923717180888,
+      "peak_rss_gb_watchdog": 0.643694592,
+      "state": "complete",
+      "tier": 3
+    },
+    "fexofenadine__MOGP-ICM-at-FP2__seed3__init20": {
+      "elapsed_h": 0.039241805606418184,
+      "peak_rss_gb_watchdog": 0.662716416,
+      "state": "complete",
+      "tier": 1
+    },
+    "fexofenadine__MOGP-ICM-at-FP2__seed4__init10": {
+      "elapsed_h": 0.04774587690830231,
+      "peak_rss_gb_watchdog": 0.639074304,
+      "state": "complete",
+      "tier": 3
+    },
+    "fexofenadine__MOGP-ICM-at-FP2__seed4__init20": {
+      "elapsed_h": 0.04485351661841075,
+      "peak_rss_gb_watchdog": 0.683098112,
+      "state": "complete",
+      "tier": 1
+    },
+    "fexofenadine__MOGP-ICM-at-FP2__seed5__init10": {
+      "elapsed_h": 0.04206070866849687,
+      "peak_rss_gb_watchdog": 0.641499136,
+      "state": "complete",
+      "tier": 3
+    },
+    "fexofenadine__MOGP-ICM-at-FP2__seed5__init20": {
+      "elapsed_h": 0.04765667200088501,
+      "peak_rss_gb_watchdog": 0.699564032,
+      "state": "complete",
+      "tier": 1
+    },
+    "fexofenadine__MOGP-ICM-at-FP2__seed6__init20": {
+      "elapsed_h": 0.04204659250047472,
+      "peak_rss_gb_watchdog": 0.681263104,
+      "state": "complete",
+      "tier": 1
+    },
+    "fexofenadine__MOGP-ICM-at-FP2__seed7__init20": {
+      "elapsed_h": 0.056070731083552046,
+      "peak_rss_gb_watchdog": 0.702889984,
+      "state": "complete",
+      "tier": 1
+    },
+    "fexofenadine__MOGP-ICM-at-FP2__seed8__init20": {
+      "elapsed_h": 0.04765766474935743,
+      "peak_rss_gb_watchdog": 0.665731072,
+      "state": "complete",
+      "tier": 1
+    },
+    "fexofenadine__MOGP-ICM-at-FP2__seed9__init20": {
+      "elapsed_h": 0.0448577450381385,
+      "peak_rss_gb_watchdog": 0.678100992,
+      "state": "complete",
+      "tier": 1
+    },
+    "fexofenadine__MOGP-IND-at-FP2__seed0__init20": {
+      "elapsed_h": 0.047678161131011115,
+      "peak_rss_gb_watchdog": 0.682737664,
+      "state": "complete",
+      "tier": 1
+    },
+    "fexofenadine__MOGP-IND-at-FP2__seed1__init20": {
+      "elapsed_h": 0.047679761913087634,
+      "peak_rss_gb_watchdog": 0.682049536,
+      "state": "complete",
+      "tier": 1
+    },
+    "fexofenadine__MOGP-IND-at-FP2__seed2__init20": {
+      "elapsed_h": 0.047676722473568384,
+      "peak_rss_gb_watchdog": 0.686882816,
+      "state": "complete",
+      "tier": 1
+    },
+    "fexofenadine__MOGP-IND-at-FP2__seed3__init20": {
+      "elapsed_h": 0.04206804222530789,
+      "peak_rss_gb_watchdog": 0.66035712,
+      "state": "complete",
+      "tier": 1
+    },
+    "fexofenadine__MOGP-IND-at-FP2__seed4__init20": {
+      "elapsed_h": 0.042052681975894506,
+      "peak_rss_gb_watchdog": 0.66863104,
+      "state": "complete",
+      "tier": 1
+    },
+    "fexofenadine__MOGP-IND-at-FP2__seed5__init20": {
+      "elapsed_h": 0.042052020298110115,
+      "peak_rss_gb_watchdog": 0.6770688,
+      "state": "complete",
+      "tier": 1
+    },
+    "fexofenadine__MOGP-IND-at-FP2__seed6__init20": {
+      "elapsed_h": 0.03924950970543756,
+      "peak_rss_gb_watchdog": 0.68124672,
+      "state": "complete",
+      "tier": 1
+    },
+    "fexofenadine__MOGP-IND-at-FP2__seed7__init20": {
+      "elapsed_h": 0.05326548589600457,
+      "peak_rss_gb_watchdog": 0.655900672,
+      "state": "complete",
+      "tier": 1
+    },
+    "fexofenadine__MOGP-IND-at-FP2__seed8__init20": {
+      "elapsed_h": 0.044859651724497476,
+      "peak_rss_gb_watchdog": 0.661209088,
+      "state": "complete",
+      "tier": 1
+    },
+    "fexofenadine__MOGP-IND-at-FP2__seed9__init20": {
+      "elapsed_h": 0.05044864614804586,
+      "peak_rss_gb_watchdog": 0.681115648,
+      "state": "complete",
+      "tier": 1
+    },
+    "fexofenadine__RANDOM__seed0__init20": {
+      "elapsed_h": 0.002783479690551758,
+      "peak_rss_gb_watchdog": 0.0,
+      "state": "complete",
+      "tier": 1
+    },
+    "fexofenadine__RANDOM__seed1__init20": {
+      "elapsed_h": 0.002784199118614197,
+      "peak_rss_gb_watchdog": 0.0,
+      "state": "complete",
+      "tier": 1
+    },
+    "fexofenadine__RANDOM__seed2__init20": {
+      "elapsed_h": 0.002783468829260932,
+      "peak_rss_gb_watchdog": 0.0,
+      "state": "complete",
+      "tier": 1
+    },
+    "fexofenadine__RANDOM__seed3__init20": {
+      "elapsed_h": 0.002784572508600023,
+      "peak_rss_gb_watchdog": 0.0,
+      "state": "complete",
+      "tier": 1
+    },
+    "fexofenadine__RANDOM__seed4__init20": {
+      "elapsed_h": 0.0027840552065107557,
+      "peak_rss_gb_watchdog": 0.0,
+      "state": "complete",
+      "tier": 1
+    },
+    "fexofenadine__RANDOM__seed5__init20": {
+      "elapsed_h": 0.0027833733293745255,
+      "peak_rss_gb_watchdog": 0.0,
+      "state": "complete",
+      "tier": 1
+    },
+    "fexofenadine__RANDOM__seed6__init20": {
+      "elapsed_h": 0.0027849949730767145,
+      "peak_rss_gb_watchdog": 0.0,
+      "state": "complete",
+      "tier": 1
+    },
+    "fexofenadine__RANDOM__seed7__init20": {
+      "elapsed_h": 0.0027844391928778752,
+      "peak_rss_gb_watchdog": 0.0,
+      "state": "complete",
+      "tier": 1
+    },
+    "fexofenadine__RANDOM__seed8__init20": {
+      "elapsed_h": 0.002783877717124091,
+      "peak_rss_gb_watchdog": 0.0,
+      "state": "complete",
+      "tier": 1
+    },
+    "fexofenadine__RANDOM__seed9__init20": {
+      "elapsed_h": 0.0027833858463499283,
+      "peak_rss_gb_watchdog": 0.0,
+      "state": "complete",
+      "tier": 1
+    },
+    "perindopril__HER-PUB__seed0__init20": {
+      "elapsed_h": 1.243413010570738,
+      "peak_rss_gb_watchdog": 0.559202304,
+      "state": "complete",
+      "tier": 2
+    },
+    "perindopril__HER-PUB__seed1__init20": {
+      "elapsed_h": 1.425898352795177,
+      "peak_rss_gb_watchdog": 0.518406144,
+      "state": "complete",
+      "tier": 2
+    },
+    "perindopril__HER-PUB__seed2__init20": {
+      "elapsed_h": 1.4795263716247347,
+      "peak_rss_gb_watchdog": 0.53354496,
+      "state": "complete",
+      "tier": 2
+    },
+    "perindopril__HER-PUB__seed3__init20": {
+      "elapsed_h": 1.5245413649744457,
+      "peak_rss_gb_watchdog": 0.530726912,
+      "state": "complete",
+      "tier": 2
+    },
+    "perindopril__HER-PUB__seed4__init20": {
+      "elapsed_h": 1.2294649557934867,
+      "peak_rss_gb_watchdog": 0.55238656,
+      "state": "complete",
+      "tier": 2
+    },
+    "perindopril__HER-PUB__seed5__init20": {
+      "elapsed_h": 1.5541399161020915,
+      "peak_rss_gb_watchdog": 0.528695296,
+      "state": "complete",
+      "tier": 2
+    },
+    "perindopril__HER-at-FP2__seed0__init20": {
+      "elapsed_h": 1.3764958375030094,
+      "peak_rss_gb_watchdog": 0.5251072,
+      "state": "complete",
+      "tier": 1
+    },
+    "perindopril__HER-at-FP2__seed1__init20": {
+      "elapsed_h": 1.2839503843916786,
+      "peak_rss_gb_watchdog": 0.516571136,
+      "state": "complete",
+      "tier": 1
+    },
+    "perindopril__HER-at-FP2__seed2__init20": {
+      "elapsed_h": 1.4412165100044674,
+      "peak_rss_gb_watchdog": 0.50561024,
+      "state": "complete",
+      "tier": 1
+    },
+    "perindopril__HER-at-FP2__seed3__init20": {
+      "elapsed_h": 1.3853992658853531,
+      "peak_rss_gb_watchdog": 0.489979904,
+      "state": "complete",
+      "tier": 1
+    },
+    "perindopril__HER-at-FP2__seed4__init20": {
+      "elapsed_h": 1.158380422724618,
+      "peak_rss_gb_watchdog": 0.524828672,
+      "state": "complete",
+      "tier": 1
+    },
+    "perindopril__HER-at-FP2__seed5__init20": {
+      "elapsed_h": 1.4587836319208145,
+      "peak_rss_gb_watchdog": 0.543997952,
+      "state": "complete",
+      "tier": 1
+    },
+    "perindopril__HER-at-FP2__seed6__init20": {
+      "elapsed_h": 1.293150902191798,
+      "peak_rss_gb_watchdog": 0.54837248,
+      "state": "complete",
+      "tier": 1
+    },
+    "perindopril__HER-at-FP2__seed7__init20": {
+      "elapsed_h": 1.2735286380847295,
+      "peak_rss_gb_watchdog": 0.521650176,
+      "state": "complete",
+      "tier": 1
+    },
+    "perindopril__HER-at-FP2__seed8__init20": {
+      "elapsed_h": 1.2595285605722004,
+      "peak_rss_gb_watchdog": 0.51560448,
+      "state": "complete",
+      "tier": 1
+    },
+    "perindopril__HER-at-FP2__seed9__init20": {
+      "elapsed_h": 1.416751341422399,
+      "peak_rss_gb_watchdog": 0.507936768,
+      "state": "complete",
+      "tier": 1
+    },
+    "perindopril__MOGP-ICM-at-FP2__seed0__init20": {
+      "elapsed_h": 0.016804208358128864,
+      "peak_rss_gb_watchdog": 0.603553792,
+      "state": "complete",
+      "tier": 1
+    },
+    "perindopril__MOGP-ICM-at-FP2__seed1__init20": {
+      "elapsed_h": 0.016803632312350804,
+      "peak_rss_gb_watchdog": 0.6053888,
+      "state": "complete",
+      "tier": 1
+    },
+    "perindopril__MOGP-ICM-at-FP2__seed2__init20": {
+      "elapsed_h": 0.016803026662932503,
+      "peak_rss_gb_watchdog": 0.60596224,
+      "state": "complete",
+      "tier": 1
+    },
+    "perindopril__MOGP-ICM-at-FP2__seed3__init20": {
+      "elapsed_h": 0.01680028246508704,
+      "peak_rss_gb_watchdog": 0.590430208,
+      "state": "complete",
+      "tier": 1
+    },
+    "perindopril__MOGP-ICM-at-FP2__seed4__init20": {
+      "elapsed_h": 0.0168090377913581,
+      "peak_rss_gb_watchdog": 0.555368448,
+      "state": "complete",
+      "tier": 1
+    },
+    "perindopril__MOGP-ICM-at-FP2__seed5__init20": {
+      "elapsed_h": 0.016808556980556912,
+      "peak_rss_gb_watchdog": 0.592494592,
+      "state": "complete",
+      "tier": 1
+    },
+    "perindopril__MOGP-ICM-at-FP2__seed6__init20": {
+      "elapsed_h": 0.016807868348227607,
+      "peak_rss_gb_watchdog": 0.598392832,
+      "state": "complete",
+      "tier": 1
+    },
+    "perindopril__MOGP-ICM-at-FP2__seed7__init20": {
+      "elapsed_h": 0.01680706388420529,
+      "peak_rss_gb_watchdog": 0.589283328,
+      "state": "complete",
+      "tier": 1
+    },
+    "perindopril__MOGP-ICM-at-FP2__seed8__init20": {
+      "elapsed_h": 0.016809354424476623,
+      "peak_rss_gb_watchdog": 0.58974208,
+      "state": "complete",
+      "tier": 1
+    },
+    "perindopril__MOGP-ICM-at-FP2__seed9__init20": {
+      "elapsed_h": 0.01680883698993259,
+      "peak_rss_gb_watchdog": 0.575848448,
+      "state": "complete",
+      "tier": 1
+    },
+    "perindopril__MOGP-IND-at-FP2__seed0__init20": {
+      "elapsed_h": 0.01680137554804484,
+      "peak_rss_gb_watchdog": 0.561709056,
+      "state": "complete",
+      "tier": 1
+    },
+    "perindopril__MOGP-IND-at-FP2__seed1__init20": {
+      "elapsed_h": 0.01680282215277354,
+      "peak_rss_gb_watchdog": 0.594526208,
+      "state": "complete",
+      "tier": 1
+    },
+    "perindopril__MOGP-IND-at-FP2__seed2__init20": {
+      "elapsed_h": 0.016801558865441216,
+      "peak_rss_gb_watchdog": 0.58949632,
+      "state": "complete",
+      "tier": 1
+    },
+    "perindopril__MOGP-IND-at-FP2__seed3__init20": {
+      "elapsed_h": 0.016801024741596646,
+      "peak_rss_gb_watchdog": 0.605257728,
+      "state": "complete",
+      "tier": 1
+    },
+    "perindopril__MOGP-IND-at-FP2__seed4__init20": {
+      "elapsed_h": 0.01680096666018168,
+      "peak_rss_gb_watchdog": 0.5832704,
+      "state": "complete",
+      "tier": 1
+    },
+    "perindopril__MOGP-IND-at-FP2__seed5__init20": {
+      "elapsed_h": 0.016794381936391194,
+      "peak_rss_gb_watchdog": 0.585138176,
+      "state": "complete",
+      "tier": 1
+    },
+    "perindopril__MOGP-IND-at-FP2__seed6__init20": {
+      "elapsed_h": 0.016792657242880926,
+      "peak_rss_gb_watchdog": 0.597229568,
+      "state": "complete",
+      "tier": 1
+    },
+    "perindopril__MOGP-IND-at-FP2__seed7__init20": {
+      "elapsed_h": 0.01679195026556651,
+      "peak_rss_gb_watchdog": 0.567001088,
+      "state": "complete",
+      "tier": 1
+    },
+    "perindopril__MOGP-IND-at-FP2__seed8__init20": {
+      "elapsed_h": 0.01679067333539327,
+      "peak_rss_gb_watchdog": 0.603357184,
+      "state": "complete",
+      "tier": 1
+    },
+    "perindopril__MOGP-IND-at-FP2__seed9__init20": {
+      "elapsed_h": 0.01679107732243008,
+      "peak_rss_gb_watchdog": 0.60686336,
+      "state": "complete",
+      "tier": 1
+    },
+    "perindopril__RANDOM__seed0__init20": {
+      "elapsed_h": 0.002785902221997579,
+      "peak_rss_gb_watchdog": 0.0,
+      "state": "complete",
+      "tier": 1
+    },
+    "perindopril__RANDOM__seed1__init20": {
+      "elapsed_h": 0.0027854161130057443,
+      "peak_rss_gb_watchdog": 0.0,
+      "state": "complete",
+      "tier": 1
+    },
+    "perindopril__RANDOM__seed2__init20": {
+      "elapsed_h": 0.002784740262561374,
+      "peak_rss_gb_watchdog": 0.0,
+      "state": "complete",
+      "tier": 1
+    },
+    "perindopril__RANDOM__seed3__init20": {
+      "elapsed_h": 0.0027841180562973022,
+      "peak_rss_gb_watchdog": 0.0,
+      "state": "complete",
+      "tier": 1
+    },
+    "perindopril__RANDOM__seed4__init20": {
+      "elapsed_h": 0.002783447239134047,
+      "peak_rss_gb_watchdog": 0.0,
+      "state": "complete",
+      "tier": 1
+    },
+    "perindopril__RANDOM__seed5__init20": {
+      "elapsed_h": 0.0027860391802257962,
+      "peak_rss_gb_watchdog": 0.0,
+      "state": "complete",
+      "tier": 1
+    },
+    "perindopril__RANDOM__seed6__init20": {
+      "elapsed_h": 0.0027855088975694445,
+      "peak_rss_gb_watchdog": 0.0,
+      "state": "complete",
+      "tier": 1
+    },
+    "perindopril__RANDOM__seed7__init20": {
+      "elapsed_h": 0.0027848661608166165,
+      "peak_rss_gb_watchdog": 0.0,
+      "state": "complete",
+      "tier": 1
+    },
+    "perindopril__RANDOM__seed8__init20": {
+      "elapsed_h": 0.0027842138210932414,
+      "peak_rss_gb_watchdog": 0.0,
+      "state": "complete",
+      "tier": 1
+    },
+    "perindopril__RANDOM__seed9__init20": {
+      "elapsed_h": 0.0027836028072569107,
+      "peak_rss_gb_watchdog": 0.0,
+      "state": "complete",
+      "tier": 1
+    }
+  },
+  "counts": {
+    "tier1|HER@FP2": {
+      "complete": 30
+    },
+    "tier1|MOGP-ICM@FP2": {
+      "complete": 30
+    },
+    "tier1|MOGP-IND@FP2": {
+      "complete": 30
+    },
+    "tier1|RANDOM": {
+      "complete": 30
+    },
+    "tier2|HER-PUB": {
+      "complete": 18
+    },
+    "tier3|HER@FP2": {
+      "complete": 6
+    },
+    "tier3|MOGP-ICM@FP2": {
+      "complete": 6
+    }
+  },
+  "n_complete": 150,
+  "n_planned": 150,
+  "sweep_status": "COMPLETE",
+  "updated": "2026-10-22 18:39:34"
+}

@@ -1,0 +1,8 @@
+{
+  "bench_yong_dirty": false,
+  "gate": "G8_dense_fexofenadine_MOGP-ICM@FP2",
+  "max_abs_mean": 1.1102230246251565e-16,
+  "max_abs_var": 2.7755575615628914e-17,
+  "pass": true,
+  "repo_head": "0cdc0d0494a940f01288c24242ed5cad65766f5e"
+}

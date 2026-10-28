@@ -1,0 +1,48 @@
+{
+  "bench_yong_dirty": false,
+  "driver_blobs": {
+    "ehvi_amlodipine.py": "58cdc66574e62a31980af8078ea538e326cb9ac5",
+    "ehvi_fexofenadine.py": "b8d68594bb99657ffb19c38cac6dd53a063b2178",
+    "ehvi_perindopril.py": "04ea449615905f941930a7e89a08caa7e2017772"
+  },
+  "expected_tree": "825f75621e796a3e1fd5b7586bc066b05d09fddf",
+  "gate": "G10",
+  "materialized": {
+    "path": "/Users/devanshsanghavi/Downloads/MOGP-rewrite/external/GP-MOBO-guacamol-test",
+    "stamp": "825f75621e796a3e1fd5b7586bc066b05d09fddf"
+  },
+  "pass": true,
+  "problems": [],
+  "provenance": {
+    "branch": "origin/guacamol-test",
+    "commit": "e250aca7f2beb392eea2fddb9ebe65425d94cf44",
+    "driver_blobs": {
+      "ehvi_amlodipine.py": "58cdc66574e62a31980af8078ea538e326cb9ac5",
+      "ehvi_fexofenadine.py": "b8d68594bb99657ffb19c38cac6dd53a063b2178",
+      "ehvi_perindopril.py": "04ea449615905f941930a7e89a08caa7e2017772"
+    },
+    "expected_commit": "e250aca7f2beb392eea2fddb9ebe65425d94cf44",
+    "expected_tree": "825f75621e796a3e1fd5b7586bc066b05d09fddf",
+    "pinned_clone_dirty": false,
+    "pinned_clone_expected": "ca623180f42fc24a33ed371b295841d2cce815ba",
+    "pinned_clone_head": "ca623180f42fc24a33ed371b295841d2cce815ba",
+    "tree": "825f75621e796a3e1fd5b7586bc066b05d09fddf"
+  },
+  "repo_head": "0e9af208627960be7de06edf7e50ed698865d8f3",
+  "shared_source": {
+    "acquisition_funcs/hypervolume.py": "identical",
+    "acquisition_funcs/pareto.py": "identical ignoring whitespace",
+    "amlodipine_mpo": "identical",
+    "fex_similarity_value_single": "identical",
+    "fexofenadine_mpo": "identical",
+    "kern_gp/gp_model.py": "identical",
+    "kern_gp/kern_gp_matrices.py": "identical",
+    "logp_score_single": "identical",
+    "perindopril_mpo": "identical",
+    "smiles_2_fingerprint_AP": "identical",
+    "smiles_2_fingerprint_ECFP4": "identical",
+    "smiles_to_rdkit_mol": "identical",
+    "tpsa_score_single": "identical"
+  },
+  "shared_source_identical": true
+}

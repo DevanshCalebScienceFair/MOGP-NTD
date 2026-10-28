@@ -1,0 +1,28 @@
+{
+  "bench_yong_dirty": false,
+  "gate": "G7",
+  "gp_mobo_dirty": false,
+  "gp_mobo_head": "ca623180f42fc24a33ed371b295841d2cce815ba",
+  "importable_rdkit_dirs": [
+    "/opt/homebrew/Caskroom/miniconda/base/envs/mogp-drug/lib/python3.11/site-packages/rdkit"
+  ],
+  "pass": true,
+  "rdkit_dist_info": [
+    "/opt/homebrew/Caskroom/miniconda/base/envs/mogp-drug/lib/python3.11/site-packages/rdkit-2026.3.1.dist-info"
+  ],
+  "repo_head": "0e9af208627960be7de06edf7e50ed698865d8f3",
+  "requirements_numpy_pin": "numpy==2.2.6",
+  "stale_rdkit_metadata": false,
+  "versions": {
+    "executable": "/opt/homebrew/Caskroom/miniconda/base/envs/mogp-drug/bin/python",
+    "matplotlib": "3.11.1",
+    "networkx": "3.6.1",
+    "numpy": "2.2.6",
+    "pandas": "2.3.3",
+    "platform": "macOS-15.8.1-arm64-arm-64bit",
+    "python": "3.11.16",
+    "rdkit": "2026.03.1",
+    "scipy": "1.17.1",
+    "sklearn": "1.9.0"
+  }
+}

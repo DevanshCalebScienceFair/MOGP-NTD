@@ -1,0 +1,12 @@
+{
+  "bench_yong_dirty": false,
+  "gate": "G1_amlodipine",
+  "matched": 20,
+  "max_abs_value_diff": 4.470425363223285e-09,
+  "mismatches": [],
+  "pass": true,
+  "rank20_rank21_gap": 0.0,
+  "repo_head": "0e9af208627960be7de06edf7e50ed698865d8f3",
+  "table": "8.5",
+  "tie_rule": "np.argsort(-score, kind='stable'), file order"
+}

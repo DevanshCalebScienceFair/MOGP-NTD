@@ -45,6 +45,7 @@ the composite objective, uses the known ADMET exactly rather than a GP estimate.
 """
 
 import warnings
+from dataclasses import dataclass
 
 import numpy as np
 import torch
@@ -569,6 +570,170 @@ class DockingPosteriorModel(Model):
         return mean_d, covar
 
 
+#: Bounds for the Selectivity-Index CONTRAST axis, in kcal/mol.
+#:
+#: Derived the same way ``evaluation.DOCKING_KCAL_MIN/MAX`` were: from the
+#: OBSERVED distribution, here over all 5,059 molecules docked across the 18
+#: campaign arms in ``ablation_multiseed/``. Observed min -3.261, p1 -1.851,
+#: median +0.042, p99 +5.372, max +12.582.
+#:
+#: The range is deliberately WIDER than p1-p99 and covers the observed extremes
+#: with margin. Clipping at p99 would saturate the most selective molecules,
+#: which is exactly the mistake already made on ``hDHFR_Docking`` (it inherited
+#: PfDHFR's [-11, -5] and 36 of the 50 most selective molecules clip at its top).
+#: The cost of the wide range is resolution: with a +0.042 median the dense part
+#: of the distribution occupies a narrow slice of the normalized cube. That is
+#: the lesser evil -- a compressed axis still RANKS correctly, a censored one
+#: does not.
+SELECTIVITY_CONTRAST_MIN = -3.5
+SELECTIVITY_CONTRAST_MAX = 13.0
+
+
+@dataclass(frozen=True)
+class LinearObjective:
+    """One optimized axis, declared as a linear functional of the task vector.
+
+    Every axis qNEHVI sees is ``w^T f`` for some weight vector ``w`` over
+    ``TASK_NAMES``. A COORDINATE objective (everything the pipeline has ever
+    optimized) is the special case where ``w`` is one-hot. A CONTRAST, such as
+    the Selectivity Index ``hDHFR_Docking - PfDHFR_Docking``, has
+    ``w = [-1, +1, 0, 0, 0]``.
+
+    Why this type exists
+    --------------------
+    The posterior covariance only ever reaches an objective through a non-one-hot
+    ``w``. For a one-hot ``w``, ``Var(w^T f) = w^T Sigma w`` touches no
+    off-diagonal of ``Sigma``, so a diagonal posterior is exact; and under this
+    project's complete block design (every molecule docked against both targets)
+    autokrigeability makes the coregionalized posterior MEAN equal the
+    independent one. Coordinate objectives therefore cannot benefit from
+    coregionalization, which is why ``--posterior joint`` measured -0.0008.
+
+    For a contrast the two disagree by a measured factor of 3.02 (median over
+    4,500 molecule-fits, 9 campaign seeds; minimum 2.449, so there is no molecule
+    where the diagonal approximation is adequate):
+
+        var_joint = w^T Sigma w       = v_pf + v_h - 2*cov      <- truth
+        var_diag  = w^T diag(Sigma) w = v_pf + v_h              <- historical
+
+    Making the weights DECLARED rather than implicit is what lets a contrast be
+    optimized at all. See ``analysis_scripts/phase0_contrast_variance.py``.
+
+    Attributes:
+        name: Label for logs and result columns. Not used for lookup.
+        weights: Length-``num_objectives`` coefficients over ``TASK_NAMES``.
+        sign: ``+1`` if a larger ``w^T f`` is better, ``-1`` if smaller is.
+        lo: Value mapped to 0.0 in the normalized cube (worst end for ``sign``).
+        hi: Value mapped to 1.0 in the normalized cube.
+    """
+
+    name: str
+    weights: tuple
+    sign: int
+    lo: float
+    hi: float
+
+    def __post_init__(self):
+        w = np.asarray(self.weights, dtype=float)
+        if w.ndim != 1:
+            raise ValueError(f"LinearObjective {self.name!r}: weights must be 1-D, got {w.shape}")
+        if not np.all(np.isfinite(w)):
+            raise ValueError(f"LinearObjective {self.name!r}: weights must all be finite, got {w}")
+        if not np.any(w != 0.0):
+            raise ValueError(f"LinearObjective {self.name!r}: weights are all zero, so this "
+                             "axis would be the constant 0 and carry no information")
+        if int(self.sign) not in (-1, 1):
+            raise ValueError(f"LinearObjective {self.name!r}: sign must be +1 or -1, got {self.sign}")
+        if not (np.isfinite(self.lo) and np.isfinite(self.hi)):
+            raise ValueError(f"LinearObjective {self.name!r}: lo/hi must be finite, got {self.lo}, {self.hi}")
+        if self.hi <= self.lo:
+            raise ValueError(f"LinearObjective {self.name!r}: need hi > lo, got lo={self.lo}, hi={self.hi}")
+
+    @property
+    def support(self):
+        """Indices of the objectives this axis actually reads.
+
+        Only these columns are touched when the axis is evaluated. That keeps a
+        NaN in an unread objective (an out-of-domain ADMET value) from
+        propagating into this axis, which a dense matrix multiply would not.
+        """
+        w = np.asarray(self.weights, dtype=float)
+        return [int(j) for j in np.flatnonzero(w != 0.0)]
+
+    @property
+    def is_coordinate(self):
+        """True if this axis reads exactly one objective with weight exactly 1.0.
+
+        Such an axis is bit-identical to the historical ``emit_indices`` gather,
+        because ``1.0 * x`` is exact in IEEE 754 for every ``x`` including NaN
+        and the infinities.
+        """
+        w = np.asarray(self.weights, dtype=float)
+        nz = np.flatnonzero(w != 0.0)
+        return nz.size == 1 and w[nz[0]] == 1.0
+
+
+def coordinate_objectives(signs, bounds, keep_indices=None, names=None):
+    """The historical objective set, re-expressed as one-hot ``LinearObjective``s.
+
+    Passing the result to ``CompositeKnownADMETObjective`` reproduces the
+    ``emit_only`` behaviour exactly; this is the OFF path of the contrast work
+    and ``test_linear_objectives.py`` pins it bit-for-bit.
+
+    Args:
+        signs: ``+1``/``-1`` per objective, in ``TASK_NAMES`` order.
+        bounds: ``(num_objectives, 2)`` of ``(lo, hi)``, in ``TASK_NAMES`` order.
+        keep_indices: Which objectives become axes; defaults to all of them.
+        names: Optional per-objective names; defaults to ``TASK_NAMES``.
+    """
+    signs = np.asarray(signs, dtype=float)
+    bounds = np.asarray(bounds, dtype=float)
+    num_objectives = bounds.shape[0]
+    if names is None:
+        names = list(TASK_NAMES)[:num_objectives]
+    if keep_indices is None:
+        keep_indices = range(num_objectives)
+    out = []
+    for j in keep_indices:
+        j = int(j)
+        w = np.zeros(num_objectives, dtype=float)
+        w[j] = 1.0
+        out.append(LinearObjective(
+            name=str(names[j]), weights=tuple(float(x) for x in w), sign=int(signs[j]),
+            lo=float(bounds[j, 0]), hi=float(bounds[j, 1]),
+        ))
+    return out
+
+
+def selectivity_contrast_objective(num_objectives=None, lo=None, hi=None,
+                                   name="Selectivity_Index"):
+    """The Selectivity Index as an OPTIMIZABLE contrast axis.
+
+    ``hDHFR_Docking - PfDHFR_Docking`` in kcal/mol, higher is better: strong
+    parasite binding with weak human binding. ``evaluation.add_selectivity_index``
+    already computes this quantity, but only for REPORTING -- CLAUDE.md records
+    that it "is **not** an optimized objective". This makes it one.
+
+    Read the limitations before using it to choose molecules. The index is partly
+    size-driven (Spearman(heavy_atoms, SI) = +0.267; 30% of the top 50 by SI are
+    off-site in hDHFR), it is not calibrated (WR99210 scores -0.17 despite being
+    ~1000x selective), and the hDHFR axis it is built from is itself censored.
+    Optimizing it as a methods demonstration is sound; treating the molecules it
+    nominates as leads is not.
+    """
+    if num_objectives is None:
+        num_objectives = len(TASK_NAMES)
+    pf, h = DOCKING_TASK_INDICES[0], DOCKING_TASK_INDICES[1]
+    w = np.zeros(int(num_objectives), dtype=float)
+    w[pf] = -1.0
+    w[h] = +1.0
+    return LinearObjective(
+        name=name, weights=tuple(float(x) for x in w), sign=+1,
+        lo=SELECTIVITY_CONTRAST_MIN if lo is None else float(lo),
+        hi=SELECTIVITY_CONTRAST_MAX if hi is None else float(hi),
+    )
+
+
 class CompositeKnownADMETObjective(MCMultiOutputObjective):
     r"""Composite objective: sampled docking + KNOWN-EXACT ADMET, normalized.
 
@@ -581,7 +746,7 @@ class CompositeKnownADMETObjective(MCMultiOutputObjective):
     """
 
     def __init__(self, dock_task_indices, lib_task_indices, num_objectives,
-                 bounds, signs):
+                 bounds, signs, linear_objectives=None):
         super().__init__()
         self.dock_task_indices = list(dock_task_indices)
         self.lib_task_indices = list(lib_task_indices)
@@ -589,6 +754,29 @@ class CompositeKnownADMETObjective(MCMultiOutputObjective):
         # Set by `emit_only` to restrict which objectives leave this objective.
         self.emit_indices = None
         self.n_admet = len(self.lib_task_indices)
+
+        # OPT-IN. None keeps the historical coordinate-only path verbatim, so
+        # every published run's behaviour is reachable without this argument.
+        # A list of `LinearObjective` switches to the declared-functional path,
+        # which is the only path a CONTRAST can be expressed through.
+        self.linear_objectives = (
+            None if linear_objectives is None else list(linear_objectives)
+        )
+        if self.linear_objectives is not None:
+            if not self.linear_objectives:
+                raise ValueError(
+                    "CompositeKnownADMETObjective: linear_objectives is empty; "
+                    "qNEHVI needs at least one axis. Pass None for the "
+                    "historical coordinate path."
+                )
+            for lo_ in self.linear_objectives:
+                w = np.asarray(lo_.weights, dtype=float)
+                if w.shape != (self.num_objectives,):
+                    raise ValueError(
+                        f"LinearObjective {lo_.name!r}: weights have shape "
+                        f"{w.shape}, expected ({self.num_objectives},) to match "
+                        "num_objectives"
+                    )
 
         bounds = torch.as_tensor(bounds, dtype=_DTYPE)
         lo = bounds[:, 0]
@@ -612,6 +800,9 @@ class CompositeKnownADMETObjective(MCMultiOutputObjective):
             samples, admet_tail,
             self.dock_task_indices, self.lib_task_indices, self.num_objectives,
         )
+        if self.linear_objectives is not None:
+            return self._apply_linear(full)
+
         lo = self._lo.to(full)
         hi = self._hi.to(full)
         span = self._span.to(full)
@@ -631,6 +822,49 @@ class CompositeKnownADMETObjective(MCMultiOutputObjective):
             # turning them into a pass/fail bar rather than an axis.
             norm = norm[..., self.emit_indices]
         return norm
+
+
+    def _apply_linear(self, full):
+        """Evaluate each declared ``LinearObjective`` and normalize it.
+
+        ``full`` is ``(..., num_objectives)`` in ORIGINAL units. Each axis is
+        ``w^T full`` restricted to ``w``'s support, then mapped into the shared
+        [0, 1] maximization frame with that axis's own ``lo``/``hi``/``sign``.
+
+        Two properties this implementation is built to have, both pinned by
+        tests, because losing either would reintroduce a silent defeat:
+
+        1. **Support-only summation, not a dense matrix multiply.** An axis
+           touches only the columns where its weight is non-zero. A dense
+           ``full @ W.T`` would compute ``0.0 * NaN = NaN`` and so let an
+           out-of-domain ADMET value poison a docking-only axis. Here an unread
+           column cannot reach the result at all.
+        2. **Bit-identity on coordinate axes.** A one-hot weight of exactly 1.0
+           contributes ``1.0 * x``, which IEEE 754 defines as exactly ``x``, and
+           nothing else is added to it. So a coordinate axis produces the same
+           bits as the historical gather, for every input including NaN and the
+           infinities.
+        """
+        axes = []
+        for obj in self.linear_objectives:
+            w = np.asarray(obj.weights, dtype=float)
+            support = obj.support
+            # Start from the first supported column rather than a zeros tensor:
+            # adding to a zero would be exact for finite values but would also
+            # turn a -0.0 into +0.0, and starting here keeps the one-hot case a
+            # pure scalar multiply with nothing summed onto it.
+            j0 = support[0]
+            acc = full[..., j0] if w[j0] == 1.0 else full[..., j0] * float(w[j0])
+            for j in support[1:]:
+                acc = acc + full[..., j] * float(w[j])
+
+            span = obj.hi - obj.lo
+            if obj.sign > 0:
+                norm = (acc - obj.lo) / span
+            else:
+                norm = (obj.hi - acc) / span
+            axes.append(norm.clamp(0.0, 1.0))
+        return torch.stack(axes, dim=-1)
 
 
 def emit_only(objective, keep_indices):
@@ -729,7 +963,7 @@ def compute_qnehvi(model, likelihood, y_mean, y_std,
                    candidate_chunk=CANDIDATE_CHUNK,
                    posterior_mode=DEFAULT_POSTERIOR_MODE,
                    partitioning_alpha=DEFAULT_PARTITIONING_ALPHA,
-                   emit_objectives=None):
+                   emit_objectives=None, linear_objectives=None):
     """Noisy Expected Hypervolume Improvement (qNEHVI) per candidate.
 
     Builds a 2-output docking posterior and a composite objective that folds each
@@ -758,6 +992,15 @@ def compute_qnehvi(model, likelihood, y_mean, y_std,
             covariance — the historical, benchmarked behaviour. ``"joint"`` feeds
             it the full posterior block so cross-task and candidate/baseline
             covariance reach the sampler. See ``DockingPosteriorModel``.
+        emit_objectives: Optional subset of objective indices to optimize. Mutually
+            exclusive with ``linear_objectives``, which supersedes it.
+        linear_objectives: Optional list of ``LinearObjective``. ``None`` (the
+            default) keeps the historical coordinate behaviour exactly. When
+            given, each entry becomes one qNEHVI axis, which is the only way a
+            CONTRAST such as the Selectivity Index can be optimized. Pair it with
+            ``posterior_mode="joint"``: a contrast under ``"diag"`` gets a
+            variance inflated by a measured factor of 3.02 and the combination is
+            rejected rather than run silently.
 
     Returns:
         Array of shape ``(M,)`` of qNEHVI scores; higher is more valuable to
@@ -801,14 +1044,42 @@ def compute_qnehvi(model, likelihood, y_mean, y_std,
         model, likelihood, y_mean, y_std, n_fp, dock_task_indices,
         posterior_mode=_validate_posterior_mode(posterior_mode),
     )
+    if linear_objectives is not None:
+        linear_objectives = list(linear_objectives)
+        if emit_objectives is not None:
+            raise ValueError(
+                "compute_qnehvi: pass either emit_objectives or "
+                "linear_objectives, not both. linear_objectives already says "
+                "which axes to emit, in order; emit_objectives would be "
+                "silently ignored."
+            )
+        # A contrast axis under the diagonal posterior is not an approximation,
+        # it is wrong by w^T Sigma w / w^T diag(Sigma) w -- a measured median of
+        # 3.02 on this project's fits, minimum 2.449 over 4,500 molecule-fits.
+        # The run would complete and report plausible numbers, which is the
+        # silent-defeat shape this branch has already been bitten by five times.
+        if _validate_posterior_mode(posterior_mode) == "diag":
+            contrasts = [o.name for o in linear_objectives if not o.is_coordinate]
+            if contrasts:
+                raise ValueError(
+                    "compute_qnehvi: non-coordinate objectives "
+                    f"{contrasts} require posterior_mode='joint'. Under 'diag' "
+                    "the covariance is discarded, so their variance is "
+                    "overstated by a measured ~3.02x and the acquisition would "
+                    "optimize an uncertainty it invented."
+                )
+
     objective = CompositeKnownADMETObjective(
-        dock_task_indices, lib_task_indices, num_objectives, bounds, signs
+        dock_task_indices, lib_task_indices, num_objectives, bounds, signs,
+        linear_objectives=linear_objectives,
     )
     # Optionally optimize a SUBSET of the objectives. The reference point and the
     # box decomposition must shrink with it, or qNEHVI would be handed a 2-vector
     # against a 5-dimensional reference and fail -- or worse, broadcast.
     n_obj_eff = num_objectives
-    if emit_objectives is not None:
+    if linear_objectives is not None:
+        n_obj_eff = len(linear_objectives)
+    elif emit_objectives is not None:
         emit_only(objective, emit_objectives)
         n_obj_eff = len(list(emit_objectives))
     ref = _resolve_ref_point(ref_point, n_obj_eff, model_wrap, objective,
@@ -856,7 +1127,8 @@ def select_batch(model, likelihood, y_mean, y_std,
                  objective_signs=None, n_mc_samples=N_MC_SAMPLES, layout=None,
                  posterior_mode=DEFAULT_POSTERIOR_MODE,
                  partitioning_alpha=DEFAULT_PARTITIONING_ALPHA,
-                 bounds=None, ref_point=None, emit_objectives=None):
+                 bounds=None, ref_point=None, emit_objectives=None,
+                 linear_objectives=None):
     """Greedily select a diverse, high-qNEHVI batch of candidates.
 
     Candidates are ranked by their qNEHVI score (``compute_qnehvi``), then walked
@@ -876,7 +1148,8 @@ def select_batch(model, likelihood, y_mean, y_std,
         batch_size: Number of molecules to select.
         diversity_threshold: Max allowed Tanimoto similarity to any already-
             selected molecule.
-        objective_signs, n_mc_samples, layout, posterior_mode: Passed through to
+        objective_signs, n_mc_samples, layout, posterior_mode,
+        emit_objectives, linear_objectives: Passed through to
             ``compute_qnehvi``.
 
     Returns:
@@ -891,6 +1164,7 @@ def select_batch(model, likelihood, y_mean, y_std,
         objective_signs=objective_signs, n_mc_samples=n_mc_samples, layout=layout,
         posterior_mode=posterior_mode, partitioning_alpha=partitioning_alpha,
         bounds=bounds, ref_point=ref_point, emit_objectives=emit_objectives,
+        linear_objectives=linear_objectives,
     )
 
     # Rank candidates by qNEHVI score, highest first.

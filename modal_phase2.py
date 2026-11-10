@@ -61,7 +61,13 @@ SEEDS = 20
 @app.function(cpu=4, memory=16384, timeout=60 * 60)
 def cell(job: dict) -> dict:
     import os
+    import sys as _sys
     os.chdir("/work")
+    # chdir does NOT put /work on sys.path for an already-running interpreter;
+    # modal_tests.py gets away without this only because pytest runs as a
+    # subprocess, where the cwd is on the path.
+    if "/work" not in _sys.path:
+        _sys.path.insert(0, "/work")
     from analysis_scripts.phase2_mechanism_test import run_cell, load_fingerprints
 
     fps = load_fingerprints("/work/data/library")

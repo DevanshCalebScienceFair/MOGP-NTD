@@ -44,7 +44,8 @@ import time
 
 import numpy as np
 
-from loop import BOLoop, MODEL_CHOICES
+from loop import (BOLoop, MODEL_CHOICES, OBJECTIVE_SETS,
+                  DEFAULT_OBJECTIVE_SET)
 from acquisition import POSTERIOR_MODES, DEFAULT_POSTERIOR_MODE
 import evaluation
 
@@ -85,6 +86,7 @@ def run_arm(model, seed, cfg, save_dir=None):
         partitioning_alpha=cfg.get("partitioning_alpha"),
         diversity_threshold=cfg.get("diversity_threshold", 0.7),
         acquisition_pool_size=cfg.get("acquisition_pool_size"),
+        objective_set=cfg.get("objective_set", DEFAULT_OBJECTIVE_SET),
     )
 
     # Per-iteration wall clock (GP train / acquisition / docking split), written
@@ -122,6 +124,7 @@ def run_arm(model, seed, cfg, save_dir=None):
                 "rank": cfg["rank"],
                 "diversity_threshold": cfg.get("diversity_threshold", 0.7),
                 "acquisition_pool_size": cfg.get("acquisition_pool_size"),
+                "objective_set": cfg.get("objective_set", DEFAULT_OBJECTIVE_SET),
                 "library_dir": cfg["library_dir"],
             }, fh, indent=2, sort_keys=True)
 
@@ -273,6 +276,15 @@ def main():
                              "variances. 'joint' passes the full posterior block "
                              "through, which is the only setting under which "
                              "coregionalization can influence selection.")
+    parser.add_argument("--objectives", choices=OBJECTIVE_SETS,
+                        default=DEFAULT_OBJECTIVE_SET,
+                        help="Which linear functionals qNEHVI optimizes. "
+                             "'coordinate' (default) is every published run. "
+                             "'contrast' swaps the two docking axes for PfDHFR "
+                             "potency plus the selectivity contrast "
+                             "hDHFR-PfDHFR and requires --posterior joint; it "
+                             "is the only setting under which the cross-task "
+                             "covariance reaches an objective at all.")
     parser.add_argument("--timing-log", default=None,
                         help="Path template for per-iteration timing CSVs; "
                              "'{model}' and '{seed}' are substituted "
@@ -294,6 +306,7 @@ def main():
         "rank": args.rank,
         "max_library": args.max_library,
         "posterior_mode": args.posterior,
+        "objective_set": args.objectives,
         "partitioning_alpha": args.acquisition_alpha,
         "timing_log": args.timing_log,
         "diversity_threshold": args.diversity_threshold,

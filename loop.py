@@ -77,6 +77,8 @@ from acquisition import (
     compute_pareto_front,
     get_active_objectives,
     DEFAULT_OBJECTIVE_SIGNS,
+    coordinate_objectives,
+    selectivity_contrast_objective,
 )
 import evaluation
 import acquisition
@@ -96,6 +98,23 @@ LIBRARY_TASKS, DOCKING_TASKS, DOCKING_TARGETS = resolve_objective_layout(
 # The generalization of the old single DOCKING_COLUMN: the set of objective
 # columns filled by docking.
 DOCKING_COLUMNS = [j for j, _ in DOCKING_TASKS]
+
+#: Which linear functionals of the task vector qNEHVI optimizes.
+#:
+#: ``"coordinate"`` is every published run: one axis per objective, each reading
+#: a single task. Under this project's complete block design those axes cannot
+#: benefit from coregionalization at all (autokrigeability makes the ICM
+#: posterior MEAN equal the independent one, and a one-hot w never touches an
+#: off-diagonal of Sigma), which is why ``--posterior joint`` measured -0.0008.
+#:
+#: ``"contrast"`` replaces the two separate docking axes with PfDHFR potency and
+#: the SELECTIVITY CONTRAST ``hDHFR - PfDHFR``. A contrast does read the
+#: cross-task covariance, and the diagonal posterior overstates its variance by
+#: a measured median of 3.02 (4,500 molecule-fits, 9 campaign seeds, minimum
+#: 2.449 -- see analysis_scripts/phase0_contrast_variance.csv). This is the only
+#: setting under which coregionalization has a channel to act through.
+OBJECTIVE_SETS = ("coordinate", "contrast")
+DEFAULT_OBJECTIVE_SET = "coordinate"
 
 # Margin (kcal/mol) below evaluation.DOCKING_KCAL_MIN at which we
 # warn that observed docking ligand efficiencies are saturating the fixed
@@ -236,7 +255,8 @@ class BOLoop:
                  posterior_mode=DEFAULT_POSTERIOR_MODE,
                  hdhfr_fraction=1.0, bounds_path=None,
                  acquisition_ref_point=None, reject_artifacts=False,
-                 reject_artifacts_training=False, admet_constraints=False):
+                 reject_artifacts_training=False, admet_constraints=False,
+                 objective_set=DEFAULT_OBJECTIVE_SET):
         # --- Reproducibility ---
         # Normalization frame. None = the published frame in
         # evaluation.evaluation_bounds.json. An alternative frame (e.g. the
@@ -357,6 +377,25 @@ class BOLoop:
                 f"expected one of {POSTERIOR_MODES}."
             )
         self.posterior_mode = posterior_mode
+
+        if objective_set not in OBJECTIVE_SETS:
+            raise ValueError(
+                f"BOLoop: unknown objective_set {objective_set!r}; "
+                f"expected one of {OBJECTIVE_SETS}."
+            )
+        self.objective_set = objective_set
+        # A contrast axis under the diagonal posterior is not an approximation,
+        # it is wrong by a measured factor of ~3.02. compute_qnehvi refuses the
+        # combination; refuse it HERE too, before a multi-hour run starts,
+        # rather than at the first acquisition call an hour in.
+        if objective_set == "contrast" and posterior_mode != "joint":
+            raise ValueError(
+                "BOLoop: objective_set='contrast' requires posterior_mode="
+                f"'joint', got {posterior_mode!r}. Under 'diag' the cross-task "
+                "covariance is discarded, so the contrast's variance is "
+                "overstated by ~3.02x and the run would optimize an "
+                "uncertainty it invented. Pass --posterior joint."
+            )
 
         # --- Per-iteration timing (set by the benchmark harness before run) ---
         self.timing_log_path = None
@@ -729,6 +768,32 @@ class BOLoop:
         print(f"Initialized {self.n_init} molecules; "
               f"docked {docked_summary(docking, self.n_init)}.")
 
+    def resolve_linear_objectives(self):
+        """The qNEHVI axes for this run, or None for the historical path.
+
+        Returns ``None`` when ``objective_set == "coordinate"``, which leaves
+        ``compute_qnehvi`` on the code every published run used, byte for byte.
+
+        For ``"contrast"`` it returns two axes: PfDHFR potency (a coordinate)
+        and the Selectivity Index ``hDHFR - PfDHFR`` (a contrast). Dropping the
+        standalone hDHFR axis is the point -- keeping all three would leave the
+        contrast redundant with the pair it is built from.
+        """
+        if self.objective_set == "coordinate":
+            return None
+        pf = DOCKING_COLUMNS[0]
+        signs = getattr(self, "objective_signs", None) or DEFAULT_OBJECTIVE_SIGNS
+        # `self.bounds` is None unless --bounds-path was given, in which case
+        # compute_qnehvi resolves the default itself. The axes are built here,
+        # before that happens, so resolve the same default rather than passing
+        # None into coordinate_objectives (which needs a concrete (n, 2) array).
+        bounds = (self.bounds if self.bounds is not None
+                  else evaluation.compute_objective_bounds())
+        return [
+            coordinate_objectives(signs, bounds, [pf])[0],
+            selectivity_contrast_objective(len(TASK_NAMES)),
+        ]
+
     def step(self):
         """Run one BO iteration: train, select, dock, record."""
         iteration = len(self.history) + 1
@@ -864,6 +929,34 @@ class BOLoop:
         # NOT into the full library. Map them back via candidate_library_indices.
         candidate_admet = self.admet_scores[candidate_library_indices]
         baseline_admet = self.admet_scores[baseline_library_indices]
+        # THE ARRIVAL CHECK. Two flags on this branch were accepted, recorded
+        # in run_config.json, and never forwarded (--acquisition-alpha and
+        # --hdhfr-fraction), and loop.py once had no --seed at all, so six
+        # "different" seeds produced byte-identical output. Resolve the axes
+        # here, assert they are what the flag asked for, and print their names
+        # once per run so the log itself is evidence the value arrived.
+        linear_objectives = self.resolve_linear_objectives()
+        if self.objective_set == "contrast":
+            assert linear_objectives is not None and len(linear_objectives) == 2, (
+                "objective_set='contrast' did not resolve to two axes; the flag "
+                "is not reaching the acquisition"
+            )
+            assert any(not o.is_coordinate for o in linear_objectives), (
+                "objective_set='contrast' resolved to coordinate axes only; the "
+                "contrast is not reaching the acquisition"
+            )
+        else:
+            assert linear_objectives is None, (
+                "objective_set='coordinate' must leave the historical path "
+                "untouched, but resolved to explicit axes"
+            )
+        if not getattr(self, "_logged_objective_axes", False):
+            names = ("TASK_NAMES (historical coordinate path)"
+                     if linear_objectives is None
+                     else ", ".join(o.name for o in linear_objectives))
+            print(f"  qNEHVI axes [{self.objective_set}]: {names}")
+            self._logged_objective_axes = True
+
         selected_local, selected_ehvi = select_batch(
             model, likelihood, y_mean, y_std,
             X_candidates, candidate_admet,
@@ -871,8 +964,13 @@ class BOLoop:
             batch_size=self.batch_size,
             bounds=self.bounds,
             ref_point=self.acquisition_ref_point,
-            emit_objectives=([j for j, _ in DOCKING_TASKS]
-                             if self.admet_constraints else None),
+            # emit_objectives and linear_objectives are mutually exclusive:
+            # linear_objectives already names the axes and their order, so
+            # compute_qnehvi raises rather than silently ignoring one.
+            emit_objectives=(None if linear_objectives is not None else
+                             ([j for j, _ in DOCKING_TASKS]
+                              if self.admet_constraints else None)),
+            linear_objectives=linear_objectives,
             diversity_threshold=self.diversity_threshold,
             partitioning_alpha=self.partitioning_alpha,
             posterior_mode=self.posterior_mode,
@@ -1087,6 +1185,14 @@ if __name__ == "__main__":
                              "coregionalized (ICM, primary) or independent.")
     parser.add_argument("--rank", type=int, default=1,
                         help="IndexKernel rank for the coregionalized model.")
+    parser.add_argument(
+        "--objectives", choices=OBJECTIVE_SETS, default=DEFAULT_OBJECTIVE_SET,
+        help=("which linear functionals qNEHVI optimizes. 'coordinate' "
+              "(default) is every published run: one axis per objective. "
+              "'contrast' replaces the two docking axes with PfDHFR potency "
+              "and the selectivity contrast hDHFR-PfDHFR, and requires "
+              "--posterior joint. Only 'contrast' gives coregionalization a "
+              "channel to act through; see COREGIONALIZATION_IDEAL_DESIGN.md."))
     parser.add_argument("--posterior", choices=POSTERIOR_MODES,
                         default=DEFAULT_POSTERIOR_MODE,
                         help="Covariance handed to qNEHVI: 'diag' (default, the "
@@ -1197,6 +1303,7 @@ if __name__ == "__main__":
     print(f"  reject_artifacts={args.reject_artifacts}  "
           f"reject_artifacts_training={args.reject_artifacts_training}")
     print(f"  admet_constraints={args.admet_constraints}")
+    print(f"  objectives={args.objectives}")
     loop = BOLoop(
         library_dir=args.library_dir,
         seed=args.seed,
@@ -1214,6 +1321,7 @@ if __name__ == "__main__":
         model=args.model,
         coregionalization_rank=args.rank,
         posterior_mode=args.posterior,
+        objective_set=args.objectives,
         densify=args.densify,
         densify_every=args.densify_every,
         densify_per_parent=args.densify_per_parent,

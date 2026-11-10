@@ -1,0 +1,44 @@
+{
+  "arrival": [
+    {
+      "objective_set": "coordinate",
+      "linear_objectives_present": false,
+      "axis_names": null,
+      "has_non_coordinate": false,
+      "emit_objectives": null,
+      "posterior_mode": "diag"
+    },
+    {
+      "objective_set": "contrast",
+      "linear_objectives_present": true,
+      "axis_names": [
+        "PfDHFR_Docking",
+        "Selectivity_Index"
+      ],
+      "has_non_coordinate": true,
+      "emit_objectives": null,
+      "posterior_mode": "joint"
+    }
+  ],
+  "effect": {
+    "n_candidates": 400,
+    "n_baseline": 285,
+    "batch_size": 5,
+    "coordinate_picks": [
+      "Cc1ccc(-c2ccc(NC(=O)C3=C(O)c4ccccc4S(=O)(=O)N3)cc2)cc1C",
+      "COc1cccc(C2Nc3ccccc3-n3c(-c4ccccc4)c4c(=O)n(C)c(=O)n(C)c4c32)c1",
+      "COc1ccc(-c2c[nH]c3ccc(-c4nnc(N)s4)cc23)nc1OC",
+      "CC[C@]12CCCN3CCc4c(n(c5ccccc45)C(=O)C1)[C@@H]32",
+      "Cc1c2c3cc(NC(=O)[C@H](N)Cc4cnc[nH]4)ccc3nc-2n(C)c2ccccc12.Cl"
+    ],
+    "contrast_picks": [
+      "Cc1cccc(NC(=O)c2cc(-c3cccnc3)nc3c(C)cccc23)n1",
+      "Cc1cccc(NNS(=O)(=O)c2ccc(C#N)cc2)c1",
+      "Cc1ccncc1C(=O)N(Cc1cc(=O)[nH]c2c(F)cccc12)c1cccc(Cl)c1",
+      "CNS(=O)(=O)c1ccc(N=c2c3ccccc3[nH]c3cc(N)ccc23)cc1",
+      "O=C(Nc1cccc(C(F)(F)F)n1)Nc1ccnc2cc(OC(F)F)ccc12"
+    ],
+    "overlap": 0,
+    "differ": true
+  }
+}

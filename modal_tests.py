@@ -58,6 +58,21 @@ IMAGE = (
     # SILENTLY DOWNGRADING all three. (The same conflict inside ONE layer
     # raises ResolutionImpossible, which is how it was found.) The 122-test
     # run of 2026-11-10 therefore did not exercise the project's own pins.
+    #
+    # MEASURED, not inferred: `modal_probe_old_image.py` rebuilds that exact
+    # layering and reports what landed. Each downgrade hit its ceiling --
+    #
+    #   numpy   1.26.4    (PyTDC floor >=1.26.4)   vs the project's 2.4.6
+    #   pandas  2.3.3     (highest <3.0.0)         vs 3.0.3
+    #   rdkit   2023.9.6  (highest <2024.3.1)      vs 2024.3.6
+    #
+    # botorch, gpytorch, scipy, torch and scikit-learn were untouched. The two
+    # that matter are the MAJOR-version gaps, numpy and pandas; the rdkit gap
+    # does NOT change the quality screen, because the SA_Score shim in
+    # sa_score.py is unconditional and GetMorganGenerator exists in both
+    # versions, and a shim that cannot run fails loudly rather than silently
+    # reverting to QED. Note the trap: the downgraded rdkit is 2023.9.6, the
+    # same string conda metadata already reports stale for an unrelated reason.
     # `data.py` now imports MolGen at its call site instead, so PyTDC is no
     # longer reachable from any test, and the assertion below makes a
     # recurrence a build failure rather than a silent substitution.

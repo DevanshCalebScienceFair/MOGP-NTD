@@ -47,8 +47,38 @@ IMAGE = (
     # meeko declares no dependencies of its own (`pip show meeko` lists none),
     # so scipy/gemmi/biopython have to be named explicitly -- that omission is
     # what made an earlier Modal image fail three times in a row.
-    .pip_install("PyTDC==1.1.15", "fuzzywuzzy==0.18.0",
-                 "meeko==0.7.1", "gemmi==0.7.5", "biopython==1.87")
+    #
+    # PyTDC is deliberately ABSENT. It used to be installed here because
+    # `acquisition._resolve_admet_layout` imports `data` just to read the
+    # three-string list `data.ADMET_COLUMNS`, and `data` used to import
+    # `tdc.generation.MolGen` at module scope. PyTDC 1.1.15 declares
+    # numpy<2.0.0, pandas<3.0.0 and rdkit<2024.3.1, and this project pins
+    # 2.4.6 / 3.0.3 / 2024.3.6 -- so pip in this SECOND layer, which never
+    # sees the first layer's pins as requirements, satisfied PyTDC by
+    # SILENTLY DOWNGRADING all three. (The same conflict inside ONE layer
+    # raises ResolutionImpossible, which is how it was found.) The 122-test
+    # run of 2026-11-10 therefore did not exercise the project's own pins.
+    # `data.py` now imports MolGen at its call site instead, so PyTDC is no
+    # longer reachable from any test, and the assertion below makes a
+    # recurrence a build failure rather than a silent substitution.
+    .pip_install("meeko==0.7.1", "gemmi==0.7.5", "biopython==1.87")
+    # Fail the BUILD, loudly, if any pin above did not survive dependency
+    # resolution. Without this a downgrade is invisible: the suites still pass,
+    # just against different libraries than the project runs.
+    .run_commands(
+        "python - <<'GUARD'\n"
+        "import importlib.metadata as m\n"
+        "want = {'numpy': '2.4.6', 'pandas': '3.0.3', 'rdkit': '2024.3.6',\n"
+        "        'scipy': '1.17.1', 'torch': '2.12.1', 'gpytorch': '1.15.2',\n"
+        "        'botorch': '0.18.1', 'scikit-learn': '1.9.0'}\n"
+        "got = {k: m.version(k) for k in want}\n"
+        "bad = {k: (got[k], v) for k, v in want.items() if got[k] != v}\n"
+        "for k in sorted(got):\n"
+        "    print(f'  {k:<14}{got[k]}')\n"
+        "assert not bad, f'PIN DRIFT, image rejected: {bad}'\n"
+        "print('version guard: all pins survived dependency resolution')\n"
+        "GUARD"
+    )
     .env({"KMP_DUPLICATE_LIB_OK": "TRUE", "OMP_NUM_THREADS": "4",
           "PYTHONUNBUFFERED": "1"})
     # The WHOLE source tree at /work, not a hand-picked module list.

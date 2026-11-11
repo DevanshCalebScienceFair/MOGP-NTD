@@ -33,8 +33,6 @@ import pandas as pd
 from rdkit import Chem
 from rdkit.Chem import Descriptors, Crippen
 
-from tdc.generation import MolGen
-
 from utils.featurize import batch_smiles_to_morgan
 from admet_oracle import ADMETOracle
 import quality_filter
@@ -98,6 +96,13 @@ def pull_molecules(n_molecules=10000):
     Returns:
         A list of SMILES strings (length up to ``n_molecules``).
     """
+    # Imported HERE, not at module scope: PyTDC's declared bounds
+    # (numpy<2.0.0, pandas<3.0.0, rdkit<2024.3.1) all conflict with this
+    # project's pins, so any environment that imports `data` only to read
+    # ADMET_COLUMNS would otherwise have to install -- and silently
+    # downgrade to -- that incompatible set.
+    from tdc.generation import MolGen
+
     data = MolGen(name="ChEMBL_V29")
     df = data.get_data()
 

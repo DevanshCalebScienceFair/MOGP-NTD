@@ -65,7 +65,7 @@ The approximation is not a rounding error, and it does not cancel:
 | quantity | exact | alpha = 1e-3 | error |
 |---|---|---|---|
 | hypervolume level (24 front points) | 0.2142 | 0.3724 | +74% |
-| hypervolume level (range over 6 to 24 points) | — | — | +18% to +90% |
+| hypervolume level (range over 6 to 24 points) | n/a | n/a | +18% to +90% |
 | mean improvement, 120 candidates vs a 10-point front | 0.00535 | 0.02102 | **+293%** |
 
 I hypothesized the bias would cancel in the improvement, since both terms are
@@ -189,7 +189,7 @@ baselines:
 
 | method, 10 seeds, 290 molecules | final HV | wins |
 |---|---|---|
-| MOGP + qNEHVI | **0.4079 +/- 0.0045** | — |
+| MOGP + qNEHVI | **0.4079 +/- 0.0045** | n/a |
 | GP-MOBO | 0.3123 +/- 0.0357 | 0/10 |
 | Greedy filter-then-dock | 0.1950 +/- 0.0233 | 0/10 |
 
@@ -199,7 +199,7 @@ Put the three measurements side by side and the scale separation is the finding:
 
 | perturbation to the acquisition | magnitude | effect on outcome |
 |---|---|---|
-| replace it with a greedy ADMET filter | — | **-0.21 HV, 10/10 losses** |
+| replace it with a greedy ADMET filter | n/a | **-0.21 HV, 10/10 losses** |
 | degrade its internal ranking to Spearman 0.505 | +293% bias on the improvement | none measurable |
 | correct a threefold variance error on an optimized axis | 3.02x, rho_post 0.717 | none measurable, 0.15 sd |
 

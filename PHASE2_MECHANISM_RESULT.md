@@ -99,9 +99,27 @@ acquisition inaccuracy, neither of which the outcome notices. That is a
 coherent, reportable finding about this problem class, and it is more
 interesting than a third confirmation that qNEHVI works.
 
-It is also consistent with the budget-limited finding: random sampling reached
-94% of the library ceiling in 40 draws. A problem where random does that well is
-a problem where acquisition precision has little to buy.
+**RETRACTED (2026-11-13).** An earlier version of this section read: "It is
+also consistent with the budget-limited finding: random sampling reached 94% of
+the library ceiling in 40 draws. A problem where random does that well is a
+problem where acquisition precision has little to buy." That sentence was
+unsourced -- the figure appears nowhere else in this repository, in no result
+file, and in no analysis script -- and it argues against the campaign's own
+measured result. The 10-seed campaign shows COMPLETE SEPARATION from the
+baselines: MOGP 0.4079 +/- 0.0045, GP-MOBO 0.3123 +/- 0.0357, Greedy
+0.1950 +/- 0.0233, 10/10 wins on all three pairs, Wilcoxon p = 0.00195. No
+10-seed random-sampling hypervolume was ever recorded; `baseline_random.py`
+exists but produced no result file.
+
+**What replaces it is a sharper claim, not a weaker one.** "The problem is easy,
+so acquisition has nothing to buy" is refuted by that separation. What the two
+nulls support is narrower and more specific: the acquisition's COARSE structure
+is what carries the result, and its FINE ranking does not. Choosing qNEHVI over
+a greedy ADMET filter is worth 0.21 hypervolume, 10/10. Degrading qNEHVI's
+internal ranking to Spearman 0.505, or correcting a threefold variance error on
+an optimized axis, is worth approximately nothing. Those are compatible
+statements about different scales of the same signal, and the pair is the
+finding.
 
 ## Limitations, stated rather than used as an escape
 

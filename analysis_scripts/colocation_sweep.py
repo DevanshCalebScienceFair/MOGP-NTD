@@ -72,7 +72,10 @@ REPS = int(os.environ.get("REPS", "20"))
 # The co-located count k = number of molecules carrying BOTH docking labels.
 # F13 sampled only the top of this axis (225, 169, 112, 56, 22). Everything at
 # and below 16 is new, and that is where the identifiability floor should sit.
-K_GRID = [225, 169, 112, 56, 22, 16, 11, 8, 5, 3, 2, 1, 0]
+# k=0 is NOT in the grid: train_mogp_hadamard raises at mogp_hadamard.py:129 when
+# a task has no observations, because its row of B is then unidentifiable. That
+# refusal is the floor stated in code, so it is reported rather than measured.
+K_GRID = [225, 169, 112, 56, 22, 16, 11, 8, 5, 3, 2, 1]
 
 
 def fps(smiles):
@@ -119,21 +122,15 @@ def pred_single(m, lik, mu, sd, X):
 
 
 def learned_task_corr(model):
-    """The off-diagonal of the learned task covariance B = WW' + diag(v),
-    normalized to a correlation. This is the quantity that should lose
-    identifiability as k falls, and it is reported per repeat so its across-
-    repeat spread can be measured."""
+    """Off-diagonal of the learned task covariance B = WW' + diag(v), normalized
+    to a correlation. B spans only the DOCKING tasks, so it is 2x2 indexed 0/1,
+    not by the global task ids. This is the quantity that should lose
+    identifiability as k falls."""
     try:
-        idx = None
-        for mod in model.modules():
-            if isinstance(mod, gpytorch.kernels.IndexKernel):
-                idx = mod; break
-        if idx is None:
-            return float("nan")
-        B = idx.covar_matrix.evaluate().detach().numpy()
+        B = model.task_covariance_matrix()
         d = np.sqrt(np.diag(B))
-        return float(B[PF, HD] / (d[PF] * d[HD]))
-    except Exception:
+        return float(B[0, 1] / (d[0] * d[1]))
+    except Exception as e:
         return float("nan")
 
 
@@ -151,9 +148,13 @@ rows = []
 for rep in range(REPS):
     g = np.random.default_rng(100 + rep)      # same stream as F13
     perm = g.permutation(len(d)); te, tr = perm[:N_TEST], perm[N_TEST:]
+    # ONE permutation per repeat, so the k cells are NESTED: the molecules with
+    # hDHFR at k=11 are a subset of those at k=22, and so on. That removes a
+    # noise source the curve would otherwise carry between adjacent k.
+    order = g.permutation(tr)
     for k in K_GRID:
         k = min(k, len(tr))
-        with_hd = g.permutation(tr)[:k] if k > 0 else np.array([], dtype=int)
+        with_hd = order[:k]
 
         # --- ICM: every PfDHFR label + hDHFR on exactly k molecules ---
         Y = np.full((len(tr), len(TASK_NAMES)), np.nan, dtype=np.float32)

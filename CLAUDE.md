@@ -629,3 +629,79 @@ And before comparing two arms, ask what each metric is structurally biased towar
   `ablation_diag_alpha/` (diag, alpha=1e-3), `ablation_joint_alpha/` (joint, alpha=1e-3).
 - Figures: `/Users/devansh/Downloads/aggregate_10seed/figures/` (see `FIGURES.md`).
 - Analysis scripts and their CSV outputs: `analysis_scripts/`.
+
+---
+
+## CO-LOCATION: how many, and which (2026-11-14)
+
+Two experiments closed the question of when coregionalization is load-bearing.
+Full write-ups: `COLOCATION_OPTIMUM_RESULT.md` (F17), `F18_COLOCATION_POLICY.md` (F18).
+
+**F17, how many.** The ICM's advantage over independent per-task GPs is a HUMP in
+the number k of molecules carrying BOTH docking labels, not a monotone curve. It
+peaks at **k=8, i.e. 3.6% of 225 training molecules** (+0.122 kcal/mol held-out
+hDHFR RMSE, 19/20 repeats, p=0.0002) and collapses at both ends: at k=225 the
+design is block-complete and autokrigeability applies; below k=8 the task
+covariance B stops being identifiable (its across-repeat sd nearly doubles from
+0.148 at the peak to 0.273 at k=5, and reaches 0.693 at k=1). **Operating band:
+3.6% to 9.8%.** k=0 is not a data point; `train_mogp_hadamard` refuses to fit,
+which is the identifiability floor stated in code.
+
+**F18, which. NEGATIVE, and the prediction was pre-registered and failed.**
+Choosing the co-located molecules by chemistry does not beat choosing them at
+random. Farthest-point (max-min Tanimoto) selection is slightly WORSE on RMSE
+(-0.059 kcal/mol pooled, 38/80 cells, p=0.11) despite measurably stabilizing B at
+every k (sd 0.229 vs 0.367 at k=8). The one robust effect is one-sided:
+deliberately CLUSTERED selection is worse than random on both metrics (+0.026
+kcal/mol, p=0.004; +0.101 rank correlation, p<1e-5). **Rule: do not cluster. That
+is all. A uniform draw satisfies it for free.**
+
+A post-hoc hypothesis, labelled as such: spread helps RANK correlation
+(Spearman 0.727 across the 12 cells) and hurts RMSE (+0.406), because diverse
+selection puts the second-task anchors in sparse regions, so B is known more
+precisely and a typical query molecule has no nearby labelled point.
+
+### The code this produced
+
+`loop.py` gained `--hdhfr-policy {hash,uniform,diverse,central}` (default `hash`,
+the historical behaviour, bit-identical) and `--hdhfr-floor N` (default 0 = off).
+Under every policy except `hash`, **`--hdhfr-fraction` becomes a TARGET CUMULATIVE
+RATE, not a per-molecule probability**, and the per-batch quota is
+`max(ceil(rate * n_after), floor) - n_already_colocated`. `uniform` is the
+recommended policy; `diverse` and `central` ship only so F18 is reproducible
+inside the real loop. 31 tests in `test_colocation_policy.py`.
+
+Why the quota form was needed, given F18 says chemistry does not matter: a
+per-molecule hash hits a cumulative rate only in expectation. At n=290 and a 5%
+rate the binomial scatter is +-3.7 on a mean of 14.5, a quarter of the rate, and
+on a 10-molecule batch the hash returns ZERO second-task labels in **119 of 200**
+batches, 59.5%, which makes the model unfittable. That matches the binomial
+exactly (0.95^10 = 0.599), so it is a property of the per-molecule design and not
+an unlucky seed. F14 ran the
+hash at 25%, which is 2.5x above F17's peak, and lost 6/6.
+
+### Gotchas
+
+- **The floor dominates until the campaign is large.** With `--hdhfr-fraction 0.05
+  --hdhfr-floor 8`, `ceil(0.05 n)` does not exceed 8 until **n > 160**. Below
+  that the quota is zero after the first batch and the co-location percentage
+  sits ABOVE the band (8/30 = 27% in a 30-molecule smoke run). A short pilot with
+  these settings is not running inside F17's band. Set the floor to at most
+  `0.05 n`, or say which iterations were outside.
+- **The default path is untouched by construction.** `_dock_partial` is
+  unreachable at `hdhfr_fraction=1.0` (`loop.py:629`), so this is stronger than a
+  byte-identical OFF path.
+
+### NOT shown, and do not claim it
+
+**That the asymmetric campaign beats the symmetric one at matched docking budget
+anywhere in the band.** F17 and F18 are prediction-accuracy experiments at a fixed
+label count. F14 is the only budget-matched campaign comparison and its
+asymmetric arm lost 6/6, at a rate 2.5x above the peak and with no count control.
+The untested cell is now runnable (`--hdhfr-policy uniform --hdhfr-fraction 0.05
+--hdhfr-floor 8` against a full-labelling arm at equal total docking calls) and
+has not been run. There is also a structural reason it may not follow: a molecule
+missing hDHFR cannot enter the qNEHVI baseline, because hypervolume is undefined
+for a molecule missing an objective, so sparse labelling buys a larger GP training
+set and a smaller hypervolume baseline at the same time. F17 measures the first
+and is silent on the second.

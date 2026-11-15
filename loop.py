@@ -174,6 +174,88 @@ def assert_fast_acquisition_path():
         ) from exc
 
 
+def _tanimoto(A, B):
+    """Pairwise Tanimoto over binary fingerprint rows: |A&B| / (|A|+|B|-|A&B|).
+
+    ``A`` is ``(n, 2048)``, ``B`` is ``(m, 2048)``; returns ``(n, m)``. Cast to
+    float because the cached fingerprints are int8 and the dot product would
+    overflow at 2048 bits.
+    """
+    A = np.asarray(A, dtype=np.float32); B = np.asarray(B, dtype=np.float32)
+    inter = A @ B.T
+    na = A.sum(1)[:, None]; nb = B.sum(1)[None, :]
+    return inter / np.maximum(na + nb - inter, 1e-9)
+
+
+def _farthest_point(cand_fps, quota, ref_fps=None):
+    """Greedy max-min Tanimoto selection: ``quota`` positions into ``cand_fps``.
+
+    Each pick is the candidate whose nearest already-chosen neighbour is as far
+    away as possible, so the chosen set spreads over the pool. ``ref_fps`` seeds
+    the "already chosen" set with molecules selected on earlier iterations, which
+    makes the coverage CUMULATIVE over a campaign rather than per batch.
+
+    Deterministic: with no ``ref_fps`` it starts from the most central candidate,
+    not a random one, so the policy and not the RNG decides the subset.
+    """
+    n = len(cand_fps)
+    quota = int(min(quota, n))
+    if quota <= 0:
+        return np.zeros(0, dtype=np.int64)
+    if ref_fps is not None and len(ref_fps):
+        mind = (1.0 - _tanimoto(cand_fps, ref_fps)).min(axis=1)
+        chosen = []
+    else:
+        S = _tanimoto(cand_fps, cand_fps)
+        mean_sim = (S.sum(1) - np.diag(S)) / max(n - 1, 1)
+        first = int(np.argmax(mean_sim))
+        chosen = [first]
+        mind = 1.0 - S[first]
+    while len(chosen) < quota:
+        if chosen:
+            mind[np.asarray(chosen, dtype=np.int64)] = -1.0
+        nxt = int(np.argmax(mind))
+        chosen.append(nxt)
+        mind = np.minimum(mind, 1.0 - _tanimoto(cand_fps, cand_fps[nxt:nxt + 1])[:, 0])
+    return np.asarray(chosen, dtype=np.int64)
+
+
+def _uniform_quota(n_batch, quota, seed, n_evaluated):
+    """``quota`` positions chosen uniformly at random out of ``n_batch``.
+
+    Chemistry-blind on purpose. F18 tested the alternatives at matched cost and
+    found no policy beats uniform on held-out hDHFR accuracy, so the only thing
+    worth fixing about the historical hash is that a per-molecule probability
+    cannot hit a cumulative target exactly. The draw is keyed on the run seed and
+    the number of molecules already evaluated, so it is reproducible and does not
+    depend on how many times the method is called.
+    """
+    quota = int(min(quota, n_batch))
+    if quota <= 0:
+        return np.zeros(0, dtype=np.int64)
+    rng = np.random.default_rng((int(seed) << 20) ^ int(n_evaluated))
+    return rng.permutation(n_batch)[:quota].astype(np.int64)
+
+
+def _most_central(cand_fps, quota):
+    """The ``quota`` candidates with the highest mean similarity to the batch.
+
+    Deliberately CLUSTERED: this is the adversarial control from F18, kept in the
+    shipping code only so the ablation is reproducible inside the real loop. It
+    is not a recommended policy.
+    """
+    n = len(cand_fps)
+    quota = int(min(quota, n))
+    if quota <= 0:
+        return np.zeros(0, dtype=np.int64)
+    S = _tanimoto(cand_fps, cand_fps)
+    mean_sim = (S.sum(1) - np.diag(S)) / max(n - 1, 1)
+    return np.argsort(-mean_sim)[:quota].astype(np.int64)
+
+
+SECONDARY_LABEL_POLICIES = ("hash", "uniform", "diverse", "central")
+
+
 def _splitmix64_unit(indices, seed):
     """Deterministic uniform draw in [0, 1) per index, mixed with ``seed``.
 
@@ -253,7 +335,8 @@ class BOLoop:
                  densify=False, densify_every=1, densify_per_parent=20,
                  densify_max_pool=None, acquisition_pool_size=None,
                  posterior_mode=DEFAULT_POSTERIOR_MODE,
-                 hdhfr_fraction=1.0, bounds_path=None,
+                 hdhfr_fraction=1.0, hdhfr_policy="hash", hdhfr_floor=0,
+                 bounds_path=None,
                  acquisition_ref_point=None, reject_artifacts=False,
                  reject_artifacts_training=False, admet_constraints=False,
                  objective_set=DEFAULT_OBJECTIVE_SET):
@@ -344,6 +427,26 @@ class BOLoop:
         # two would silently drop every partly-docked molecule and quietly
         # measure nothing, so refuse the combination outright rather than let it
         # run and produce a meaningless result.
+        # --- Which molecules carry the second label (F18) ---
+        # Until 2026-11-14 this was always a hash of the library index: a uniform
+        # random subset, blind to chemistry. B's off-diagonal is identified ONLY
+        # by the co-located molecules, so where they sit in chemical space sets
+        # how much of the library that evidence covers. See F18_COLOCATION_POLICY.
+        self.hdhfr_policy = str(hdhfr_policy)
+        if self.hdhfr_policy not in SECONDARY_LABEL_POLICIES:
+            raise ValueError(
+                f"hdhfr_policy must be one of {SECONDARY_LABEL_POLICIES}; "
+                f"got {hdhfr_policy!r}."
+            )
+        # A CUMULATIVE minimum count of co-located molecules, enforced before the
+        # rate. Without it a small rate on a small initial batch can produce ZERO
+        # second-task labels, and train_mogp_hadamard then refuses to fit at all
+        # (mogp_hadamard.py: "has no observed values") -- the identifiability
+        # floor stated in code. F17 puts the advantage peak at 8.
+        self.hdhfr_floor = int(hdhfr_floor)
+        if self.hdhfr_floor < 0:
+            raise ValueError(f"hdhfr_floor must be >= 0; got {hdhfr_floor!r}.")
+
         self.partial_labels = (model == "hadamard")
         if self.hdhfr_fraction < 1.0 and not self.partial_labels:
             raise ValueError(
@@ -559,9 +662,7 @@ class BOLoop:
         primary, secondary = DOCKING_TARGETS[0], DOCKING_TARGETS[1]
         out = {primary: batch_dock_targets(smiles, [primary])[primary]}
 
-        idx = np.asarray(list(library_indices), dtype=np.int64)
-        u = _splitmix64_unit(idx, self.seed)
-        take = u < self.hdhfr_fraction
+        take = self._secondary_label_mask(library_indices)
 
         sec = np.full(len(smiles), np.nan, dtype=float)
         chosen = [s for s, t in zip(smiles, take) if t]
@@ -569,6 +670,99 @@ class BOLoop:
             sec[take] = batch_dock_targets(chosen, [secondary])[secondary]
         out[secondary] = sec
         return out
+
+    def _secondary_label_mask(self, library_indices):
+        """Which molecules of this batch also get docked against the SECONDARY target.
+
+        Returns a boolean mask over the batch. Three policies, all of which spend
+        the SAME number of docking calls for a given rate, so any difference
+        between them is free:
+
+        ``hash``
+            A SplitMix64 hash of the library index against ``hdhfr_fraction``.
+            The historical behaviour, kept bit-identical and still the default.
+            The decision is per molecule and stable across iterations, batch
+            sizes and restarts: molecule 4,217 is either in the subset for this
+            run or it is not, and re-docking it later never flips that. It is
+            also blind to chemistry and ignores ``hdhfr_floor``, because a
+            per-molecule hash has no notion of a running total.
+
+        ``uniform`` / ``diverse`` / ``central``
+            Quota-based. ``hdhfr_fraction`` becomes a TARGET CUMULATIVE
+            co-location rate over everything evaluated so far, and this batch
+            supplies the shortfall, with ``hdhfr_floor`` as a hard minimum count
+            applied first. ``uniform`` then draws the shortfall at random and is
+            the RECOMMENDED policy. ``diverse`` picks by farthest-point max-min
+            Tanimoto against the molecules already labelled, so coverage
+            accumulates across the campaign; ``central`` picks the most typical
+            molecules of the batch.
+
+        Why the quota form exists: F17 located the ICM's advantage peak at 3.6%
+        to 9.8% of training molecules co-located, a band roughly 8 to 22
+        molecules wide at campaign scale. A per-molecule probability hits that
+        band only in expectation. At n=290 and a 5% rate the binomial scatter is
+        +-3.7 molecules on a mean of 14.5, about a quarter of the rate, and on an
+        early batch of ten molecules a 5% rate lands on ZERO co-located molecules
+        often enough to matter -- at which point B's off-diagonal is
+        unidentifiable and the ICM is an independent GP wearing a different name.
+        The quota form pins the count instead of sampling it.
+
+        Why chemistry is NOT used to choose: F18 tested it and the prediction
+        failed. At matched k inside F17's band, farthest-point selection gave a
+        measurably more stable task covariance (sd of the learned correlation
+        0.229 vs 0.367 at k=8) and still did not predict held-out hDHFR better
+        (-0.059 kcal/mol RMSE pooled, 38/80 cells, p=0.11; +0.023 rank
+        correlation, p=0.29). The one robust effect is negative: deliberately
+        CLUSTERED selection is worse than random (+0.026 kcal/mol and +0.101 rank
+        correlation for random over central, p=0.004 and p<1e-5). So the rule is
+        "do not cluster", which uniform selection satisfies for free.
+        """
+        idx = np.asarray(list(library_indices), dtype=np.int64)
+        n_batch = len(idx)
+
+        if self.hdhfr_policy == "hash":
+            return _splitmix64_unit(idx, self.seed) < self.hdhfr_fraction
+
+        hd_col = DOCKING_TASKS[1][0]
+        if len(self.Y_evaluated):
+            labelled = np.isfinite(self.Y_evaluated[:, hd_col])
+        else:
+            labelled = np.zeros(0, dtype=bool)
+        n_coloc = int(labelled.sum())
+
+        # Target the rate against the post-batch total, so the running fraction
+        # tracks hdhfr_fraction instead of lagging one batch behind it.
+        n_after = len(self.evaluated_indices) + n_batch
+        target = int(np.ceil(self.hdhfr_fraction * n_after))
+        quota = int(np.clip(max(target, self.hdhfr_floor) - n_coloc, 0, n_batch))
+
+        mask = np.zeros(n_batch, dtype=bool)
+        if quota == 0:
+            return mask
+
+        if self.hdhfr_policy == "uniform":
+            sel = _uniform_quota(n_batch, quota, self.seed,
+                                 len(self.evaluated_indices))
+            mask[sel] = True
+            print(f"  secondary label (uniform): {int(mask.sum())}/{n_batch} this "
+                  f"batch; cumulative {n_coloc + int(mask.sum())}/{n_after} = "
+                  f"{(n_coloc + int(mask.sum())) / max(n_after, 1):.1%} co-located")
+            return mask
+
+        cand = self.fingerprints[idx]
+        if self.hdhfr_policy == "central":
+            sel = _most_central(cand, quota)
+        else:
+            ref = None
+            if n_coloc:
+                eval_idx = np.asarray(self.evaluated_indices, dtype=np.int64)
+                ref = self.fingerprints[eval_idx[labelled]]
+            sel = _farthest_point(cand, quota, ref_fps=ref)
+        mask[sel] = True
+        print(f"  secondary label ({self.hdhfr_policy}): {int(mask.sum())}/{n_batch} "
+              f"this batch; cumulative {n_coloc + int(mask.sum())}/{n_after} = "
+              f"{(n_coloc + int(mask.sum())) / max(n_after, 1):.1%} co-located")
+        return mask
 
     def _warn_if_docking_saturates(self, Y_new):
         """Warn if any observed docking LE sits at/below the normalization floor.
@@ -1279,6 +1473,31 @@ if __name__ == "__main__":
                              "design becomes unbalanced, which is the only regime "
                              "where coregionalization can help (autokrigeability); "
                              "requires --model hadamard.")
+    parser.add_argument("--hdhfr-policy", choices=SECONDARY_LABEL_POLICIES,
+                        default="hash",
+                        help="WHICH molecules get the second docking label "
+                             "(default 'hash' = the historical index hash, a "
+                             "chemistry-blind uniform subset). 'uniform' is the "
+                             "RECOMMENDED policy: the same blind draw, but it "
+                             "hits a cumulative target exactly instead of in "
+                             "expectation, and it honours --hdhfr-floor. "
+                             "'diverse' (farthest-point Tanimoto) and 'central' "
+                             "(most typical) were tested in F18: diverse is no "
+                             "better than uniform and central is worse, so they "
+                             "ship only so the ablation is reproducible. Under "
+                             "every policy except 'hash', --hdhfr-fraction is a "
+                             "TARGET CUMULATIVE rate, not a per-molecule "
+                             "probability.")
+    parser.add_argument("--hdhfr-floor", type=int, default=0,
+                        help="Hard minimum number of molecules carrying the "
+                             "second label, cumulative, applied BEFORE the rate "
+                             "(default 0 = off; ignored by --hdhfr-policy hash, "
+                             "which has no running total). A small rate on a "
+                             "small initial batch can otherwise reach zero "
+                             "second-task labels, which makes the ICM's task "
+                             "covariance unidentifiable and makes "
+                             "train_mogp_hadamard refuse to fit. F17 puts the "
+                             "advantage peak at 8.")
     args = parser.parse_args()
 
     # Resolve the run profile: --smoke -> SMOKE_PARAMS, else the Grand Campaign;
@@ -1298,6 +1517,7 @@ if __name__ == "__main__":
     print(f"  n_init={n_init}, batch_size={batch_size}, n_iterations={n_iterations}")
     print(f"  seed={args.seed}  hdhfr_fraction={args.hdhfr_fraction}  "
           f"acquisition_pool_size={args.acquisition_pool_size}")
+    print(f"  hdhfr_policy={args.hdhfr_policy!r}  hdhfr_floor={args.hdhfr_floor}")
     print(f"  bounds_frame={args.bounds_path or 'published (evaluation_bounds.json)'}")
     print(f"  acquisition_ref_point={args.acquisition_ref_point or 'zeros (default)'}")
     print(f"  reject_artifacts={args.reject_artifacts}  "
@@ -1314,6 +1534,8 @@ if __name__ == "__main__":
         admet_constraints=args.admet_constraints,
         n_init=n_init,
         hdhfr_fraction=args.hdhfr_fraction,
+        hdhfr_policy=args.hdhfr_policy,
+        hdhfr_floor=args.hdhfr_floor,
         acquisition_pool_size=args.acquisition_pool_size,
         batch_size=batch_size,
         n_iterations=n_iterations,

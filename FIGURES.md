@@ -76,3 +76,21 @@ Scripts live in the session scratchpad, so copy any you want to keep:
 `fig10.py`, `fig11.py`, `fig12.py`, `fig13.py`, `fig4v2.py`, `contact_sheet.py`,
 plus the measurement scripts `alpha_bench.py`, `alpha_rank.py`,
 `multiseed_analysis.py`, `why_null.py`, `asym_experiment.py`.
+
+## F17 and F18: the co-location axis
+
+| figure | file | what it shows |
+|---|---|---|
+| F17 | `F17_colocation_optimum.png` | The ICM's advantage over independent GPs is a hump in the co-located count k, peaking at k=8 (3.6% of training molecules, +0.122 kcal/mol RMSE, 19/20, p=0.0002) and dying at both ends. sd of the learned task correlation rises monotonically as k falls, which is B losing identifiability. `COLOCATION_OPTIMUM_RESULT.md`, `analysis_scripts/colocation_sweep.py` |
+| F18 | `F18_colocation_policy.png` | **Negative.** At fixed k inside that band, choosing WHICH molecules are co-located by chemistry does not beat choosing at random (diverse vs random -0.059 kcal/mol, 38/80, p=0.11). Only one effect survives: deliberately clustered selection is worse than random (+0.026 kcal/mol, p=0.004; +0.101 rank correlation, p<1e-5). Farthest-point selection does stabilize the task covariance at every k and still does not predict better. `F18_COLOCATION_POLICY.md`, `analysis_scripts/colocation_policy.py`, `analysis_scripts/fig18.py` |
+
+Both read the same committed `ablation_multiseed/coregionalized_seed1/evaluated.csv`
+(285 molecules with both docking labels) and use F13's fit hyperparameters, so
+F13, F17 and F18 share an axis. Neither docks anything.
+
+### The sixth retraction candidate
+
+6. **"Picking the most representative compounds for the expensive second assay is
+   the sensible default."** Measured and false. It is the one selection rule
+   that is reliably worse than picking at random, on both accuracy and ranking.
+   (`F18`)

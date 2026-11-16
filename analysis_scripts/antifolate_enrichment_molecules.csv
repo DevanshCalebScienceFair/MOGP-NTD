@@ -1,0 +1,8 @@
+method,smiles,max_tanimoto,closest_drug,has_core,heavy_atoms,seeds_recovered,pfdhfr,hdhfr,selectivity_index
+GPMOBO,CCc1nc(N)nc(N)c1-c1ccc(CNc2ccc(Cl)cc2)cc1,0.7317073170731707,Pyrimethamine,True,25,2,-10.2,-10.3,-0.10000000000000142
+GPMOBO,Nc1nc(N)c(-c2ccc(Cl)cc2)c(CCCCCO)n1,0.6097560975609756,Pyrimethamine,True,21,4,-7.608,-8.482,-0.8739999999999997
+GPMOBO,CCc1nc(N)nc(N)c1-c1cccc(C)c1,0.575,Pyrimethamine,True,17,1,-9.659,-9.362,0.2970000000000006
+GPMOBO,CC1(C)N=C(N)N=C(N)N1c1cccc(O)c1,0.5609756097560976,Cycloguanil,True,17,1,-9.797,-9.5,0.2970000000000006
+GPMOBO,COC(=O)c1nc(N)nc(O)c1-c1ccc(Cl)cc1,0.40425531914893614,Pyrimethamine,False,19,5,-8.815,-7.668,1.1469999999999994
+MOGP (ours),CCc1nc(N)nc(N)c1-c1ccc(CNc2ccc(Cl)cc2)cc1,0.7317073170731707,Pyrimethamine,True,25,10,-10.2,-10.3,-0.10000000000000142
+MOGP (ours),Nc1nc(N)c(-c2ccc(Cl)cc2)c(CCCCCO)n1,0.6097560975609756,Pyrimethamine,True,21,10,-7.608,-8.482,-0.8739999999999997

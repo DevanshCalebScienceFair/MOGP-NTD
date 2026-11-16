@@ -1,0 +1,4 @@
+{"model":"hadamard","hdhfr_fraction":1.0,"seed":5,
+ "n_init":40,"batch_size":5,"n_iterations":50,
+ "posterior_mode":"joint","partitioning_alpha":0.001,"acquisition_pool_size":2000,
+ "note":"old (Kronecker) vs new (Hadamard) ICM on COMPLETE data"}

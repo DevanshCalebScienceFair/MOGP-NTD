@@ -72,35 +72,12 @@ ax.set_ylabel("log scale"); ax.legend(fontsize=8,loc="upper right")
 ax.set_title("(e) One acquisition call, baseline size 80\nmeasured directly",fontsize=9.5,loc="left")
 
 
-# (f) plain-language
-ax=fig.add_subplot(gs[1,2]); ax.axis("off")
-ax.text(0,1.0,"(f) What this means, plainly",fontsize=10,weight="bold",transform=ax.transAxes,va="top")
-ax.text(0,.93,
-"The paper currently says our method is the most\n"
-"accurate but by far the most expensive to run.\n\n"
-"The expense was not the method. It was one\n"
-"BoTorch setting nobody set — the code used an\n"
-"exact geometric calculation where the library's\n"
-"own default is a fast approximation.\n\n"
-"Turning it on: 17× less compute. Not the same\n"
-"answers — it picks a different set of molecules —\n"
-"but molecules of equal measured quality.\n\n"
-"The trade-off in the paper's discussion — accuracy\n"
-"bought with compute — was never real. So was the\n"
-"reason we capped the candidate pool at 2,000.\n\n"
-"Practical effect: a campaign that took a full\n"
-"working day of compute now takes half an hour,\n"
-"which is what made replicating across 10 random\n"
-"restarts affordable at all.\n\n"
-"Mechanically: qNEHVI carves the objective space\n"
-"into boxes to measure improvement. alpha lets it\n"
-"use slightly coarser ones — 183 boxes instead of\n"
-"2,303 — which is where the time and the memory go.",
-fontsize=7.7,transform=ax.transAxes,va="top",linespacing=1.32)
+# (f) intentionally left empty
+
 
 fig.suptitle("F4 (revised) — The cost result was an unset default, not a property of the method",
              fontsize=12.5,weight="bold",y=.985)
-fig.text(.5,.005,"Campaign bars: 10 seeds, measured. MOGP-corrected: campaign cost divided by the 17.0× measured on the matched ICM ablation config (8.14 h -> 0.48 h, 290 molecules, pool=2000). "
+fig.text(.5,.005,"Campaign bars: 10 seeds, measured. MOGP-corrected: campaign cost divided by the 17.0× measured on the matched ablation config (8.14 h -> 0.48 h, 290 molecules, pool=2000). "
                  "The projection assumes the factor transfers; it is dominated by box-decomposition cost, which scales with Pareto-front size, and front sizes were comparable (162 vs 179).",
          ha="center",fontsize=7,color="#666")
 fig.savefig(f"{OUT}/F4_compute_cost_REVISED.png",dpi=170,bbox_inches="tight",facecolor="w")

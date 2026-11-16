@@ -797,3 +797,61 @@ output, no error, nothing measured. Fixed by splitting the reporting half into
 `analysis_scripts/correlation_floor_report.py`, which imports only
 numpy/pandas/scipy. Lesson for any future Modal script: **the local entrypoint
 and the container do not share an environment.**
+
+## THE ANTIFOLATE ENRICHMENT (2026-11-16) — F6b
+
+`analysis_scripts/antifolate_enrichment.py`, `F6b_ANTIFOLATE_ENRICHMENT.md`,
+`F6b_antifolate_enrichment.png`. No docking run; `campaign_results/` read-only,
+cache never written.
+
+**The number.** The Pareto front carries known-antifolate chemistry at **2.8x**
+the library rate on the DHFR pharmacophore class (2,4-diaminopyrimidine or
+2,4-diamino-dihydrotriazine by SMARTS, 231 of 29,678 molecules) and **17.7x** on
+close analogs of pyrimethamine / cycloguanil / WR99210 / P218 (Tanimoto >= 0.4,
+20 molecules). p < 0.0001 for both, per-seed Monte-Carlo null over 10 seeds.
+
+**Do not misstate these.**
+1. **The per-seed front is the unit, never the union of fronts.** The union
+   penalizes a reproducible method: MOGP's near-identical fronts collapse its
+   union, giving p = 0.065 where the per-seed test gives p < 0.0001. Any future
+   enrichment analysis must use the per-seed unit.
+2. **A loose Tanimoto cut is a chlorophenyl detector.** At T >= 0.25, 214
+   "near-neighbors" contain only 52 with a diamino core and 59 with nothing but
+   a chlorophenyl (13.5% of the library). Report T >= 0.4 or the SMARTS core.
+   Never quote a loose-threshold enrichment number.
+3. **The enrichment is in the ACQUISITION, not the Pareto filter.** EF 8-10 from
+   choosing what to dock, EF 1.7 from choosing what to keep. The claim belongs
+   to the search.
+4. **MOGP is NOT distinguishable from GPMOBO here** (paired over 10 seeds,
+   6/10 wins, p = 0.52). This diagnostic separates BO from greedy (10/10,
+   p = 0.0020), nothing finer.
+5. **The recovered molecules are potent and NOT selective.** Both molecules MOGP
+   recovers in 10/10 seeds have a negative Selectivity Index (-0.10 and -0.87
+   kcal/mol): they bind human DHFR at least as tightly as the parasite enzyme.
+   Never write "recovers selective antifolates".
+
+**Audits that passed.** Zero hits came from the 40-molecule random initial
+design. The result survives a heavy-atom-matched null (p < 0.0001), so molecular
+size is not the explanation. `validate_known_actives.py`'s max-similarity metric
+has no null and inflates with front size; it is superseded for this claim.
+
+### TWO DEFECTS FOUND, both recorded for the engineering log
+
+**`*_Docking` means different quantities in different arms.** GPMOBO arm:
+`PfDHFR_Docking` = ligand efficiency (kcal/mol per heavy atom), `*_kcal` = raw.
+MOGP and Greedy arms: `PfDHFR_Docking` = raw kcal/mol, `*_LE` = efficiency. Each
+arm's `*_Docking` is the objective that arm optimized. Reading it across arms
+puts kcal/mol and kcal/mol-per-atom on one axis. `matrix_report.py:53` does this
+and asserts in a comment that the column IS raw kcal/mol. **LATENT, NOT
+TRIGGERED**: no existing matrix run has a `gpmobo` case, so no published figure
+is affected. Fires the first time one is added. Pin the column per arm, as
+`antifolate_enrichment.KCAL_COLUMN` does.
+
+**The docking cache is no longer a record of the campaign.** 2,008 of the 3,754
+molecules the published campaign evaluated (53.5%) are absent from the live
+cache, which was re-keyed under a new oracle fingerprint after the campaign ran.
+Scores present in both differ (-10.11 cache vs -10.20 campaign CSV for one
+molecule), consistent with a different receptor prep. Published numbers are
+unaffected. **Read campaign scores from `campaign_results/*/evaluated.csv`, never
+from the cache.** Arena membership defined by cache presence no longer matches
+what the campaign searched.

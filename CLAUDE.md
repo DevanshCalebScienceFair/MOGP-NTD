@@ -847,6 +847,47 @@ TRIGGERED**: no existing matrix run has a `gpmobo` case, so no published figure
 is affected. Fires the first time one is added. Pin the column per arm, as
 `antifolate_enrichment.KCAL_COLUMN` does.
 
+**FIXED 2026-11-16.** `matrix_report.py` no longer carries a global
+`PF_KCAL` / `HD_KCAL`. It resolves the raw-kcal column PER CASE with
+`resolve_kcal_column(df, target)`, which prefers `<target>_Docking_kcal` when
+the case wrote one and falls back to `<target>_Docking` otherwise, and
+`with_raw_kcal` applies that once in `summarize` before any code reads a
+docking column by name.
+
+- The resolution is per CASE, from the columns present on disk, not per family
+  name. A case id is a label; the CSV header is the evidence. The `("gpmobo",
+  "GP-MOBO")` family entry still only picks a plotting colour.
+- **Four consumers were mixing units, not the two the column constants named.**
+  `summarize`'s `best_PfDHFR_Docking` and the selectivity scatter were the
+  obvious pair. `normalized_scores` (so `summary.csv`'s `best_score`, and panel
+  4 of the figure) and `best_by_objective` (so `best_per_objective.csv`) read
+  `*_Docking` by name too, and would have normalized a ligand efficiency of
+  -0.42 against `evaluation.DOCKING_KCAL_MIN/MAX` of [-11, -5], scoring a
+  gpmobo case's STRONGEST binder as the worst possible value on that objective.
+  Measured on a synthetic mixed sweep: best_score 0.602 for the gpmobo case
+  against 0.709 for an MOGP case holding the identical molecules, now 0.709 for
+  both. Converting once at read time is what fixes all four together.
+- **The rewrite is lossless.** `with_raw_kcal` keeps the efficiency as the
+  `*_Docking_LE` column the other arms already write, so a converted gpmobo
+  frame follows the MOGP convention exactly and nothing is dropped.
+- **It is loud.** Both columns present and differing in magnitude by more than
+  `UNIT_DISAGREEMENT_FACTOR` (2.0; the real gap is ~25x, the heavy-atom count)
+  means the two hold different quantities, which raises a `UserWarning` and
+  prints a `DOCKING UNITS` block on stdout naming the case and the column read.
+  The resolution is still correct; it is reported rather than taken silently.
+- **`summary.csv` now states its own units**, in new `PfDHFR_kcal_column` /
+  `hDHFR_kcal_column` columns. `best_PfDHFR_Docking` keeps its name and is raw
+  kcal/mol in every arm, which is what that name always claimed.
+- **Verified a no-op on the existing sweeps.** Re-running against a COPY of
+  `matrix_results_holo/` (38 cases, nothing in place) gives a `summary.csv`
+  identical to HEAD's apart from the two new provenance columns. The published
+  directories were not touched. Note separately that the committed
+  `matrix_results_holo/summary.csv` already differed from what HEAD regenerates;
+  that drift predates this change and is not from it.
+- 11 tests in `test_matrix_report_units.py` build one tiny case in EACH
+  convention and pin that both resolve to raw kcal/mol, that the two land on
+  one scale through `summarize`, and that a mixed sweep says so.
+
 **The docking cache is no longer a record of the campaign.** 2,008 of the 3,754
 molecules the published campaign evaluated (53.5%) are absent from the live
 cache, which was re-keyed under a new oracle fingerprint after the campaign ran.

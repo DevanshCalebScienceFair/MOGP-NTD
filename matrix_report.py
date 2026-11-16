@@ -33,6 +33,7 @@ Usage::
 import argparse
 import json
 import os
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -48,10 +49,118 @@ HISTORY_FILE = "history.csv"
 PARETO_FILE = "pareto_front.csv"
 EVALUATED_FILE = "evaluated.csv"
 
-# The TASK_NAMES docking columns ARE raw kcal/mol since the Day-11 objective
-# switch; ligand efficiency is carried alongside as a reported "*_LE" column.
-PF_KCAL = "PfDHFR_Docking"
-HD_KCAL = "hDHFR_Docking"
+# Column semantics differ BY ARM, and the names do not say so. Each arm names
+# the objective IT optimized ``*_Docking``, so that name is not one quantity:
+#
+#   GPMOBO arm      ``PfDHFR_Docking``      ligand efficiency (kcal/mol/atom)
+#                   ``PfDHFR_Docking_kcal`` raw affinity (kcal/mol)
+#   MOGP / Greedy   ``PfDHFR_Docking``      raw affinity (kcal/mol)
+#                   ``PfDHFR_Docking_LE``   ligand efficiency (kcal/mol/atom)
+#
+# A single global "this column is kcal/mol" constant is therefore wrong the
+# moment a gpmobo case joins a sweep: it puts kcal/mol and kcal/mol-per-heavy-
+# atom on one axis, in the ``best_*`` summary column and in the selectivity
+# scatter. Resolve the raw-kcal column PER CASE instead, with
+# ``resolve_kcal_column`` below, which prefers ``*_Docking_kcal`` when the case
+# wrote one. ``analysis_scripts/antifolate_enrichment.py`` (``KCAL_COLUMN`` +
+# ``campaign_scores``) pins the same thing per arm for the campaign CSVs.
+PF_TARGET = "PfDHFR"
+HD_TARGET = "hDHFR"
+DOCKING_TARGETS = (PF_TARGET, HD_TARGET)
+
+# Raw kcal/mol runs around -10 and ligand efficiency around -0.4, so when both
+# columns exist and their magnitudes differ by more than this factor they are
+# two different quantities. That is the expected gpmobo case and the resolution
+# is still correct, but it is reported rather than resolved silently.
+UNIT_DISAGREEMENT_FACTOR = 2.0
+
+
+def kcal_column_candidates(target):
+    """``(preferred, fallback)`` raw-kcal column names for a docking target."""
+    return "{}_Docking_kcal".format(target), "{}_Docking".format(target)
+
+
+def magnitude_ratio(preferred, fallback):
+    """Median per-row ``|preferred| / |fallback|`` over rows finite in both.
+
+    Returns None when no row supports the comparison. Per-row rather than a
+    ratio of medians, because ligand efficiency divides by a heavy-atom count
+    that varies molecule to molecule.
+    """
+    a = pd.to_numeric(preferred, errors="coerce").to_numpy(dtype=float)
+    b = pd.to_numeric(fallback, errors="coerce").to_numpy(dtype=float)
+    ok = np.isfinite(a) & np.isfinite(b) & (np.abs(b) > 1e-12)
+    if not ok.any():
+        return None
+    return float(np.median(np.abs(a[ok]) / np.abs(b[ok])))
+
+
+def resolve_kcal_column(df, target, case_id="", notes=None):
+    """The column of ``df`` holding RAW kcal/mol for ``target``, or None.
+
+    Prefers ``<target>_Docking_kcal`` when the case wrote one (the gpmobo arm,
+    whose ``<target>_Docking`` is ligand efficiency) and otherwise falls back to
+    ``<target>_Docking`` (the MOGP and Greedy arms, where that IS raw kcal/mol).
+
+    When both columns are present and disagree in magnitude by more than
+    ``UNIT_DISAGREEMENT_FACTOR``, the two hold different quantities. The
+    resolution is unchanged, but a line is appended to ``notes`` and a
+    ``UserWarning`` raised, so no caller can mix the units without being told.
+    """
+    preferred, fallback = kcal_column_candidates(target)
+    if df is None:
+        return None
+    has_pref = preferred in df.columns
+    has_fall = fallback in df.columns
+    if not has_pref and not has_fall:
+        return None
+    chosen = preferred if has_pref else fallback
+    if has_pref and has_fall:
+        ratio = magnitude_ratio(df[preferred], df[fallback])
+        if ratio is not None and (ratio > UNIT_DISAGREEMENT_FACTOR
+                                  or ratio < 1.0 / UNIT_DISAGREEMENT_FACTOR):
+            note = ("{}: {} and {} differ by {:.3g}x in magnitude, so they are "
+                    "different quantities (raw kcal/mol vs ligand efficiency). "
+                    "Reading {} as raw kcal/mol."
+                    .format(case_id or "<case>", fallback, preferred, ratio,
+                            chosen))
+            if notes is not None:
+                notes.append(note)
+            warnings.warn(note, UserWarning, stacklevel=2)
+    return chosen
+
+
+def with_raw_kcal(df, case_id="", notes=None):
+    """``df`` rewritten into ONE convention: ``*_Docking`` is raw kcal/mol.
+
+    Everything downstream of a case's CSVs reads ``*_Docking`` by that name:
+    ``normalized_scores`` normalizes it against ``evaluation``'s kcal bounds,
+    ``best_by_objective`` reports it as an objective, ``summarize`` takes its
+    minimum as the strongest binder, and the selectivity scatter plots it. In a
+    gpmobo case that column is ligand efficiency, roughly 25x smaller, so each
+    of those silently mixes units the moment such a case joins a sweep.
+
+    Converting once, here, is what keeps them all honest. The ligand efficiency
+    is preserved as the ``*_Docking_LE`` column the other arms already write,
+    so the rewrite loses nothing. Returns ``df`` itself when no change is
+    needed, so the common case copies nothing.
+    """
+    if df is None:
+        return None
+    out = None
+    for target in DOCKING_TARGETS:
+        col = resolve_kcal_column(df, target, case_id, notes)
+        base = "{}_Docking".format(target)
+        if col is None or col == base:
+            continue
+        if out is None:
+            out = df.copy()
+        if base in df.columns:
+            le = "{}_Docking_LE".format(target)
+            if le not in out.columns:
+                out[le] = df[base]
+        out[base] = df[col]
+    return df if out is None else out
 
 # Families group the cases for colouring. Order matters: the first prefix that
 # matches wins, so the more specific 'gpmobo' sits ahead of 'baseline'.
@@ -275,11 +384,21 @@ def best_by_objective(case_id, pareto):
     return rows
 
 
-def summarize(case_id, path):
-    """Collapse one case's result CSVs into a single summary row."""
+def summarize(case_id, path, notes=None):
+    """Collapse one case's result CSVs into a single summary row.
+
+    ``notes`` collects any unit-resolution warnings raised for this case (see
+    ``resolve_kcal_column``) so the caller can report them.
+    """
     history = read_csv(os.path.join(path, HISTORY_FILE))
     pareto = read_csv(os.path.join(path, PARETO_FILE))
     evaluated = read_csv(os.path.join(path, EVALUATED_FILE))
+    # One conversion, before anything reads a docking column by name, so the
+    # champion score, the per-objective winners, the best-binder value and the
+    # selectivity scatter all see raw kcal/mol whichever arm wrote this case.
+    raw_cols = {t: resolve_kcal_column(pareto, t, case_id, notes)
+                for t in DOCKING_TARGETS}
+    pareto = with_raw_kcal(pareto, case_id)
 
     row = {
         "case": case_id,
@@ -290,6 +409,10 @@ def summarize(case_id, path):
         "best_score": float("nan"),
         "best_SMILES": "",
     }
+    # Which column this case's raw kcal/mol was read from, so the units behind
+    # every downstream number are auditable from summary.csv alone.
+    for target in DOCKING_TARGETS:
+        row[target + "_kcal_column"] = ""
     if history is not None and "hypervolume" in history.columns:
         row["final_hypervolume"] = float(history["hypervolume"].iloc[-1])
         if "n_evaluated" in history.columns:
@@ -310,9 +433,16 @@ def summarize(case_id, path):
                     evaluation.SELECTIVITY_LE_COLUMN):
             if col in pareto.columns and not pareto[col].isna().all():
                 row["best_" + col] = float(pareto[col].max())
-        # Strongest parasite binder: docking kcal, so most negative wins.
-        if PF_KCAL in pareto.columns and not pareto[PF_KCAL].isna().all():
-            row["best_" + PF_KCAL] = float(pareto[PF_KCAL].min())
+        # Strongest parasite binder: RAW kcal/mol, so most negative wins.
+        # Resolved per case: in a gpmobo case ``PfDHFR_Docking`` is ligand
+        # efficiency and the raw affinity lives in ``PfDHFR_Docking_kcal``.
+        # The summary column keeps its historical name and now holds kcal/mol
+        # in every arm, which is what that name always claimed.
+        for target in DOCKING_TARGETS:
+            row[target + "_kcal_column"] = raw_cols[target] or ""
+        pf = PF_TARGET + "_Docking"
+        if raw_cols[PF_TARGET] and not pareto[pf].isna().all():
+            row["best_PfDHFR_Docking"] = float(pareto[pf].min())
     return row, best_row, (pareto if pareto is not None else None)
 
 
@@ -363,12 +493,17 @@ def plot(summary, histories, paretos, out_path, partial=False):
     # (less negative is better). The desirable corner is lower-right.
     plotted = False
     for case_id, pareto in paretos.items():
-        if pareto is None or PF_KCAL not in pareto.columns:
+        if pareto is None:
             continue
-        if HD_KCAL not in pareto.columns:
+        # Per case, so a gpmobo case contributes raw kcal/mol like every other
+        # arm instead of silently plotting ligand efficiency on the same axes.
+        # notes=None: summarize() has already reported any disagreement.
+        pf_col = resolve_kcal_column(pareto, PF_TARGET, case_id)
+        hd_col = resolve_kcal_column(pareto, HD_TARGET, case_id)
+        if pf_col is None or hd_col is None:
             continue
         fam = family_of(case_id)
-        ax_sel.scatter(pareto[PF_KCAL], pareto[HD_KCAL], s=22, alpha=0.7,
+        ax_sel.scatter(pareto[pf_col], pareto[hd_col], s=22, alpha=0.7,
                        color=FAMILY_COLORS.get(fam, FAMILY_COLORS["other"]),
                        edgecolors="none")
         plotted = True
@@ -466,9 +601,10 @@ def main():
     timings = load_timings(args.sweep_dir)
 
     rows, champions, per_objective = [], [], []
+    unit_notes = []
     histories, paretos = {}, {}
     for case_id, path in cases:
-        row, best_row, pareto = summarize(case_id, path)
+        row, best_row, pareto = summarize(case_id, path, unit_notes)
         seconds, status = timing_for(case_id, timings)
         row["seconds"] = seconds
         row["minutes"] = seconds / 60.0 if seconds == seconds else seconds
@@ -517,6 +653,13 @@ def main():
             print(f"  - {reason}")
         print("  Every row of summary.csv is stamped sweep_status=PARTIAL.")
         print("  Do not quote these numbers as the sweep's result.")
+        print("=" * 78)
+    if unit_notes:
+        print("DOCKING UNITS — both column conventions present in this sweep:")
+        for note in unit_notes:
+            print("  - {}".format(note))
+        print("  Every number above is raw kcal/mol; the column each case was")
+        print("  read from is in summary.csv as <target>_kcal_column.")
         print("=" * 78)
     shown = summary.head(15)
     print("{:<38} {:>12} {:>8} {:>10} {:>9}".format(

@@ -94,3 +94,5 @@ F13, F17 and F18 share an axis. Neither docks anything.
    the sensible default."** Measured and false. It is the one selection rule
    that is reliably worse than picking at random, on both accuracy and ranking.
    (`F18`)
+
+| F19 | `F19_correlation_floor.png` | **The correlation floor, and the first measurement on that axis.** The ICM's advantage is monotone in the task correlation rho (Spearman +1.000 at both label budgets). The point estimate crosses zero at rho=0.450 at k=8 and rho=0.259 at k=22, but after Holm nothing below rho=0.5 is significant either way, so the demonstrated-benefit thresholds are **rho >= 0.711 at k=8 and rho >= 0.500 at k=22**. The floor MOVES with the co-location budget. All five pre-registered clauses resolved; the real-hDHFR anchor reproduces F17 exactly (+0.1220, 19/20, p=0.0002). Two self-corrections recorded: I predicted a bias direction for the synthetic task twice and neither held, and the raw p at low rho reads as "harmful" but does not survive Holm. `F19_CORRELATION_FLOOR.md`, `analysis_scripts/correlation_floor.py`, `modal_f19_correlation_floor.py`, `analysis_scripts/fig19.py` |

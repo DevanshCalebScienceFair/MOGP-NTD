@@ -705,3 +705,95 @@ missing hDHFR cannot enter the qNEHVI baseline, because hypervolume is undefined
 for a molecule missing an objective, so sparse labelling buys a larger GP training
 set and a smaller hypervolume baseline at the same time. F17 measures the first
 and is silent on the second.
+
+---
+
+## THE CORRELATION FLOOR (2026-11-15) — F19
+
+F12/F13/F17/F18 all fix the task correlation at the one value the data has,
+`corr(PfDHFR, hDHFR) = 0.711`, and vary the LABEL GEOMETRY. F19 is the first
+experiment on the correlation axis itself. Full write-up:
+`F19_CORRELATION_FLOOR.md`. Pre-registered in `4fc1e20` before the run.
+
+**The number.** How similar must two docking targets be before coregionalization
+beats independent per-task GPs?
+
+| co-located labels k | % of 225 training molecules | zero crossing | **demonstrated (Holm p<0.05) from** |
+|---|---|---|---|
+| 8 (F17 peak) | 3.6% | rho = 0.450 | **rho >= 0.711** |
+| 22 | 9.8% | rho = 0.259 | **rho >= 0.500** |
+
+**The floor MOVES with the label budget.** More co-located molecules identify B
+better, so a weaker coupling becomes usable. Not pre-registered; the most useful
+thing the sweep produced. Advantage is monotone in rho, Spearman **+1.000** at
+both k, and ranges from -0.0695 (rho=0.1, k=8) to +0.2287 (rho=0.95, k=8).
+
+### Do not misstate these
+
+- **Below the floor the ICM is NOT shown to be harmful.** Raw p at rho=0.1, k=8
+  is 0.0121, which reads as harm. **After Holm it is 0.073, and nothing below
+  rho=0.5 is significant in either direction at either k.** The claim is "no
+  demonstrated benefit", never "does harm".
+- **The synthetic task carries no detectable bias.** I predicted a direction
+  twice and was wrong twice: first that a linear-Gaussian coupling would be
+  optimistic (it is the ICM's own assumption), then after the smoke that it
+  would understate. Measured: real minus synthetic is **+0.0247 at k=8 and
+  -0.0170 at k=22**, p = 0.33 and 0.19, opposite signs, both below the per-repeat
+  sd. No systematic bias in either direction.
+- **The CEILING is unmeasured.** F19 bounds the band from below only. As rho
+  rises the ICM pays more while the SELECTIVITY WINDOW closes, since two targets
+  that score molecules identically cannot be traded off. Floor measured, ceiling
+  not.
+- **Nothing here touches campaign outcome.** Prediction accuracy at a fixed label
+  count, like F13/F17/F18. F14 remains the only budget-matched campaign
+  comparison and its asymmetric arm lost 6/6.
+
+### A sign asymmetry that was not predicted
+
+A NEGATIVE coupling pays the same as a positive one of equal magnitude (gap
++0.020 at both k, paired p = 0.73 / 0.50) but is **2.3x less identifiable** at
+k=8 (sd of learned rho_B 0.464 vs 0.200; 0.164 vs 0.097 at k=22). Post-hoc
+hypothesis, labelled as such: rank-1 `B = WW' + diag(v)` must flip a sign inside
+W, and the optimizer reaches that less consistently from its initialization. It
+matters because selectivity WANTS the targets to disagree, so an anti-correlated
+second task is the case a selectivity campaign is most likely to meet.
+
+### The design rule, and the pilot that applies it
+
+Before committing a receptor prep and a docking arena to a new target pair,
+**dock ~100 molecules against both and measure rho.** SE(r) is about
+`(1-r^2)/sqrt(n-1)`, so 100 docks places rho to within 0.05-0.09, enough to
+separate "below 0.3" from "above 0.7".
+
+**This retracts an enthusiasm of mine from the same day.** The bifunctional
+T. cruzi / Leishmania DHFR-TS gives a third dockable task for almost no extra
+receptor work, and I called that a free bonus. A third task is only worth having
+if it correlates with the primary ABOVE the floor, and the TS domain binds a
+different substrate through different chemistry, so a high rho is not expected.
+At the 3.6% co-location rate the bar is 0.711. **The free third task is
+conditional on a pilot and may be worth nothing.**
+
+### Modal is now a validated compute target for GP work
+
+`modal_f19_correlation_floor.py`, 24 cells, 960 paired fits, cpu=4 each, all
+concurrent. The real-hDHFR cells share F17's RNG stream
+(`np.random.default_rng(100 + rep)`), so reps 0-2 are the SAME three repeats run
+on the laptop. **Max |Modal - laptop| = 3.99e-07 kcal/mol**, learned rho_B agrees
+to 6e-08. For scale, the docking oracle's machine dependence is 0.612 kcal/mol.
+This is float32 rounding, so GP-only experiments may be run on Modal and plotted
+beside laptop results. **This does NOT extend to anything that docks.**
+
+Template notes: copy `modal_phase0.py`; add `mogp_hadamard` to
+`add_local_python_source` (phase0 ships the Kronecker ICM only);
+`data/library/fingerprints.npy` is NOT needed if the script builds fingerprints
+from evaluated.csv SMILES.
+
+### A new instance of the silent-defeat class
+
+The Modal **local entrypoint** runs in the CLI's interpreter, which has no torch.
+Importing `correlation_floor` there to reach `report()` raised, the exception was
+caught, **the CSV was written and the summary table was silently skipped**. Valid
+output, no error, nothing measured. Fixed by splitting the reporting half into
+`analysis_scripts/correlation_floor_report.py`, which imports only
+numpy/pandas/scipy. Lesson for any future Modal script: **the local entrypoint
+and the container do not share an environment.**

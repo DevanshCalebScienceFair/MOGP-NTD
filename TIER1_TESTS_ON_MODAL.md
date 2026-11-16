@@ -178,21 +178,85 @@ fix 3TRK reports no ligand, which is the correct answer.
 
 ---
 
-## Test 3. Rung-1 correlation pilot: running
+## Test 3. Rung-1 correlation pilot: GO, with the baseline built alongside
 
-Measures the Pearson correlation between T. cruzi DHFR-TS (3INV) affinity and
-human DHFR (1U72) affinity over 120 randomly sampled library molecules, 240
-docking calls, against F19's floor: the ICM beats independent per-task GPs above
-rho about 0.45 at 3.6% co-located labels and about 0.25 at 9.8%. Below the floor
-the shared model is worse than two separate ones, so this is a GO / PROTOTYPE /
-RECONSIDER gate read off the lower bound of a bootstrap interval, not off the
-point estimate.
+### What the quantity is
 
-Everything it reports is a correlation between two columns produced on the same
-container, which is internally consistent by construction. It never compares a
-Modal score with a committed one. A separate control arm re-docks 24 molecules
-that already have committed PfDHFR scores and reports the Modal-minus-laptop
-delta as a **measurement of the machine offset**, not as a result. On a 2-molecule
-smoke that delta was 0.094 kcal/mol at worst, against the project's recorded
-ceiling of 0.612, which is consistent with the Modal image being version-matched
-to the laptop on purpose: Vina 1.2.7, Python 3.11, RDKit 2024.03.6.
+**Task correlation rho** is the Pearson correlation, across the same molecules,
+between T. cruzi DHFR-TS binding affinity and human DHFR binding affinity, both
+in kcal/mol. Dimensionless, -1 to 1. It is the quantity F19's floor is stated in,
+because it is what decides whether a shared model can borrow strength from one
+target to predict the other.
+
+120 molecules sampled from the 26,660 the optimizer actually searches, docked
+against both targets on the same container. 240 docking calls. 113 returned a
+score on both; 7 failed ligand preparation, which is the project's normal
+behaviour for a multi-fragment SMILES.
+
+### The result
+
+| estimate | n | rho | 95% CI | Spearman |
+|---|---|---|---|---|
+| unfiltered | 113 | +0.544 | [+0.418, +0.779] | +0.716 |
+| **artifact-filtered** | **112** | **+0.654** | **[+0.458, +0.811]** | +0.711 |
+| filtered, binders only | 97 | +0.553 | [+0.314, +0.747] | +0.636 |
+
+One row carried an hDHFR affinity of **+4.89 kcal/mol**. A positive Vina affinity
+is not a weak binder, it is a failed fit: the best pose still clashes. The project
+excludes those everywhere (`HD_MAX = 0.0`), and that single row pulled rho from
+0.654 to 0.544 and flipped the verdict. The filter now runs inside the harness
+rather than after it.
+
+### The verdict: GO, and build the independent-GP baseline anyway
+
+F19's floor: the ICM beats independent per-task GPs above rho about **0.45** at
+3.6% co-located labels, and about **0.25** at 9.8%.
+
+The filtered lower bound is **0.458 against a floor of 0.45**. It clears, by
+0.008. That is not a margin, it is a coin landing on its edge, and the
+binders-only estimate puts the lower bound at 0.314, which does not clear the
+3.6% floor at all. The two estimates disagree about which side of the floor the
+interval's lower end falls on.
+
+The right pool is the filtered one, because the GP trains on every docked
+molecule and not only on the binders. So the verdict is GO. But the honest form
+of that GO is: **rung 1 is worth building, and it must carry an independent-GP
+baseline arm, because the evidence that sharing helps here is one bootstrap
+bound sitting exactly on the threshold.** If the campaign is run without that
+baseline there will be no way to tell afterwards whether the ICM earned its place.
+
+A cheap way to firm this up before committing: extend the pilot to ~300
+molecules. The interval narrows roughly as 1/sqrt(n), so 300 would move the
+lower bound by enough to make the call unambiguous for about 360 more docking
+calls.
+
+### The machine offset is NOT small, and 0.612 is not a ceiling
+
+The control arm re-docked 24 molecules that already have committed PfDHFR scores.
+
+| statistic | value, kcal/mol |
+|---|---|
+| mean delta | +0.036 |
+| median delta | -0.013 |
+| sd | 0.509 |
+| median abs delta | 0.031 |
+| **p90 abs delta** | **0.840** |
+| **max abs delta** | **1.604** |
+| rows exceeding 0.612 | **3 of 24** |
+
+The distribution is heavy-tailed: most molecules reproduce to within 0.03
+kcal/mol and a few are off by more than 1.5. An earlier 2-molecule reading
+suggested the offset was ~0.09 and that the cross-machine ban might be stricter
+than necessary. **At n=24 that is wrong.** The project's recorded 0.612 figure
+behaves like a 90th percentile, not a bound: one in eight molecules exceeds it.
+
+Consequences:
+
+1. **The cross-machine ban stands and is understated.** Never put a Modal
+   docking score and a laptop docking score on the same axis. The failure is not
+   a small constant shift that could be corrected; it is occasional and large.
+2. **Every number in this pilot is unaffected**, because rho is a correlation
+   between two columns produced on the same container by the same binary with the
+   same seed.
+3. **This belongs in the engineering log as its own entry.** A figure used as a
+   bound for an entire class of comparison turns out to be a p90.

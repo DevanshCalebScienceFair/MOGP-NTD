@@ -110,6 +110,7 @@ TC_TARGET = dict(
     description="Trypanosoma cruzi DHFR-TS (Chagas target; minimize).",
 )
 BIND_CUT = -7.0          # kcal/mol; the project's binder threshold
+HD_MAX = 0.0             # kcal/mol; a positive affinity is a failed fit
 CHUNK = 10               # molecules per container
 SAMPLE_SEED = 20261116   # fixed so the pilot's molecule set is reproducible
 
@@ -329,9 +330,14 @@ def main(n: int = 120, smoke: bool = False, n_control: int = 8):
                   if row.SMILES in ctrl]
         if deltas:
             d = np.array(deltas, float)
-            print(f"  n={len(d)}  Modal minus committed: mean {d.mean():+.3f}, "
-                  f"max |delta| {np.abs(d).max():.3f} kcal/mol "
-                  f"(project's recorded ceiling: 0.612)")
+            a = np.abs(d)
+            print(f"  n={len(d)}  mean {d.mean():+.3f}  median "
+                  f"{np.median(d):+.3f}  sd {d.std(ddof=1):.3f} kcal/mol")
+            print(f"  |delta| percentiles: p50 {np.percentile(a,50):.3f}  "
+                  f"p90 {np.percentile(a,90):.3f}  max {a.max():.3f}")
+            print(f"  exceeding the project's recorded 0.612: "
+                  f"{int((a > 0.612).sum())} of {len(d)}  -- 0.612 is a ~p90, "
+                  f"NOT a ceiling")
     else:
         print("  no control rows returned")
 
@@ -344,6 +350,15 @@ def main(n: int = 120, smoke: bool = False, n_control: int = 8):
         print(f"  only {len(m)} molecules docked on both targets; no verdict.")
         df.to_csv("analysis_scripts/rung1_correlation_pilot.csv", index=False)
         return
+
+    # ARTIFACT FILTER, applied before the correlation and not after. A POSITIVE
+    # Vina affinity is not a weak binder, it is a failed fit: the best pose still
+    # clashes. The project excludes those everywhere (HD_MAX = 0.0), and so must
+    # this, because one such row at +4.89 kcal/mol pulled the first run's rho
+    # from 0.654 down to 0.544 and flipped the verdict.
+    n_art = int((m.hDHFR > HD_MAX).sum() + (m.TcDHFR > 0).sum())
+    m = m[(m.TcDHFR <= 0) & (m.hDHFR <= HD_MAX)]
+    print(f"  non-physical rows excluded (affinity > 0) : {n_art}")
 
     tc, hd = m.TcDHFR.to_numpy(float), m.hDHFR.to_numpy(float)
     rho, p = pearsonr(tc, hd)

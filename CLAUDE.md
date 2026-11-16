@@ -973,13 +973,59 @@ while being part of the polypeptide. A box on it is a box on the backbone. Now
 asks gemmi's residue table instead of a hand-list; 3TRK then correctly reports no
 ligand.
 
-### MACHINE OFFSET IS SMALLER THAN 0.612 WHEN VERSIONS ARE MATCHED
+### RUNG-1 CORRELATION PILOT: GO, but the lower bound sits ON the floor
 
-`modal_rung1_correlation_pilot.py` carries a control arm that re-docks molecules
-with committed PfDHFR scores. On a 2-molecule smoke, Modal-minus-laptop was
-**0.094 kcal/mol at worst** against the project's recorded 0.612 ceiling. The
-Modal image is version-matched on purpose (Vina 1.2.7, Python 3.11, RDKit
-2024.03.6) and the conda `vina` package is unusable here: it pins boost against
-RDKit 2024.03.6, so the official static Linux binary is used instead, which is
-also what `docking.py` shells out to. This is a MEASUREMENT OF THE OFFSET, not a
-licence to compare across machines; nothing downstream uses it.
+`modal_rung1_correlation_pilot.py`. 120 molecules from the 26,660 the optimizer
+searches, both targets on one container, 240 docking calls. 113 scored on both;
+7 failed ligand prep, which is normal for a multi-fragment SMILES.
+
+**The number: rho = +0.654, 95% CI [+0.458, +0.811]**, artifact-filtered, n=112.
+F19's floor is 0.45 at 3.6% co-located labels and 0.25 at 9.8%.
+
+Do not misstate these:
+
+1. **The lower bound clears the floor by 0.008.** That is not a margin. The
+   binders-only estimate puts the lower bound at 0.314, which does NOT clear the
+   3.6% floor. The two estimates disagree about which side of 0.45 the interval
+   ends on.
+2. **The verdict is GO WITH A BASELINE.** Rung 1 is worth building, and it must
+   carry an independent-GP arm, because the only evidence that sharing helps is
+   one bootstrap bound on the threshold. Run it without that arm and there is no
+   way to tell afterwards whether the ICM earned its place.
+3. **One artifact row flipped the verdict.** A molecule scored **+4.89 kcal/mol**
+   on hDHFR. A positive Vina affinity is a FAILED FIT, not a weak binder, and the
+   project excludes those everywhere (`HD_MAX = 0.0`). Unfiltered rho was 0.544
+   with lower bound 0.418, which does not clear 0.45. The filter now runs inside
+   the harness, not after it.
+4. **~300 molecules would settle it** for about 360 more docking calls, since the
+   interval narrows as 1/sqrt(n).
+
+### 0.612 IS NOT A CEILING ON THE MACHINE OFFSET. IT IS ABOUT A p90.
+
+The pilot's control arm re-docked 24 molecules with committed PfDHFR scores.
+
+| statistic | kcal/mol |
+|---|---|
+| mean / median delta | +0.036 / -0.013 |
+| sd | 0.509 |
+| median abs | 0.031 |
+| **p90 abs** | **0.840** |
+| **max abs** | **1.604** |
+| exceeding 0.612 | **3 of 24** |
+
+**The distribution is heavy-tailed, not a constant shift.** Most molecules
+reproduce to 0.03 kcal/mol; roughly one in eight is off by more than 0.612 and
+one was off by 1.604. A 2-molecule smoke read 0.094 and briefly suggested the
+cross-machine ban was over-strict. At n=24 THAT IS WRONG and the retraction is
+the finding: the ban stands, and 0.612 has been used as a bound when it is
+approximately a 90th percentile.
+
+Never put a Modal docking score and a laptop docking score on one axis. The
+failure is not correctable by a constant offset because it is occasional and
+large. The pilot itself is unaffected: rho is a correlation between two columns
+from the same container, same binary, same seed.
+
+The Modal docking image is version-matched on purpose (Vina 1.2.7, Python 3.11,
+RDKit 2024.03.6) and the conda `vina` package is unusable here, since it pins
+boost against RDKit 2024.03.6; the official static Linux binary is used instead,
+which is also what `docking.py` shells out to. Version matching was not enough.

@@ -1,0 +1,192 @@
+[
+  {
+    "pdb": "1J3I",
+    "rung": 0,
+    "role": "control-known-good",
+    "label": "P. falciparum DHFR (in use)",
+    "expect_organism": "Plasmodium falciparum",
+    "inhibitor_hint": "WRA",
+    "method": "X-RAY DIFFRACTION",
+    "resolution_A": 2.33,
+    "r_free": 0.236,
+    "organisms": [
+      "Plasmodium falciparum"
+    ],
+    "organism_ok": true,
+    "chains": {
+      "A": 223,
+      "B": 226,
+      "C": 327,
+      "D": 328
+    },
+    "n_residues_modelled": 1104,
+    "het_residues": {
+      "WRA": 2,
+      "NDP": 2,
+      "UMP": 2
+    },
+    "cofactor_present": [
+      "NDP"
+    ],
+    "seq_len_declared": {
+      "1": 280,
+      "2": 328
+    },
+    "pct_modelled": 100.0,
+    "box_ligand": "WRA",
+    "box_ligand_heavy_atoms": 24,
+    "box_center": [
+      28.02,
+      6.08,
+      59.79
+    ],
+    "n_gaps": 2,
+    "gaps_near_site": 0,
+    "bifunctional_len_hint": "single-domain length"
+  },
+  {
+    "pdb": "1U72",
+    "rung": 0,
+    "role": "control-known-good",
+    "label": "Human DHFR (in use)",
+    "expect_organism": "Homo sapiens",
+    "inhibitor_hint": "MTX",
+    "method": "X-RAY DIFFRACTION",
+    "resolution_A": 1.9,
+    "r_free": 0.213,
+    "organisms": [
+      "Homo sapiens"
+    ],
+    "organism_ok": true,
+    "chains": {
+      "A": 186
+    },
+    "n_residues_modelled": 186,
+    "het_residues": {
+      "NDP": 1,
+      "MTX": 1
+    },
+    "cofactor_present": [
+      "NDP"
+    ],
+    "seq_len_declared": {
+      "1": 186
+    },
+    "pct_modelled": 100.0,
+    "box_ligand": "MTX",
+    "box_ligand_heavy_atoms": 33,
+    "box_center": [
+      30.62,
+      16.88,
+      -1.62
+    ],
+    "n_gaps": 0,
+    "gaps_near_site": 0,
+    "bifunctional_len_hint": "single-domain length"
+  },
+  {
+    "pdb": "3HHA",
+    "rung": 2,
+    "role": "counter-target",
+    "label": "Human cathepsin L",
+    "expect_organism": "Homo sapiens",
+    "inhibitor_hint": null,
+    "method": "X-RAY DIFFRACTION",
+    "resolution_A": 1.27,
+    "r_free": 0.15237,
+    "organisms": [
+      "Homo sapiens"
+    ],
+    "organism_ok": true,
+    "chains": {
+      "A": 220,
+      "B": 216,
+      "C": 213,
+      "D": 220
+    },
+    "n_residues_modelled": 869,
+    "het_residues": {
+      "NOW": 4,
+      "PG4": 1,
+      "PGE": 1
+    },
+    "cofactor_present": [],
+    "seq_len_declared": {
+      "1": 220
+    },
+    "pct_modelled": 100.0,
+    "box_ligand": "NOW",
+    "box_ligand_heavy_atoms": 28,
+    "box_center": [
+      8.67,
+      8.06,
+      -2.84
+    ],
+    "n_gaps": 2,
+    "gaps_near_site": 0,
+    "bifunctional_len_hint": "single-domain length"
+  },
+  {
+    "pdb": "3TRK",
+    "rung": 2,
+    "role": "target",
+    "label": "CHIKV nsP2 protease",
+    "expect_organism": "Chikungunya virus",
+    "inhibitor_hint": null,
+    "method": "X-RAY DIFFRACTION",
+    "resolution_A": 2.397,
+    "r_free": 0.2576,
+    "organisms": [
+      "Chikungunya virus"
+    ],
+    "organism_ok": true,
+    "chains": {
+      "A": 321
+    },
+    "n_residues_modelled": 321,
+    "het_residues": {},
+    "cofactor_present": [],
+    "seq_len_declared": {
+      "1": 324
+    },
+    "pct_modelled": 99.1,
+    "box_ligand": null,
+    "box_center": null,
+    "n_gaps": 0,
+    "gaps_near_site": 0,
+    "bifunctional_len_hint": "single-domain length"
+  },
+  {
+    "pdb": "4ZTB",
+    "rung": 2,
+    "role": "target",
+    "label": "CHIKV nsP2 protease",
+    "expect_organism": "Chikungunya virus",
+    "inhibitor_hint": null,
+    "method": "X-RAY DIFFRACTION",
+    "resolution_A": 2.59,
+    "r_free": 0.24154,
+    "organisms": [
+      "Chikungunya virus"
+    ],
+    "organism_ok": true,
+    "chains": {
+      "A": 321,
+      "B": 321,
+      "C": 321,
+      "D": 321
+    },
+    "n_residues_modelled": 1284,
+    "het_residues": {},
+    "cofactor_present": [],
+    "seq_len_declared": {
+      "1": 321
+    },
+    "pct_modelled": 100.0,
+    "box_ligand": null,
+    "box_center": null,
+    "n_gaps": 0,
+    "gaps_near_site": 0,
+    "bifunctional_len_hint": "single-domain length"
+  }
+]

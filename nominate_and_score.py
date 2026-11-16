@@ -33,6 +33,7 @@ import warnings
 
 import numpy as np
 import pandas as pd
+import torch
 
 os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 warnings.filterwarnings("ignore")
@@ -75,6 +76,21 @@ def nominate(arm, seed, lib, smiles_to_row):
     # Retrain the arm's own model on the labels it actually bought. Both arms
     # use the Hadamard ICM, so this is the same code path for both; only the
     # label pattern differs, which is the whole point.
+    #
+    # SEED THE FIT. The ICM's task covariance is a GPyTorch IndexKernel whose
+    # covar_factor is initialised from torch.randn. Without this line two runs of
+    # the SAME cell start from different task covariances and can nominate
+    # different molecules, so the endpoint below is one draw from an unreported
+    # distribution. `modal_endpoint_reproducibility.py` measured it: 6 of 12
+    # committed cells returned a different top-20 across repeats (worst cell
+    # Jaccard 0.818, 17 of 20 molecules stable), and one swapped-out molecule
+    # carried a true selectivity index of +6.19 kcal/mol against a committed
+    # best_SI of 4.24 for that cell. The mean endpoint barely moves (within-cell
+    # spread 0.024 kcal/mol, 5.6% of the full-vs-asym gap) but `best_SI` is a
+    # max over 20 molecules and a max is not robust to a 3-molecule swap.
+    # Seeding makes every repeat bit-identical; the same measurement confirms
+    # torch.manual_seed covers every randomness source on this path.
+    torch.manual_seed(seed)
     train_fn = resolve_train_fn("hadamard", rank=1)
     model, lik, y_mean, y_std = train_fn(X, Y, n_iterations=200, lr=0.1)
 

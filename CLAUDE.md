@@ -896,3 +896,90 @@ molecule), consistent with a different receptor prep. Published numbers are
 unaffected. **Read campaign scores from `campaign_results/*/evaluated.csv`, never
 from the cache.** Arena membership defined by cache presence no longer matches
 what the campaign searched.
+
+## TIER 1 TESTS ON MODAL (2026-11-16)
+
+Three harnesses, all running on Modal. Two finished. Written up in
+`TIER1_TESTS_ON_MODAL.md`.
+
+### THE NOMINATION ENDPOINT WAS NOT REPRODUCIBLE, and now is
+
+`modal_endpoint_reproducibility.py`. 12 cells x 5 repeats x 2 regimes, 120 GP
+fits, zero docking calls.
+
+**The number: 6 of 12 committed cells returned a DIFFERENT top-20 across repeats.**
+Mean pairwise Jaccard 0.973, worst cell 0.818 (`full` seed 1, only 17 of 20
+molecules stable). Seeded: 1.000 in every cell, bit-identical.
+
+Do not misstate these:
+
+1. **The cause is `IndexKernel.covar_factor`, initialised from `torch.randn`.**
+   `nominate_and_score.py` never called `torch.manual_seed`. FIXED: the call is
+   now at `nominate_and_score.py:93`, before `resolve_train_fn`.
+2. **Seeding is sufficient, and that was measured, not assumed.** Every seeded
+   repeat is bit-identical, so there is no second randomness source on this path.
+   Had any seeded cell differed, the one-line fix would have been a false
+   reassurance.
+3. **`mean_SI` survives this; `best_SI` does not.** Within-cell spread of the
+   predicted SI is 0.024 kcal/mol, which is 5.6% of the mean |full - asym|
+   true-SI gap of 0.423 kcal/mol. But `best_SI` is a MAX over 20 molecules and a
+   max is not robust to a 3-molecule swap: the molecule `asym` seed 3 drops on
+   some repeats carries a true SI of **+6.19 kcal/mol** against that cell's
+   committed `best_SI` of 4.24. One RNG draw, 46% of a headline number.
+4. **Nothing was re-docked and nothing may be.** The instability is in WHICH
+   molecules get nominated, which SMILES-set comparison settles. The container
+   ships the computed transitive import closure of `data` + `mogp_hadamard`, and
+   `docking` is NOT in it, so the no-docking guarantee is enforced by the image
+   rather than by a docstring.
+5. **The reimplementation was checked against the committed run.** `n_train` and
+   `n_both` match `nominated_scored.csv` in all 12 cells. A drifted copy would
+   have shown up there.
+6. **It is 12 cells, not 24.** Earlier planning notes said 24; `asym_campaign/`
+   holds 6 seeds x 2 arms.
+
+### RECEPTOR AUDIT: rung 1 GO on 3INV, rung 2 BLOCKED
+
+`modal_receptor_audit.py`. Reads deposited mmCIF from RCSB. No prep, no docking,
+machine-independent (it is a property of the PDB entry).
+
+**Validated on the two in-use receptors first.** Recovers 1J3I (2.33 A, NDP) and
+1U72 (1.90 A, NDP) correctly. Its box centers sit 3.6 A and 4.6 A from the
+committed ones because the committed recipe uses the inhibitor's folate-mimicking
+HEAD and the audit uses the whole molecule including the tail. Expected, not a
+discrepancy.
+
+- **Rung 1: use 3INV.** 2.37 A, R-free 0.243, **zero chain breaks**, NDP present,
+  99% of sequence modelled, 514-residue chain so **both DHFR-TS domains are
+  resolved** (the free third task and the out-of-pocket selectivity handle). It is
+  a better structure than 1J3I, which this project already published on.
+- **Reject 3CL9.** 3.30 A is too coarse for pocket side chains, and its cofactor
+  is **NAP = NADP+, the OXIDISED form**, not NADPH. Wrong oxidation state of the
+  cofactor that walls the folate pocket is the NADPH bug's own family.
+- **1E7W is fallback only.** Best resolution (1.75 A) but L. major, 5 chain
+  breaks, 92% modelled, and 267-residue chains = DHFR domain alone, so it gives
+  up the bifunctional handle.
+- **Rung 2 is held: BOTH CHIKV nsP2 candidates are APO.** 3TRK and 4ZTB have no
+  bound ligand at all, so there is no co-crystal to center a box on, and this
+  project's box recipe is defined as a co-crystallized inhibitor's head centroid.
+  A box from the catalytic residues is a judgment call, not a measurement, which
+  is how the NADPH bug happened. Needs a liganded structure or a separately
+  validated box.
+- The rung-2 counter-target is fine: **3HHA human cathepsin L, 1.27 A, R-free
+  0.152**, the best structure in the audit.
+
+**Bug found in the audit itself and fixed:** it first reported 3TRK's box ligand
+as `MSE` (selenomethionine), a MODIFIED AMINO ACID that carries `het_flag == "H"`
+while being part of the polypeptide. A box on it is a box on the backbone. Now
+asks gemmi's residue table instead of a hand-list; 3TRK then correctly reports no
+ligand.
+
+### MACHINE OFFSET IS SMALLER THAN 0.612 WHEN VERSIONS ARE MATCHED
+
+`modal_rung1_correlation_pilot.py` carries a control arm that re-docks molecules
+with committed PfDHFR scores. On a 2-molecule smoke, Modal-minus-laptop was
+**0.094 kcal/mol at worst** against the project's recorded 0.612 ceiling. The
+Modal image is version-matched on purpose (Vina 1.2.7, Python 3.11, RDKit
+2024.03.6) and the conda `vina` package is unusable here: it pins boost against
+RDKit 2024.03.6, so the official static Linux binary is used instead, which is
+also what `docking.py` shells out to. This is a MEASUREMENT OF THE OFFSET, not a
+licence to compare across machines; nothing downstream uses it.

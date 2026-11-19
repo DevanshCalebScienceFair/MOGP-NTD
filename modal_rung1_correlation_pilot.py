@@ -45,7 +45,7 @@ nothing downstream uses it.
 Nothing written here goes near the committed docking cache: caching is disabled.
 
     modal run modal_rung1_correlation_pilot.py --smoke
-    modal run modal_rung1_correlation_pilot.py --n 120
+    modal run --detach modal_rung1_correlation_pilot.py --n 300
 """
 
 from __future__ import annotations
@@ -114,6 +114,15 @@ HD_MAX = 0.0             # kcal/mol; a positive affinity is a failed fit
 CHUNK = 10               # molecules per container
 SAMPLE_SEED = 20261116   # fixed so the pilot's molecule set is reproducible
 
+# CHECKPOINTING. A Modal local entrypoint is a LOCAL process: if this laptop's
+# network drops, the client dies and `--detach` only keeps the LAST triggered
+# function alive, so the printed report is lost even though the containers kept
+# working. Every chunk therefore writes its own rows into a persistent Volume
+# the moment it finishes. A rerun with the same --n skips every chunk already on
+# the volume, so a dropout costs the printout and nothing else.
+CKPT = modal.Volume.from_name("rung1-ckpt", create_if_missing=True)
+CKPT_DIR = "/ckpt"
+
 
 
 @app.function(cpu=2, memory=4096, timeout=60 * 20)
@@ -163,16 +172,28 @@ def build_pool(n: int) -> tuple[list[str], int]:
     return random.Random(SAMPLE_SEED).sample(pool, n), len(pool)
 
 
-@app.function(cpu=2, memory=8192, timeout=60 * 60)
+@app.function(cpu=2, memory=8192, timeout=60 * 60,
+              volumes={CKPT_DIR: CKPT})
 def dock_chunk(job: dict) -> list[dict]:
     """Dock one chunk of SMILES against both targets on THIS container.
 
     Both columns come from the same binary, the same receptors and the same seed,
     which is the only thing the correlation needs.
     """
+    import json as _json
     import os
     import subprocess
     import tempfile
+
+    # RESUME. If this exact chunk already produced rows on a previous run, return
+    # them untouched. Docking is the only expensive thing here and it is
+    # deterministic given the seed, so re-doing it would buy nothing.
+    ck = os.path.join(CKPT_DIR, job["tag"], f"chunk_{job['idx']:04d}.json")
+    if os.path.exists(ck):
+        with open(ck) as fh:
+            cached = _json.load(fh)
+        print(f"[resume] chunk {job['idx']:04d}: {len(cached)} rows from volume")
+        return cached
 
     os.chdir("/tmp")
     import numpy as np
@@ -279,6 +300,33 @@ def dock_chunk(job: dict) -> list[dict]:
             row[t] = dock(smi, t)
         row["vina"] = ver
         rows.append(row)
+
+    os.makedirs(os.path.dirname(ck), exist_ok=True)
+    with open(ck, "w") as fh:
+        _json.dump(rows, fh)
+    CKPT.commit()
+    return rows
+
+
+@app.function(cpu=1, memory=2048, timeout=60 * 10, volumes={CKPT_DIR: CKPT})
+def collect(tag: str) -> list[dict]:
+    """Every row this run has ever written, read back off the volume.
+
+    The map's return value is NOT the authoritative record, because a client
+    disconnect loses it. This is.
+    """
+    import json as _json
+    import os
+
+    CKPT.reload()
+    d = os.path.join(CKPT_DIR, tag)
+    if not os.path.isdir(d):
+        return []
+    rows = []
+    for f in sorted(os.listdir(d)):
+        if f.endswith(".json"):
+            with open(os.path.join(d, f)) as fh:
+                rows.extend(_json.load(fh))
     return rows
 
 
@@ -308,15 +356,26 @@ def main(n: int = 120, smoke: bool = False, n_control: int = 8):
                 ctrl.setdefault(s, v)
     ctrl_smiles = list(ctrl)[:n_control]
 
+    # The tag keys the checkpoint directory. It carries every input that changes
+    # which molecules get docked, so a rerun with different settings can never
+    # silently pick up another run's rows.
+    tag = f"n{n}_c{n_control}_seed{SAMPLE_SEED}_chunk{CHUNK}"
     jobs = [dict(smiles=sample[i:i + CHUNK], targets=["TcDHFR", "hDHFR"])
             for i in range(0, len(sample), CHUNK)]
     jobs += [dict(smiles=ctrl_smiles[i:i + CHUNK], targets=["PfDHFR"])
              for i in range(0, len(ctrl_smiles), CHUNK)]
+    for i, j in enumerate(jobs):
+        j["tag"], j["idx"] = tag, i
+    print(f"checkpoint tag: {tag}")
     print(f"pilot: {len(sample)} molecules x 2 targets + {len(ctrl_smiles)} "
           f"control re-docks = {len(sample) * 2 + len(ctrl_smiles)} docking calls, "
           f"{len(jobs)} containers\n")
 
-    out = [r for chunk in dock_chunk.map(jobs) for r in chunk]
+    list(dock_chunk.map(jobs))
+    # Read the rows back off the VOLUME rather than trusting the map's return
+    # value, so an interrupted-and-resumed run is byte-identical to a clean one.
+    out = collect.remote(tag)
+    print(f"collected {len(out)} rows from the checkpoint volume\n")
     df = pd.DataFrame(out)
 
     import numpy as np
@@ -348,7 +407,7 @@ def main(n: int = 120, smoke: bool = False, n_control: int = 8):
     print("=" * 92)
     if len(m) < 10:
         print(f"  only {len(m)} molecules docked on both targets; no verdict.")
-        df.to_csv("analysis_scripts/rung1_correlation_pilot.csv", index=False)
+        df.to_csv(f"analysis_scripts/rung1_correlation_pilot_n{n}.csv", index=False)
         return
 
     # ARTIFACT FILTER, applied before the correlation and not after. A POSITIVE
@@ -401,10 +460,10 @@ def main(n: int = 120, smoke: bool = False, n_control: int = 8):
              "Build rung 1 with independent\n           GPs, or not at all.")
     print(f"  VERDICT: {v}")
 
-    df.to_csv("analysis_scripts/rung1_correlation_pilot.csv", index=False)
-    with open("analysis_scripts/rung1_correlation_pilot.json", "w") as fh:
+    df.to_csv(f"analysis_scripts/rung1_correlation_pilot_n{n}.csv", index=False)
+    with open(f"analysis_scripts/rung1_correlation_pilot_n{n}.json", "w") as fh:
         json.dump(dict(n_attempted=n, n_paired=len(m), rho_all=float(rho),
                        ci95=[float(lo), float(hi)], rho_spearman=float(srho),
                        rho_binders=float(rho_b), n_binders=int(b.sum()),
                        receptor=TC_TARGET["pdb_id"], bind_cut=BIND_CUT), fh, indent=2)
-    print("\nwrote analysis_scripts/rung1_correlation_pilot.{csv,json}")
+    print(f"\nwrote analysis_scripts/rung1_correlation_pilot_n{n}.{{csv,json}}")

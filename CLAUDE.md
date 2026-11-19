@@ -973,7 +973,10 @@ while being part of the polypeptide. A box on it is a box on the backbone. Now
 asks gemmi's residue table instead of a hand-list; 3TRK then correctly reports no
 ligand.
 
-### RUNG-1 CORRELATION PILOT: GO, but the lower bound sits ON the floor
+### RUNG-1 CORRELATION PILOT, n=120: SUPERSEDED by the n=300 run below.
+Kept because it is the record of how one artifact row flipped a verdict.
+
+### RUNG-1 CORRELATION PILOT, n=120: GO, but the lower bound sits ON the floor
 
 `modal_rung1_correlation_pilot.py`. 120 molecules from the 26,660 the optimizer
 searches, both targets on one container, 240 docking calls. 113 scored on both;
@@ -998,7 +1001,44 @@ Do not misstate these:
    with lower bound 0.418, which does not clear 0.45. The filter now runs inside
    the harness, not after it.
 4. **~300 molecules would settle it** for about 360 more docking calls, since the
-   interval narrows as 1/sqrt(n).
+   interval narrows as 1/sqrt(n). DONE, see the next section.
+
+### RUNG-1 IS A CLEAN GO. rho = +0.719, CI [+0.623, +0.799], n=281. (2026-11-17)
+
+`modal_rung1_correlation_pilot.py --n 300 --n-control 24`, 624 docking calls, 33
+containers, detached with per-chunk checkpointing to the `rung1-ckpt` Volume.
+281 of 300 scored on both targets; 19 failed ligand prep (6.3%, in line with the
+n=120 run's 5.8%) and 1 row was dropped as non-physical.
+
+| pool | n | rho | 95% CI (20k bootstrap) | Spearman | vs the 0.45 floor |
+|---|---|---|---|---|---|
+| **all docked, filtered** | **281** | **+0.719** | **[+0.623, +0.799]** | +0.723 | **clears by 0.173** |
+| binders only, TcDHFR <= -7 | 242 | +0.589 | [+0.456, +0.704] | +0.624 | clears by 0.006 |
+| (n=120, filtered, for reference) | 112 | +0.654 | [+0.458, +0.811] | +0.711 | clears by 0.008 |
+
+Do not misstate these:
+
+1. **The baseline-arm requirement from the n=120 run is DISCHARGED as a
+   condition, but keep the arm anyway.** It is no longer needed to decide
+   whether to build rung 1; it is still the cheapest way to report how much the
+   sharing actually bought. Keep it as a reported arm, not as a gate.
+2. **The main pool is decisive. The binders-only sub-pool is still marginal**
+   (lower bound +0.456, clearing by 0.006). The main pool is the correct one
+   because the GP trains on every docked molecule, not only the binders. Quote
+   0.719 as the estimate and say which pool it came from.
+3. **The two runs agree.** n=120 gave +0.654 and n=300 gave +0.719, and the
+   smaller run's interval contains the larger run's point estimate. These are
+   INDEPENDENT samples: `random.sample(pool, 120)` is not a prefix of
+   `random.sample(pool, 300)`, so the n=120 molecules are not a subset. That
+   makes the agreement a real replication, which is worth one sentence in the
+   paper.
+4. **hDHFR's range no longer reaches positive.** [-11.30, -4.63] at n=300 versus
+   [-11.30, +4.89] at n=120. One non-physical row still appeared and was still
+   dropped by the in-harness filter.
+5. **A container was preempted mid-run and the run did not lose anything.** The
+   checkpoint-and-resume machinery earned its keep on its first outing. Modal
+   restarts a preempted input, and the chunk that had already written its rows
+   returned them from the Volume instead of re-docking.
 
 ### 0.612 IS NOT A CEILING ON THE MACHINE OFFSET. IT IS ABOUT A p90.
 

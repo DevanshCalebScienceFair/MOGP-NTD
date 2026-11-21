@@ -83,8 +83,25 @@ ARMS = {
               "--hdhfr-policy", "uniform",
               "--hdhfr-fraction", "0.05",
               "--hdhfr-floor", "8"],
+    # Identical to `asym` except for the round count, which is set by
+    # ASYM102_N_ITERATIONS below. Separate key so the two never share a
+    # workdir and the 85-round result stays on disk untouched.
+    "asym102": ["--model", "hadamard",
+                "--hdhfr-policy", "uniform",
+                "--hdhfr-fraction", "0.05",
+                "--hdhfr-floor", "8"],
     "indep": ["--model", "independent"],
 }
+
+# EXTERNAL BASELINES. These do NOT run loop.py; they are separate programs with
+# their own CLIs, so run_cell builds a different command for them.
+#
+# Chagas had no external competitor at all. full / indep / asym are three
+# variants of OUR method, so rung 1 could show our variants tying each other
+# and nothing about whether any of them beats the field. On malaria the field
+# was GP-MOBO and greedy filter-then-dock; this adds both to Chagas at the same
+# docking budget.
+BASELINE_ARMS = {"gpmobo", "greedy"}
 
 # The asym arm spends fewer docking calls per molecule (only ~5% of molecules
 # get the second target), so at the SAME iteration count it would use a smaller
@@ -93,6 +110,27 @@ ARMS = {
 # done here. 40 + 5*50 = 290 molecules x 2 targets = 580 calls for `full`;
 # `asym` gets the iteration count that spends 580 calls at its own label rate.
 ASYM_N_ITERATIONS = 85
+
+# THE BUDGET-MATCHED, IN-BAND ASYMMETRIC ARM.
+#
+# The 85-round arm was in F17's co-location band but UNDER budget: 465
+# molecules + 24 second-target labels = 489 docking calls against the full
+# arm's 290 x 2 = 580, i.e. 16% cheaper. It lost, and the obvious objection is
+# that it was never given the same money.
+#
+# 102 rounds closes that. 40 + 102*5 = 550 molecules; the uniform policy's
+# quota is ceil(0.05 * 550) = 28 second-target labels, so 550 + 28 = 578 calls
+# against 580. Matched to 0.3%, and 28/550 = 5.1% co-located, still inside the
+# 3.6%-9.8% band.
+#
+# This is the cell that could not exist at 465 molecules, where the band caps
+# labels at ~46 and the total at ~511. Growing the molecule count is what buys
+# both constraints at once.
+ASYM102_N_ITERATIONS = 102
+
+# Greedy has no acquisition and no iteration count; it is a total molecule
+# budget. 290 x 2 targets = 580 calls, matching every other arm.
+GREEDY_N_TOTAL = 290
 
 
 def link(path: pathlib.Path, target: pathlib.Path):
@@ -115,7 +153,8 @@ def link(path: pathlib.Path, target: pathlib.Path):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--arm", required=True, choices=sorted(ARMS))
+    ap.add_argument("--arm", required=True,
+                    choices=sorted(set(ARMS) | BASELINE_ARMS))
     ap.add_argument("--seed", required=True, type=int)
     ap.add_argument("--workdir", default="/data/rung1")
     a = ap.parse_args()
@@ -171,14 +210,36 @@ def main():
         _d.prepare_protein(_recv)
         print(f"[recv] {_recv} ready ({_d.TARGETS[_recv]['pdb_id']})", flush=True)
 
-    n_iter = ASYM_N_ITERATIONS if a.arm == "asym" else N_ITERATIONS
-    cmd = [sys.executable, "loop.py",
-           "--seed", str(a.seed),
-           "--n-init", str(N_INIT),
-           "--batch-size", str(BATCH_SIZE),
-           "--n-iterations", str(n_iter),
-           "--output-dir", str(cell),
-           *COMMON, *ARMS[a.arm]]
+    n_iter = {"asym": ASYM_N_ITERATIONS,
+              "asym102": ASYM102_N_ITERATIONS}.get(a.arm, N_ITERATIONS)
+
+    if a.arm == "gpmobo":
+        # --acquisition-pool-size MUST be the same 2000 every other arm uses.
+        # Without it this arm scores the whole ~26,600-molecule library per
+        # pick, which is both a harness advantage and ~29 min/iteration.
+        cmd = [sys.executable, "baseline_gpmobo.py",
+               "--library-dir", "data/library",
+               "--seed", str(a.seed),
+               "--n-init", str(N_INIT),
+               "--batch-size", str(BATCH_SIZE),
+               "--n-iterations", str(N_ITERATIONS),
+               "--acquisition-pool-size", "2000",
+               "--output-dir", str(cell)]
+    elif a.arm == "greedy":
+        cmd = [sys.executable, "baseline_greedy.py",
+               "--library-dir", "data/library",
+               "--seed", str(a.seed),
+               "--batch-size", str(BATCH_SIZE),
+               "--n-total", str(GREEDY_N_TOTAL),
+               "--output-dir", str(cell)]
+    else:
+        cmd = [sys.executable, "loop.py",
+               "--seed", str(a.seed),
+               "--n-init", str(N_INIT),
+               "--batch-size", str(BATCH_SIZE),
+               "--n-iterations", str(n_iter),
+               "--output-dir", str(cell),
+               *COMMON, *ARMS[a.arm]]
 
     # Provenance beside the results, so the artifact states what produced it
     # rather than only the environment that is gone once the pod exits.

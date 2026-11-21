@@ -916,6 +916,14 @@ def main():
                              "evaluated block (extra free oracle calls).")
     parser.add_argument("--hparam-holdout", type=int, default=200,
                         help="Holdout block size for --hparam-mode holdout.")
+    parser.add_argument("--acquisition-pool-size", type=int, default=None,
+                        help="Cap the candidate pool before EHVI scoring, "
+                             "reseeded per round from the run seed. MUST match "
+                             "whatever the MOGP arm used or any advantage is a "
+                             "harness artifact: without it this arm scores the "
+                             "whole ~26,600-molecule library per pick while a "
+                             "capped MOGP arm scores 2,000. Default None = "
+                             "whole library, which is the historical behaviour.")
     parser.add_argument("--output-dir", default="baseline_gpmobo_results")
     args = parser.parse_args()
 
@@ -926,7 +934,16 @@ def main():
         n_iterations=args.n_iterations, n_mc_samples=args.mc_samples,
         ehvi_impl=args.ehvi_impl, objective_frame=args.objective_frame,
         hparam_mode=args.hparam_mode, hparam_holdout=args.hparam_holdout,
+        acquisition_pool_size=args.acquisition_pool_size,
     )
+    # A flag that does not arrive is not an error (ENGINEERING_LOG defect 4:
+    # --acquisition-alpha and --hdhfr-fraction were both accepted, recorded in
+    # the run config, and never forwarded). Assert it landed.
+    assert baseline.acquisition_pool_size == args.acquisition_pool_size, (
+        f"--acquisition-pool-size did not reach the baseline: "
+        f"{baseline.acquisition_pool_size!r} != {args.acquisition_pool_size!r}")
+    print(f"[gpmobo] acquisition_pool_size={baseline.acquisition_pool_size}",
+          flush=True)
     baseline.run()
     baseline.save_results(output_dir=args.output_dir)
     print(f"\nTotal wall-clock time: {time.time() - start:.1f}s")

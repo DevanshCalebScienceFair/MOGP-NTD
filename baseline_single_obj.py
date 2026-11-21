@@ -77,7 +77,21 @@ LIBRARY_TASKS, DOCKING_TASKS, DOCKING_TARGETS = resolve_objective_layout(
 # objective is now size-corrected LIGAND EFFICIENCY (the Y column is LE, not raw
 # kcal), so the GP + EI optimize PfDHFR ligand efficiency — still lower-is-better,
 # so the EI/minimization logic is unchanged.
-POTENCY_COLUMN = TASK_NAMES.index("PfDHFR_Docking")
+# Resolved from the campaign layout, not the literal "PfDHFR_Docking": the
+# objective set is campaign data (TcDHFR under MOGP_CAMPAIGN=chagas), and the
+# literal raised `'PfDHFR_Docking' is not in list` AT IMPORT on every non-malaria
+# campaign, which took down anything importing run_benchmark_seeds with it --
+# including test_arm_objective_units.py, the units guard, on the campaign
+# actually being run. The parasite-potency task is the MINIMIZED docking
+# objective; the counter-target is maximized.
+_MINIMIZED_DOCKING = [col for col, _ in DOCKING_TASKS
+                      if DEFAULT_OBJECTIVE_SIGNS[col] < 0]
+if len(_MINIMIZED_DOCKING) != 1:
+    raise RuntimeError(
+        f"single-objective potency baseline needs exactly one minimized docking "
+        f"objective; campaign gives {len(_MINIMIZED_DOCKING)} "
+        f"({[TASK_NAMES[c] for c in _MINIMIZED_DOCKING]})")
+POTENCY_COLUMN = _MINIMIZED_DOCKING[0]
 
 
 class SingleTaskTanimotoGP(gpytorch.models.ExactGP):

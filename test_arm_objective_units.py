@@ -35,10 +35,14 @@ ARM_MODULES = ["loop", "baseline_gpmobo", "baseline_greedy",
 # Stubbed raw docking scores for the 2 smoke molecules, per target. Magnitudes
 # are well above 1 and each molecule has > 15 heavy atoms, so the LE a buggy arm
 # would compute (raw / heavy) is < 1 — making check (b) discriminating.
-FAKE_RAW = {t: np.array(v, float) for t, v in {
-    "PfDHFR": [-7.3, -8.1],
-    "hDHFR":  [-5.9, -6.7],
-}.items()}
+# Keyed off DOCKING_TARGETS, not literal "PfDHFR"/"hDHFR": the targets come from
+# the campaign registry and are TcDHFR/hDHFR under MOGP_CAMPAIGN=chagas, so the
+# hard-coded version raised `'PfDHFR_Docking' is not in list` at COLLECTION time
+# on every non-malaria campaign. A units guard that cannot run on the campaign
+# being run is not a guard. Values differ per target so a transposed column
+# cannot pass.
+FAKE_RAW = {t: np.array([-7.3 - 0.4 * i, -8.1 - 0.4 * i], float)
+            for i, t in enumerate(DOCKING_TARGETS)}
 
 SMOKE_SMILES = [
     "CC(=O)Oc1ccccc1C(=O)O",            # aspirin, 13 heavy

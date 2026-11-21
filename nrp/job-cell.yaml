@@ -90,6 +90,12 @@ spec:
             - {name: MOGP_CAMPAIGN,       value: "chagas"}
             - {name: KMP_DUPLICATE_LIB_OK, value: "TRUE"}
             - {name: PYTHONUNBUFFERED,    value: "1"}
+            # botorch's fused qLogEHVI kernel needs ninja plus a C++ toolchain.
+            # The env has neither and the pure-Python path is NUMERICALLY
+            # IDENTICAL, just ~3x slower on acquisition. Docking dominates a
+            # cold-cache cell anyway; iteration_timings.csv measures the split.
+            # Recorded in run_config.json as slow_ehvi_path.
+            - {name: MOGP_ALLOW_SLOW_EHVI, value: "1"}
             # Must match the CPU request. Over-subscribing is what NRP's
             # system-load policy flags: kernel time instead of compute.
             - {name: OMP_NUM_THREADS,     value: "8"}

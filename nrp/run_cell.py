@@ -178,6 +178,12 @@ def main():
         # never assumed from this number.
         "budget_dock_calls_upper": (N_INIT + BATCH_SIZE * n_iter) * 2,
         "backend": "NRP/Nautilus", "node": os.environ.get("NODE_NAME", "?"),
+        # The conda env has no ninja and the cell image has no C++ compiler, so
+        # botorch cannot JIT its fused qLogEHVI kernel. That path is ~3x faster
+        # but NUMERICALLY IDENTICAL, so the override is a wall-clock decision,
+        # not a scientific one. Recorded here because a timing claim read off
+        # these cells must say which acquisition path produced it.
+        "slow_ehvi_path": os.environ.get("MOGP_ALLOW_SLOW_EHVI") == "1",
         **campaigns.record()}, indent=2))
     print(campaigns.describe(), flush=True)
     print(f"[cell] {a.arm} seed {a.seed} -> {cell}", flush=True)

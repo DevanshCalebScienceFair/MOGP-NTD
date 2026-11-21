@@ -1,0 +1,83 @@
+# ONE-TIME. Builds the Linux environment onto the campaign volume, so every cell
+# job can run from a stock public image with no container registry, no token and
+# no account. Replaces the Dockerfile + kaniko + ghcr path entirely.
+#
+# Everything lands under /data: the conda env, the vina binary, and a clone of
+# the repo. The 12 cell jobs mount the same volume read-write and use them.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: rung1-setup-env
+spec:
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 86400
+  template:
+    spec:
+      restartPolicy: Never
+      priorityClassName: opportunistic
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: feature.node.kubernetes.io/pci-10de.present
+                    operator: NotIn
+                    values: ["true"]
+      containers:
+        - name: setup
+          image: mambaorg/micromamba:1.5.8
+          command: ["bash", "-lc"]
+          args:
+            - |
+              set -euo pipefail
+              export HOME=/tmp
+
+              if [ -x /data/env/bin/vina ] && [ -f /data/env/.complete ]; then
+                echo "[skip] /data/env already built"
+              else
+                echo "[build] conda env -> /data/env"
+                # ONE conda-forge solve. Mixing micromamba and pip on this base
+                # does not work: its python has no pip module. Versions pinned
+                # to the laptop's, because docking scores are machine-dependent
+                # and pinning is the only part of that we control.
+                micromamba create -y -p /data/env -c conda-forge -c pytorch \
+                  python=3.11 \
+                  openbabel=3.1.1 rdkit=2024.03.6 meeko=0.7.1 biopython=1.87 \
+                  numpy scipy pandas pyarrow requests gemmi scikit-learn=1.9.0 \
+                  pytorch=2.* cpuonly gpytorch botorch git curl
+
+                # The official static Linux binary, which is what docking.py
+                # shells out to. The conda `vina` package is the Python bindings
+                # and pins boost incompatibly with rdkit 2024.03.6.
+                curl -fsSL -o /data/env/bin/vina \
+                  https://github.com/ccsb-scripps/AutoDock-Vina/releases/download/v1.2.7/vina_1.2.7_linux_x86_64
+                chmod +x /data/env/bin/vina
+                touch /data/env/.complete
+              fi
+
+              export PATH=/data/env/bin:$PATH
+              echo "[clone] repo -> /data/repo"
+              rm -rf /data/repo
+              git clone --depth 1 --branch ExtraNovelPipeline \
+                https://github.com/DevanshCalebScienceFair/MOGP-NTD.git /data/repo
+
+              echo "[check] toolchain"
+              vina --version
+              python - <<'PY'
+              import rdkit, torch, gpytorch, botorch, meeko, sklearn
+              print("rdkit", rdkit.__version__, "| torch", torch.__version__,
+                    "| sklearn", sklearn.__version__,
+                    "| cuda", torch.cuda.is_available())
+              assert not torch.cuda.is_available(), "this env is CPU-only by design"
+              PY
+              echo "[check] library on the volume"
+              ls -la /data/library
+              echo "[ok] setup complete"
+          resources:
+            requests: {cpu: "4", memory: "8Gi", ephemeral-storage: "20Gi"}
+            limits:   {cpu: "4", memory: "8Gi", ephemeral-storage: "20Gi"}
+          volumeMounts:
+            - {name: data, mountPath: /data}
+      volumes:
+        - name: data
+          persistentVolumeClaim: {claimName: rung1-campaign}

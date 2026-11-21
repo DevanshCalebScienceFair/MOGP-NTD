@@ -1,37 +1,36 @@
 #!/usr/bin/env bash
-# Render and submit the rung-1 campaign cells.
+# Submit the rung-1 Chagas campaign.  ./nrp/launch.sh [--dry-run] [--only N]
 #
-#   ./nrp/launch.sh <namespace> <image> [--dry-run]
-#
-# 12 cells: 2 arms (mogp = shared ICM, indep = independent per-task GPs) x 6
-# seeds. The independent arm is NOT optional: the rung-1 correlation sits above
-# F19's floor, but "above the floor" is a prediction, and the baseline arm is
-# what turns it into a measurement of how much sharing actually bought.
+# 12 cells: 2 arms x 6 seeds. `mogp` is the shared Hadamard ICM, `indep` is
+# independent per-task GPs on the same molecules, budget and seed. The
+# independent arm is what makes the claim falsifiable: without it there is no
+# way to say afterwards how much sharing bought.
 set -euo pipefail
 
-NS="${1:?usage: launch.sh <namespace> <image> [--dry-run]}"
-IMAGE="${2:?usage: launch.sh <namespace> <image> [--dry-run]}"
-DRY="${3:-}"
-
+NS=lahs-asi
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
 ARMS=(mogp indep)
 SEEDS=(0 1 2 3 4 5)
+DRY=""; ONLY=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --dry-run) DRY=1 ;;
+    --only)    ONLY="$2"; shift ;;
+    *) echo "unknown arg $1"; exit 1 ;;
+  esac; shift
+done
+[ -n "$ONLY" ] && SEEDS=("$ONLY")
 
 for arm in "${ARMS[@]}"; do
   for seed in "${SEEDS[@]}"; do
-    rendered=$(ARM="$arm" SEED="$seed" IMAGE="$IMAGE" \
-               envsubst '${ARM} ${SEED} ${IMAGE}' < nrp/job-cell.yaml)
-    if [[ "$DRY" == "--dry-run" ]]; then
-      echo "--- $arm seed $seed ---"
-      echo "$rendered"
-    else
-      echo "$rendered" | kubectl apply -n "$NS" -f -
-    fi
+    r=$(ARM="$arm" SEED="$seed" envsubst '${ARM} ${SEED}' < "$HERE/nrp/job-cell.yaml")
+    if [ -n "$DRY" ]; then echo "--- $arm seed $seed ---"; echo "$r"
+    else echo "$r" | kubectl apply -n "$NS" -f -; fi
   done
 done
+[ -n "$DRY" ] || cat <<MSG
 
-[[ "$DRY" == "--dry-run" ]] || {
-  echo
-  echo "submitted ${#ARMS[@]} x ${#SEEDS[@]} = $(( ${#ARMS[@]} * ${#SEEDS[@]} )) cells to namespace $NS"
-  echo "watch:  kubectl get jobs -n $NS -l app=rung1-campaign -w"
-  echo "logs:   kubectl logs -n $NS -l arm=mogp --tail=40 -f"
-}
+submitted $(( ${#ARMS[@]} * ${#SEEDS[@]} )) cells to $NS
+  watch:  kubectl -n $NS get jobs -l app=rung1-campaign -w
+  logs:   kubectl -n $NS logs -f -l arm=mogp --tail=40
+MSG

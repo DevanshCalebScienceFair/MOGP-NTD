@@ -1,14 +1,17 @@
-# ONE campaign cell = one arm x one seed. Templated: ${ARM}, ${SEED}, ${IMAGE}.
-# Rendered and applied by nrp/launch.sh, which is what you should actually run.
+# ONE campaign cell = one arm x one seed. Templated: ${ARM}, ${SEED}.
+# Rendered and applied by nrp/launch.sh.
 #
-# CPU-ONLY, DELIBERATELY. Three things NRP requires of CPU-only work, all set:
-#   1. priorityClassName: opportunistic  (we can be preempted; checkpointing handles it)
-#   2. anti-affinity off GPU nodes       (so we never squat on a GPU we cannot use)
+# Stock public image. The environment, the vina binary and the repo all live on
+# the campaign volume, built once by nrp/job-setup-env.yaml, so there is no
+# container registry in this project at all.
+#
+# CPU-ONLY, DELIBERATELY. Three things this namespace requires, all set:
+#   1. priorityClassName: opportunistic  (the only class lahs-asi may use)
+#   2. anti-affinity off GPU nodes       (never squat on a card we cannot use)
 #   3. requests == limits                (policy above ~100 pods)
 #
-# DO NOT ADD nvidia.com/gpu TO THIS FILE. A100 quota is zero without a
-# reservation, and a further group-specific GPU exclusion is on record but not
-# yet enumerated. See CLAUDE.md, "GPUs WE MAY NOT USE".
+# DO NOT ADD nvidia.com/gpu HERE. a100, gh200, h100 and h200 are hard-zero in
+# this namespace's quota. See CLAUDE.md, "GPUs WE MAY NOT USE".
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -17,12 +20,13 @@ metadata:
     app: rung1-campaign
     arm: "${ARM}"
 spec:
-  backoffLimit: 4          # preemption is expected; a retry resumes from checkpoint
+  backoffLimit: 6          # preemption is expected; a retry resumes from cache
   ttlSecondsAfterFinished: 604800
   template:
     metadata:
       labels:
         app: rung1-campaign
+        arm: "${ARM}"
     spec:
       restartPolicy: Never
       priorityClassName: opportunistic
@@ -36,37 +40,35 @@ spec:
                     values: ["true"]
       containers:
         - name: campaign
-          image: ${IMAGE}
+          image: mambaorg/micromamba:1.5.8
           command: ["bash", "-lc"]
           args:
             - |
               set -euo pipefail
+              export HOME=/tmp PATH=/data/env/bin:$PATH
+              test -f /data/env/.complete || {
+                echo "/data/env is not built; run nrp/job-setup-env.yaml first" >&2
+                exit 1; }
+              cd /data/repo
               python nrp/run_cell.py --arm "${ARM}" --seed "${SEED}" \
                      --workdir /data/rung1
           env:
             # Read at IMPORT time by campaigns.py. run_cell.py EXITS if this is
             # not "chagas", so a manifest that drops it fails loudly instead of
             # running the malaria objective set into the Chagas output dir.
-            - name: MOGP_CAMPAIGN
-              value: "chagas"
-            - name: KMP_DUPLICATE_LIB_OK
-              value: "TRUE"
-            - name: PYTHONUNBUFFERED
-              value: "1"
-            # OMP threads must match the CPU request. Over-subscribing is what
-            # NRP's system-load policy flags: kernel time instead of compute.
-            - name: OMP_NUM_THREADS
-              value: "8"
+            - {name: MOGP_CAMPAIGN,       value: "chagas"}
+            - {name: KMP_DUPLICATE_LIB_OK, value: "TRUE"}
+            - {name: PYTHONUNBUFFERED,    value: "1"}
+            # Must match the CPU request. Over-subscribing is what NRP's
+            # system-load policy flags: kernel time instead of compute.
+            - {name: OMP_NUM_THREADS,     value: "8"}
             - name: NODE_NAME
-              valueFrom:
-                fieldRef: {fieldPath: spec.nodeName}
+              valueFrom: {fieldRef: {fieldPath: spec.nodeName}}
           resources:
             requests: {cpu: "8", memory: "16Gi", ephemeral-storage: "20Gi"}
             limits:   {cpu: "8", memory: "16Gi", ephemeral-storage: "20Gi"}
           volumeMounts:
-            - name: data
-              mountPath: /data
+            - {name: data, mountPath: /data}
       volumes:
         - name: data
-          persistentVolumeClaim:
-            claimName: rung1-campaign    # namespace: lahs-asi
+          persistentVolumeClaim: {claimName: rung1-campaign}

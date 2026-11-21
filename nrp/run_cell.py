@@ -37,6 +37,7 @@ import argparse
 import json
 import os
 import pathlib
+import shutil
 import subprocess
 import sys
 import time
@@ -214,6 +215,41 @@ def main():
               "asym102": ASYM102_N_ITERATIONS}.get(a.arm, N_ITERATIONS)
 
     if a.arm == "gpmobo":
+        # external/ is GITIGNORED, so the shallow clone of this repo does NOT
+        # carry the GP-MOBO reference implementation and gpmobo_ref.load()
+        # raises FileNotFoundError the moment GPMOBOBaseline.__init__ runs.
+        # All six seed-0..5 pods died on exactly this. Clone it here, pinned to
+        # the same commit gpmobo_ref.PINNED_COMMIT names, so "GP-MOBO" in the
+        # result table means one fixed upstream revision on every backend.
+        #
+        # Only kern_gp/{gp_model,kern_gp_matrices}.py are imported, and they
+        # need nothing beyond numpy, scipy and rdkit, all already in the env.
+        import gpmobo_ref as _g
+        ext = REPO / "external" / "GP-MOBO"
+        if not (ext / "kern_gp" / "kern_gp_matrices.py").exists():
+            ext.mkdir(parents=True, exist_ok=True)
+            # A --depth 1 clone cannot land on an arbitrary SHA, so fetch the
+            # one commit by name. GitHub serves uploadpack.allowReachableSHA1;
+            # a full clone is the fallback because an 18 MB history is cheap
+            # next to a dead cell.
+            def _git(*args):
+                return subprocess.run(["git", "-C", str(ext), *args]).returncode
+            ok = (_git("init", "-q") == 0
+                  and _git("remote", "add", "origin", _g.REPO_URL) == 0
+                  and _git("fetch", "-q", "--depth", "1",
+                           "origin", _g.PINNED_COMMIT) == 0
+                  and _git("checkout", "-q", "FETCH_HEAD") == 0)
+            if not ok:
+                shutil.rmtree(ext, ignore_errors=True)
+                subprocess.run(["git", "clone", "-q", _g.REPO_URL, str(ext)],
+                               check=True)
+                subprocess.run(["git", "-C", str(ext), "checkout", "-q",
+                                _g.PINNED_COMMIT], check=True)
+        # Fail here, loudly, rather than inside the baseline's constructor.
+        _g.ensure_available(str(ext))
+        print(f"[gpmobo] upstream {_g.head_commit(str(ext))} at {ext}",
+              flush=True)
+
         # --acquisition-pool-size MUST be the same 2000 every other arm uses.
         # Without it this arm scores the whole ~26,600-molecule library per
         # pick, which is both a harness advantage and ~29 min/iteration.

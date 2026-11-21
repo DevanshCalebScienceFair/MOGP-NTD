@@ -35,6 +35,11 @@ REPO = pathlib.Path(__file__).resolve().parent.parent
 LIBRARY_DIR = "/data/library"
 SAMPLE_SEED = 20261121          # fixed so every chunk agrees on the sample
 
+# sys.path[0] is the SCRIPT's directory, nrp/, not the repo root, so
+# `import campaigns` fails without this. run_cell.py does the same thing at
+# its line 50. Chunk pilot-chikv-c1 died on exactly this.
+sys.path.insert(0, str(REPO))
+
 
 def link(dst: pathlib.Path, src: pathlib.Path) -> None:
     dst.parent.mkdir(parents=True, exist_ok=True)
@@ -65,6 +70,16 @@ def main() -> int:
     out = pathlib.Path(a.workdir) / a.campaign
     out.mkdir(parents=True, exist_ok=True)
     chunk_csv = out / f"chunk{a.chunk:02d}.csv"
+
+    # Per-chunk docking cache on the PVC, so a preempted chunk resumes at the
+    # MOLECULE level and not just the chunk level. Chunks dock disjoint slices,
+    # so there is nothing to gain from sharing one and nothing to race on.
+    cache = out / f"cache{a.chunk:02d}"
+    cache.mkdir(parents=True, exist_ok=True)
+    link(REPO / "data" / "docking_cache", cache)
+
+    # Relative paths inside docking.py / data.py resolve against cwd.
+    os.chdir(REPO)
     if chunk_csv.exists():
         print(f"[skip] {chunk_csv} already written", flush=True)
         return 0

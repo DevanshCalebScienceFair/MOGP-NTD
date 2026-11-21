@@ -156,6 +156,21 @@ def main():
     link(REPO / "data" / "library", lib)
     link(REPO / "data" / "docking_cache", cell / "docking_cache")
 
+    # Every receptor this campaign docks against has to be ON DISK before the
+    # loop starts. On a laptop the raw PDB is already sitting in the repo from
+    # an earlier run, so prepare_protein() finds it; in a fresh clone it does
+    # not exist and the run dies with FileNotFoundError: '3INV.pdb' two minutes
+    # in, after the 2.9 GB env extract. Downloading here also means the
+    # receptor is prepared once per pod rather than lazily inside the first
+    # docking call, so a prep failure surfaces before any compute is spent.
+    import campaigns as _c, docking as _d
+    for _task, (_kind, _recv) in _c.active_campaign()["sources"].items():
+        if _kind != "dock":
+            continue
+        _d.download_protein(_recv)
+        _d.prepare_protein(_recv)
+        print(f"[recv] {_recv} ready ({_d.TARGETS[_recv]['pdb_id']})", flush=True)
+
     n_iter = ASYM_N_ITERATIONS if a.arm == "asym" else N_ITERATIONS
     cmd = [sys.executable, "loop.py",
            "--seed", str(a.seed),

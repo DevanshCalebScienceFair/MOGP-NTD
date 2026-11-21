@@ -53,10 +53,39 @@ N_INIT, BATCH_SIZE, N_ITERATIONS = 40, 5, 50
 COMMON = ["--posterior", "joint", "--acquisition-alpha", "1e-3",
           "--acquisition-pool-size", "2000", "--rank", "1"]
 
+# THE THREE ARMS, and why these three.
+#
+# `full` vs `indep` at complete labelling is NOT the experiment. Every molecule
+# carries both docking labels there, the design is block-complete,
+# autokrigeability applies (Bonilla, Chai & Williams 2008 s2.3) and the ICM
+# posterior mean collapses to independent per-task GPs. F12 measured exactly
+# that over 10 seeds: 197 of 400 checkpoints, every endpoint null. Repeating it
+# on a new target would reproduce a known negative, not test anything.
+#
+# `asym` is the headline. F19's correlation floor is a statement about the ICM's
+# advantage at a SMALL co-located-label count; at 100% co-location there is no
+# advantage to threshold. So measuring rho = +0.719 on TcDHFR/hDHFR licenses an
+# ASYMMETRIC-label campaign, and that cell has never been run inside F17's band.
+# F14 ran it at 25% co-location, 2.5x above the k=8 peak, and it lost 6/6.
+# CLAUDE.md lists this under "NOT shown, and do not claim it".
+#
+# `indep` stays as the control that says whether sharing matters here at all.
 ARMS = {
-    "mogp":  ["--model", "hadamard"],      # the shared ICM: the method under test
-    "indep": ["--model", "independent"],   # the baseline it must beat
+    "full":  ["--model", "hadamard"],
+    "asym":  ["--model", "hadamard",
+              "--hdhfr-policy", "uniform",
+              "--hdhfr-fraction", "0.05",
+              "--hdhfr-floor", "8"],
+    "indep": ["--model", "independent"],
 }
+
+# The asym arm spends fewer docking calls per molecule (only ~5% of molecules
+# get the second target), so at the SAME iteration count it would use a smaller
+# budget and the comparison would be about budget, not about labelling. F14
+# matched the budget by giving the asymmetric arm more iterations; the same is
+# done here. 40 + 5*50 = 290 molecules x 2 targets = 580 calls for `full`;
+# `asym` gets the iteration count that spends 580 calls at its own label rate.
+ASYM_N_ITERATIONS = 85
 
 
 def link(path: pathlib.Path, target: pathlib.Path):
@@ -109,11 +138,12 @@ def main():
     link(REPO / "data" / "library", work / "library")
     link(REPO / "data" / "docking_cache", cell / "docking_cache")
 
+    n_iter = ASYM_N_ITERATIONS if a.arm == "asym" else N_ITERATIONS
     cmd = [sys.executable, "loop.py",
            "--seed", str(a.seed),
            "--n-init", str(N_INIT),
            "--batch-size", str(BATCH_SIZE),
-           "--n-iterations", str(N_ITERATIONS),
+           "--n-iterations", str(n_iter),
            "--output-dir", str(cell),
            *COMMON, *ARMS[a.arm]]
 
@@ -123,8 +153,12 @@ def main():
     (cell / "run_config.json").write_text(json.dumps({
         "arm": a.arm, "seed": a.seed, "cmd": cmd,
         "n_init": N_INIT, "batch_size": BATCH_SIZE,
-        "n_iterations": N_ITERATIONS,
-        "budget_dock_calls": (N_INIT + BATCH_SIZE * N_ITERATIONS) * 2,
+        "n_iterations": n_iter,
+        "n_molecules": N_INIT + BATCH_SIZE * n_iter,
+        # For `asym` this is an UPPER bound: only ~5% of molecules get the
+        # second target, so the realized call count is read from evaluated.csv,
+        # never assumed from this number.
+        "budget_dock_calls_upper": (N_INIT + BATCH_SIZE * n_iter) * 2,
         "backend": "NRP/Nautilus", "node": os.environ.get("NODE_NAME", "?"),
         **campaigns.record()}, indent=2))
     print(campaigns.describe(), flush=True)

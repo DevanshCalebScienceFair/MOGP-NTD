@@ -9,7 +9,7 @@ set -euo pipefail
 
 NS=lahs-asi
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
-ARMS=(mogp indep)
+ARMS=(full asym indep)
 SEEDS=(0 1 2 3 4 5)
 DRY=""; ONLY=""
 while [ $# -gt 0 ]; do

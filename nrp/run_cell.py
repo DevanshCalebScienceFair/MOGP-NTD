@@ -51,6 +51,7 @@ sys.path.insert(0, str(REPO))
 
 # Matched to the asym campaign's budget so the two are comparable: 40 initial +
 # 50 iterations x 5 per batch = 290 molecules, 580 docking calls at two targets.
+LIBRARY_DIR = "/data/library"
 N_INIT, BATCH_SIZE, N_ITERATIONS = 40, 5, 50
 
 # Held fixed across both arms. alpha=1e-3 is BoTorch's own default for five
@@ -141,7 +142,18 @@ def main():
         return 0
 
     os.chdir(REPO)
-    link(REPO / "data" / "library", work / "library")
+
+    # The library is uploaded once to the ROOT of the PVC, not into the campaign
+    # workdir: /data/library, not /data/rung1/library. Pointing the symlink at
+    # `work / "library"` silently created an empty directory, and the loop then
+    # failed 0.1 min in with "Library file not found: data/library/smiles.csv"
+    # after every pod had already spent minutes extracting a 2.9 GB env.
+    lib = pathlib.Path(LIBRARY_DIR)
+    if not (lib / "smiles.csv").exists():
+        sys.exit(f"library not found at {lib}/smiles.csv (contents: "
+                 f"{sorted(x.name for x in lib.iterdir()) if lib.is_dir() else 'no such dir'}). "
+                 f"Upload it with nrp/bootstrap.sh before launching cells.")
+    link(REPO / "data" / "library", lib)
     link(REPO / "data" / "docking_cache", cell / "docking_cache")
 
     n_iter = ASYM_N_ITERATIONS if a.arm == "asym" else N_ITERATIONS

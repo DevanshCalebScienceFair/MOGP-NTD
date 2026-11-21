@@ -1518,7 +1518,8 @@ if __name__ == "__main__":
     print(f"  seed={args.seed}  hdhfr_fraction={args.hdhfr_fraction}  "
           f"acquisition_pool_size={args.acquisition_pool_size}")
     print(f"  hdhfr_policy={args.hdhfr_policy!r}  hdhfr_floor={args.hdhfr_floor}")
-    print(f"  bounds_frame={args.bounds_path or 'published (evaluation_bounds.json)'}")
+    import evaluation as _ev
+    print(f"  bounds_frame={args.bounds_path or 'published (' + os.path.basename(_ev.BOUNDS_PATH) + ')'}")
     print(f"  acquisition_ref_point={args.acquisition_ref_point or 'zeros (default)'}")
     print(f"  reject_artifacts={args.reject_artifacts}  "
           f"reject_artifacts_training={args.reject_artifacts_training}")

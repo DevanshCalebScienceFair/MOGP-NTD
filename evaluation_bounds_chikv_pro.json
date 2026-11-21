@@ -15,12 +15,12 @@
   ],
   "bounds": {
     "CHIKVnsP2_Docking": [
-      -11.0,
-      -5.0
+      -10.5,
+      -3.0
     ],
     "hThrombin_Docking": [
-      -11.0,
-      -5.0
+      -10.5,
+      -3.0
     ],
     "hERG_Toxicity_Prob": [
       0.001999363536015153,
@@ -35,5 +35,6 @@
       64.84938049316406
     ]
   },
-  "note": "PROVISIONAL. Docking bounds carried over from the DHFR campaigns [-11.0, -5.0]; no scores exist for these receptors yet. A correlation pilot must confirm the observed range sits inside them before any campaign uses this file. A saturated bound silently compresses hypervolume, which is a failure this project has already had once."
+  "docking_bounds_provenance": "Derived from the n=292 NRP pilot (2026-11-21), observed [-9.98, -3.51]. The previous [-11,-5] clipped 6.2% of nsP2 and 4.5% of thrombin scores at the WEAK end. SEE THE CAMPAIGN NOTE: this pair should not be run as a selectivity campaign at all.",
+  "CAMPAIGN_NOTE": "DO NOT RUN AS A SELECTIVITY CAMPAIGN. Pilot rho = +0.762 clears F19's floor easily, but the SELECTIVITY WINDOW is closed: over 292 molecules the spread of (nsP2 - thrombin) is 0.619 kcal/mol and ZERO molecules reach -2 kcal/mol of selectivity. Two targets that score molecules nearly identically cannot be traded off, so there is no front to find. F19 measured the correlation FLOOR and recorded the ceiling as unmeasured; this is the ceiling."
 }

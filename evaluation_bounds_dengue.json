@@ -15,12 +15,12 @@
   ],
   "bounds": {
     "DENVNS3_Docking": [
-      -11.0,
-      -5.0
+      -10.5,
+      -3.0
     ],
     "hThrombin_Docking": [
-      -11.0,
-      -5.0
+      -10.5,
+      -3.0
     ],
     "hERG_Toxicity_Prob": [
       0.001999363536015153,
@@ -35,5 +35,6 @@
       64.84938049316406
     ]
   },
-  "note": "PROVISIONAL. Docking bounds carried over from the DHFR campaigns [-11.0, -5.0]; no scores exist for these receptors yet. A correlation pilot must confirm the observed range sits inside them before any campaign uses this file. A saturated bound silently compresses hypervolume, which is a failure this project has already had once."
+  "docking_bounds_provenance": "Derived from the n=292 NRP pilot (2026-11-21), observed [-9.91, -3.75]. SEE THE CAMPAIGN NOTE: this pair should not be run as a selectivity campaign at all.",
+  "CAMPAIGN_NOTE": "DO NOT RUN AS A SELECTIVITY CAMPAIGN. Pilot rho = +0.883, the highest of the three, and the selectivity window is the most closed: spread 0.456 kcal/mol, ZERO molecules below -2. Dengue NS3pro and human thrombin are both trypsin-like serine proteases, which is exactly why thrombin was chosen as the counter-target, and exactly why the pair cannot be separated by this oracle."
 }

@@ -15,12 +15,12 @@
   ],
   "bounds": {
     "CHIKVnsP3_Docking": [
-      -11.0,
-      -5.0
+      -13.5,
+      -4.5
     ],
     "hMacroD2_Docking": [
-      -11.0,
-      -5.0
+      -13.5,
+      -4.5
     ],
     "hERG_Toxicity_Prob": [
       0.001999363536015153,
@@ -35,5 +35,5 @@
       64.84938049316406
     ]
   },
-  "note": "PROVISIONAL. Docking bounds are carried over from the DHFR campaigns [-11.0, -5.0] because no CHIKV macrodomain scores exist yet. The correlation pilot must confirm the observed range falls inside them before any campaign uses this file; a saturated bound silently compresses hypervolume."
+  "docking_bounds_provenance": "Derived from the n=292 NRP pilot (2026-11-21), observed [-12.91, -5.40] across both targets, plus 0.5 kcal/mol margin. The previous [-11,-5] was copied from DHFR and clipped 6.2% of nsP3 scores at the strong end, where a better binder earns NO additional hypervolume."
 }

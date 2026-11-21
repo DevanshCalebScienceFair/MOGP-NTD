@@ -43,6 +43,23 @@ spec:
               set -euo pipefail
               python nrp/run_cell.py --arm "${ARM}" --seed "${SEED}" \
                      --workdir /data/rung1
+          env:
+            # Read at IMPORT time by campaigns.py. run_cell.py EXITS if this is
+            # not "chagas", so a manifest that drops it fails loudly instead of
+            # running the malaria objective set into the Chagas output dir.
+            - name: MOGP_CAMPAIGN
+              value: "chagas"
+            - name: KMP_DUPLICATE_LIB_OK
+              value: "TRUE"
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            # OMP threads must match the CPU request. Over-subscribing is what
+            # NRP's system-load policy flags: kernel time instead of compute.
+            - name: OMP_NUM_THREADS
+              value: "8"
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef: {fieldPath: spec.nodeName}
           resources:
             requests: {cpu: "8", memory: "16Gi", ephemeral-storage: "20Gi"}
             limits:   {cpu: "8", memory: "16Gi", ephemeral-storage: "20Gi"}

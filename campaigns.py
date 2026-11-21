@@ -99,6 +99,29 @@ CAMPAIGNS = {
         "TcDHFR_Docking", "TcDHFR", "hDHFR_Docking", "hDHFR",
         "evaluation_bounds_chagas.json",
         "Trypanosoma cruzi DHFR-TS (3INV) vs human DHFR"),
+    # Rung 2. The primary and counter targets are the SAME FOLD with the same
+    # natural ligand, so this is the most demanding selectivity pair in the
+    # project and the one where the shared model has the most to borrow.
+    # Not runnable until a correlation pilot measures rho against F19's floor.
+    "chikungunya": _selectivity_campaign(
+        "CHIKVnsP3_Docking", "CHIKV_nsP3", "hMacroD2_Docking", "hMacroD2",
+        "evaluation_bounds_chikv.json",
+        "Chikungunya nsP3 macrodomain (9YHH) vs human MacroD2 (4IQY)"),
+    # Rung 2, protease route. Runnable, but its box is centred on the catalytic
+    # dyad rather than on a bound ligand, because no liganded nsP2 protease
+    # structure exists. Any result from it carries that caveat; see
+    # docking.RECEPTORS["CHIKV_nsP2"].
+    "chikungunya_protease": _selectivity_campaign(
+        "CHIKVnsP2_Docking", "CHIKV_nsP2", "hThrombin_Docking", "hThrombin",
+        "evaluation_bounds_chikv_pro.json",
+        "Chikungunya nsP2 protease (3TRK, dyad box) vs human thrombin (5DGJ)"),
+    # Rung 3. Both boxes come from co-crystallized inhibitors, and both
+    # proteases are trypsin-like, so the counter-screen is a real liability
+    # rather than a contrived one.
+    "dengue": _selectivity_campaign(
+        "DENVNS3_Docking", "DENV_NS3pro", "hThrombin_Docking", "hThrombin",
+        "evaluation_bounds_dengue.json",
+        "Dengue NS2B-NS3 protease (6Y3B) vs human thrombin (5DGJ)"),
 }
 
 DEFAULT_CAMPAIGN = "malaria"

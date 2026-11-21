@@ -1,0 +1,39 @@
+{
+  "task_names": [
+    "CHIKVnsP2_Docking",
+    "hThrombin_Docking",
+    "hERG_Toxicity_Prob",
+    "Caco2_logPapp",
+    "Half_Life_hours"
+  ],
+  "signs": [
+    -1,
+    1,
+    -1,
+    1,
+    1
+  ],
+  "bounds": {
+    "CHIKVnsP2_Docking": [
+      -11.0,
+      -5.0
+    ],
+    "hThrombin_Docking": [
+      -11.0,
+      -5.0
+    ],
+    "hERG_Toxicity_Prob": [
+      0.001999363536015153,
+      0.9998417496681213
+    ],
+    "Caco2_logPapp": [
+      -7.260476112365723,
+      -3.825927495956421
+    ],
+    "Half_Life_hours": [
+      0.37630030512809753,
+      64.84938049316406
+    ]
+  },
+  "note": "PROVISIONAL. Docking bounds carried over from the DHFR campaigns [-11.0, -5.0]; no scores exist for these receptors yet. A correlation pilot must confirm the observed range sits inside them before any campaign uses this file. A saturated bound silently compresses hypervolume, which is a failure this project has already had once."
+}

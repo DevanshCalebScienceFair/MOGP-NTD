@@ -102,6 +102,105 @@ TARGETS = {
         "size": (20.0, 20.0, 20.0),
         "description": "Trypanosoma cruzi DHFR-TS (Chagas target; PDB 3INV; minimize).",
     },
+    "CHIKV_nsP3": {
+        "pdb_id": "9YHH",
+        # Chikungunya virus nsP3 macrodomain, the rung-2 target.
+        #
+        # WHY NOT nsP2 PROTEASE, which this project planned first: of 188 CHIKV
+        # entries in the PDB, exactly two are nsP2 protease (3TRK at 2.40 A and
+        # 4ZTB at 2.59 A) and BOTH ARE APO -- 3TRK holds only a sodium ion and
+        # 4ZTB only a glycerol. 7Y38 carries ATP and GTP, but on the helicase
+        # and capping machinery of a polyprotein-RNA complex, not in the
+        # protease site. This project defines a box as a co-crystallized
+        # inhibitor's head centroid, so nsP2 cannot be boxed without inventing
+        # a site from catalytic residues. That guess is what produced the
+        # cofactor bug, so nsP2 stays blocked.
+        #
+        # The macrodomain has the opposite problem: 104 of its 153 entries are
+        # liganded, with 95 distinct ligands, at a median resolution of 1.44 A.
+        # 9YHH is the highest-resolution NATIVE-substrate complex at 1.37 A,
+        # holding ADP-ribose (APR), the physiological ligand. Four copies in the
+        # asymmetric unit; the box is on chain A.
+        #
+        # No cofactor to retain, unlike every DHFR target here: the only metal
+        # in the counter-target sits 27 A from the site. COFACTOR_RESNAMES
+        # therefore strips everything, which is correct for this fold.
+        "center": (14.29, -10.52, -13.93),
+        "size": (20.0, 20.0, 20.0),
+        "description": "Chikungunya virus nsP3 macrodomain (rung-2 target; PDB 9YHH; minimize).",
+    },
+    "hMacroD2": {
+        "pdb_id": "4IQY",
+        # Human MacroD2 (O-acetyl-ADP-ribose deacetylase), the rung-2
+        # ANTI-target: we want WEAK binding here, exactly as with hDHFR.
+        #
+        # 1.55 A, 240 residues, ADP-ribose analogue AR6 bound. Chosen because it
+        # is the same fold and the same ADP-ribose-binding function as the viral
+        # target, which is what makes selectivity a real question rather than a
+        # trivial one. That homology is also why the task correlation should be
+        # high, which is the regime the coregionalized model needs; the pilot
+        # must still measure it before any campaign runs.
+        #
+        # Box is chain A's adenine-head centroid. The two MG ions sit 27 A and
+        # 32 A away, outside any 20 A box, so they are crystallographic rather
+        # than functional and are stripped with the rest of the het records.
+        "center": (6.04, 17.85, -5.44),
+        "size": (20.0, 20.0, 20.0),
+        "description": "Human MacroD2 (rung-2 anti-target; PDB 4IQY; maximize).",
+    },
+    "CHIKV_nsP2": {
+        "pdb_id": "3TRK",
+        # Chikungunya virus nsP2 cysteine protease, 2.40 A, single chain.
+        #
+        # BOX PROVENANCE IS DIFFERENT HERE AND THAT MATTERS. Every other target
+        # in this file centres its box on a co-crystallized ligand. No liganded
+        # nsP2 protease structure exists: 3TRK holds a sodium ion, 4ZTB a
+        # glycerol, and those are the only two nsP2 protease entries in the PDB.
+        # So this box is centred on the CATALYTIC DYAD instead -- the midpoint
+        # of Cys1013 SG and His1083 NE2, which sit 4.83 A apart.
+        #
+        # The dyad was located by geometry, not by trusting a residue number:
+        # a search for any Cys SG within 3-7.5 A of a His NE2 returned
+        # Cys1013/His1083, which is the dyad the literature reports, and the
+        # same pair appears in 4ZTB as Cys478/His548 under that construct's
+        # numbering. Two independent structures agreeing is the reason this is
+        # usable rather than a guess.
+        #
+        # It is still weaker evidence than a bound ligand, and a result from
+        # this target must say so. Box is 22 A rather than 20 A because a
+        # protease substrate groove is more extended than a folate pocket, so a
+        # dyad-centred 20 A box would clip the outer subsites.
+        "center": (-4.73, 26.82, 27.09),
+        "size": (22.0, 22.0, 22.0),
+        "description": "Chikungunya virus nsP2 protease (PDB 3TRK; dyad-centred box; minimize).",
+    },
+    "DENV_NS3pro": {
+        "pdb_id": "6Y3B",
+        # Dengue NS2B-NS3 protease, 1.59 A, with a 631 Da co-crystallized
+        # inhibitor (O7N) in the active site. Box is that inhibitor's centroid,
+        # chain B, which is the normal provenance for this project.
+        #
+        # This is the rung-3 target. It was never actually blocked; it had just
+        # not been looked for.
+        "center": (5.60, -12.48, 3.20),
+        "size": (22.0, 22.0, 22.0),
+        "description": "Dengue NS2B-NS3 protease (rung-3 target; PDB 6Y3B; minimize).",
+    },
+    "hThrombin": {
+        "pdb_id": "5DGJ",
+        # Human alpha-thrombin at 1.00 A, the highest-resolution structure in
+        # this file by a wide margin, with a 593 Da inhibitor (V64) bound.
+        #
+        # The rung-3 ANTI-target: we want WEAK binding. Dengue NS3 protease is
+        # trypsin-like, and so is thrombin, so a compound that hits the viral
+        # protease has a real chance of hitting host coagulation proteases.
+        # That is a genuine liability for this chemotype rather than a
+        # contrived counter-screen, which is what makes the selectivity
+        # objective meaningful.
+        "center": (18.34, -56.70, 136.27),
+        "size": (22.0, 22.0, 22.0),
+        "description": "Human alpha-thrombin (rung-3 anti-target; PDB 5DGJ; maximize).",
+    },
 }
 
 # Default target for the backward-compatible dock()/batch_dock() helpers.

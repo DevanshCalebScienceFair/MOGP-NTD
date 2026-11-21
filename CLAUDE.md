@@ -1069,3 +1069,51 @@ The Modal docking image is version-matched on purpose (Vina 1.2.7, Python 3.11,
 RDKit 2024.03.6) and the conda `vina` package is unusable here, since it pins
 boost against RDKit 2024.03.6; the official static Linux binary is used instead,
 which is also what `docking.py` shells out to. Version matching was not enough.
+
+---
+
+## COMPUTE BACKEND: NRP / Nautilus (2026-11-20)
+
+Moving campaign compute from Modal to the National Research Platform's Nautilus
+cluster. Kubernetes, not Slurm. Login via CILogon at https://nrp.ai.
+
+### HARD CONSTRAINT: GPUs WE MAY NOT USE
+
+1. **A100: quota is ZERO by default.** Must be requested through
+   https://nrp.ai/reservations. Do not write `nvidia.com/gpu` against an A100
+   node type without that reservation in hand.
+2. **A group-specific exclusion exists and is NOT YET ENUMERATED HERE.** The user
+   has stated some GPUs are off-limits to us. Until the specific models or node
+   labels are recorded in this section, **do not request any GPU**. Ask first.
+
+The rung-1 campaign is CPU-only, so neither bites yet. They bite the moment
+anyone adds `nvidia.com/gpu` to a manifest.
+
+### Why CPU-only is correct here, and not a compromise
+
+AutoDock Vina is CPU-only; a GPU does nothing for it, and docking is the bulk of
+this campaign. The GP training and qNEHVI acquisition are GPU-accelerable, but
+after the `alpha` fix (17.0x, see ENGINEERING_LOG defect 5) and the pool cap they
+are no longer the bottleneck. Requesting a GPU and leaving it idle also violates
+NRP's own utilization policy (keep GPU utilization above 40%).
+
+### Required settings for every CPU-only job on this cluster
+
+- `priorityClassName: opportunistic` (NRP requires it for CPU-only work; it means
+  anyone can preempt us, which the checkpoint-and-resume code already survives)
+- nodeAffinity excluding `feature.node.kubernetes.io/pci-10de.present = true`, so
+  we never occupy a GPU node
+- `resources.requests` == `resources.limits` (policy, above ~100 pods)
+- `resources.requests.ephemeral-storage` set if a container writes >50Gi scratch
+- Jobs, never bare Pods: a bare Pod is killed at 6 hours. Never a `sleep` that
+  does not terminate; NRP bans accounts for it.
+- No more than 400 Jobs submitted at once.
+- Utilization rule: CPU usage must stay within 20-200% of request, RAM 20-150%.
+  At most 4 pods may violate. Check https://nrp.ai/userinfo.
+
+### THE CROSS-BACKEND DOCKING RULE STILL APPLIES, AND NOW MATTERS MORE
+
+Docking scores are machine-dependent: p90 |delta| 0.840, max 1.604 kcal/mol over
+n=24 (ENGINEERING_LOG defect 18). **Every docking call in one campaign must run
+on one backend.** The Modal rung-1 pilot (rho = +0.719) was a GATE, not a data
+point, and must never be placed on an axis with NRP campaign numbers.

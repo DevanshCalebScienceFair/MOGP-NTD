@@ -1,0 +1,19 @@
+# Builds the campaign image on NRP's own GitLab runners, so no local Docker is
+# needed. Put this at the REPO ROOT as .gitlab-ci.yml after mirroring the repo to
+# gitlab.nrp-nautilus.io; the image then lands in that project's registry and the
+# cluster can pull it without credentials.
+stages: [build]
+
+build-image:
+  stage: build
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: [""]
+  script:
+    - /kaniko/executor
+        --context "$CI_PROJECT_DIR"
+        --dockerfile "$CI_PROJECT_DIR/nrp/Dockerfile"
+        --destination "$CI_REGISTRY_IMAGE:rung1-$CI_COMMIT_SHORT_SHA"
+        --destination "$CI_REGISTRY_IMAGE:rung1-latest"
+  rules:
+    - if: $CI_COMMIT_BRANCH

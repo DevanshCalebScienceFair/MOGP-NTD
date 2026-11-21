@@ -1,0 +1,55 @@
+# ONE campaign cell = one arm x one seed. Templated: ${ARM}, ${SEED}, ${IMAGE}.
+# Rendered and applied by nrp/launch.sh, which is what you should actually run.
+#
+# CPU-ONLY, DELIBERATELY. Three things NRP requires of CPU-only work, all set:
+#   1. priorityClassName: opportunistic  (we can be preempted; checkpointing handles it)
+#   2. anti-affinity off GPU nodes       (so we never squat on a GPU we cannot use)
+#   3. requests == limits                (policy above ~100 pods)
+#
+# DO NOT ADD nvidia.com/gpu TO THIS FILE. A100 quota is zero without a
+# reservation, and a further group-specific GPU exclusion is on record but not
+# yet enumerated. See CLAUDE.md, "GPUs WE MAY NOT USE".
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: rung1-${ARM}-seed${SEED}
+  labels:
+    app: rung1-campaign
+    arm: "${ARM}"
+spec:
+  backoffLimit: 4          # preemption is expected; a retry resumes from checkpoint
+  ttlSecondsAfterFinished: 604800
+  template:
+    metadata:
+      labels:
+        app: rung1-campaign
+    spec:
+      restartPolicy: Never
+      priorityClassName: opportunistic
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: feature.node.kubernetes.io/pci-10de.present
+                    operator: NotIn
+                    values: ["true"]
+      containers:
+        - name: campaign
+          image: ${IMAGE}
+          command: ["bash", "-lc"]
+          args:
+            - |
+              set -euo pipefail
+              python nrp/run_cell.py --arm "${ARM}" --seed "${SEED}" \
+                     --workdir /data/rung1
+          resources:
+            requests: {cpu: "8", memory: "16Gi", ephemeral-storage: "20Gi"}
+            limits:   {cpu: "8", memory: "16Gi", ephemeral-storage: "20Gi"}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: rung1-campaign

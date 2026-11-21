@@ -1,0 +1,22 @@
+# Persistent storage for the rung-1 campaign. One PVC, shared read-write by every
+# cell's job, holding: the prepared receptors, the docking cache, and each cell's
+# per-iteration checkpoint.
+#
+# rook-cephfs (not RBD) because this is accessed by many pods at once and holds
+# large files plus checkpoints, which is exactly what CephFS is for. RBD is
+# single-writer and is the right choice for conda envs and small-file work, which
+# this is not.
+#
+# NOTE: volumes not accessed for 6 months are purged without notice. This is
+# scratch, not archival. Results get pulled back to the repo.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: rung1-campaign
+spec:
+  storageClassName: rook-cephfs
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 100Gi

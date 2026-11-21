@@ -70,7 +70,17 @@ spec:
               tar -C /opt -xf /data/env.tar
               export PATH=/opt/env/bin:$PATH
               vina --version
-              cd /data/repo
+
+              # Clone the repo into THIS pod's local scratch rather than using
+              # the snapshot on the volume. /data/repo was cloned once at setup
+              # and goes stale the moment any code is fixed, which is how a
+              # one-line import fix would otherwise need its own refresh job
+              # and a relaunch. A shallow clone is a couple of seconds and
+              # every cell is then guaranteed to run the committed code.
+              git clone --depth 1 --branch ExtraNovelPipeline \
+                https://github.com/DevanshCalebScienceFair/MOGP-NTD.git /opt/repo
+              cd /opt/repo
+              git log -1 --format='[repo] %h %s'
               python nrp/run_cell.py --arm "${ARM}" --seed "${SEED}" \
                      --workdir /data/rung1
           env:

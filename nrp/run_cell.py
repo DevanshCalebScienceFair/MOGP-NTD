@@ -43,6 +43,12 @@ import time
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 
+# sys.path[0] is the SCRIPT's directory, nrp/, not the repo root, and
+# os.chdir() does not change that. Without this line `import campaigns` fails
+# with ModuleNotFoundError after the container has already extracted a 2.9 GB
+# environment and verified Vina.
+sys.path.insert(0, str(REPO))
+
 # Matched to the asym campaign's budget so the two are comparable: 40 initial +
 # 50 iterations x 5 per batch = 290 molecules, 580 docking calls at two targets.
 N_INIT, BATCH_SIZE, N_ITERATIONS = 40, 5, 50

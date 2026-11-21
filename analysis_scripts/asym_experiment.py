@@ -68,7 +68,7 @@ print(f"{len(d)} molecules; empirical corr(PfDHFR, hDHFR) = {np.corrcoef(pf,hd)[
 FRACS = [1.0, 0.75, 0.5, 0.25, 0.10]
 import os
 REPS = int(os.environ.get('REPS','5'))
-S_OUT = "/private/tmp/claude-502/-Users-devansh/db50257a-6170-49a1-bcb6-f56dd539b550/scratchpad"
+S_OUT = "/Users/devansh/mogp-main-vscode/MOGP-NTD/analysis_scripts"
 N_TEST = 60
 rows = []
 for rep in range(REPS):

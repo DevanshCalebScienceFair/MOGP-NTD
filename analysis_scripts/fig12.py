@@ -1,7 +1,7 @@
 import matplotlib; matplotlib.use("Agg")
 import matplotlib.pyplot as plt, numpy as np, pandas as pd, os
 from scipy.stats import wilcoxon
-S="/private/tmp/claude-502/-Users-devansh/db50257a-6170-49a1-bcb6-f56dd539b550/scratchpad"
+S="/Users/devansh/mogp-main-vscode/MOGP-NTD/analysis_scripts"  # was a per-session scratchpad that no longer exists; the CSVs were committed here
 BASE="/Users/devansh/mogp-main-vscode/MOGP-NTD"; OUT="/Users/devansh/Downloads/aggregate_10seed/figures"
 df=pd.read_csv(f"{S}/multiseed_metrics.csv")
 def path(m,s): return (f"{BASE}/ablation_joint_alpha/{m}_seed0/history.csv" if s==0

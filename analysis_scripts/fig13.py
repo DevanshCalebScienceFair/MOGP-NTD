@@ -1,7 +1,7 @@
 import matplotlib; matplotlib.use("Agg")
 import matplotlib.pyplot as plt, numpy as np, pandas as pd
 from scipy.stats import wilcoxon
-S="/private/tmp/claude-502/-Users-devansh/db50257a-6170-49a1-bcb6-f56dd539b550/scratchpad"
+S="/Users/devansh/mogp-main-vscode/MOGP-NTD/analysis_scripts"  # was a per-session scratchpad that no longer exists; the CSVs were committed here
 OUT="/Users/devansh/Downloads/aggregate_10seed/figures"
 df=pd.read_csv(f"{S}/asym_results_20.csv"); FR=[1.0,.75,.5,.25,.10]
 plt.rcParams.update({"font.size":9,"axes.grid":True,"grid.alpha":.25,

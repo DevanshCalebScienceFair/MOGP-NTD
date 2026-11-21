@@ -60,4 +60,4 @@ print("="*112)
 show=df[["seed","icm_final","ind_final","icm_auc","ind_auc","icm_n@0.38","ind_n@0.38"]].copy()
 show.columns=["seed","ICM HV","IND HV","ICM AUC","IND AUC","ICM n@.38","IND n@.38"]
 print(show.to_string(index=False,float_format=lambda v:f"{v:.4f}"))
-df.to_csv("/private/tmp/claude-502/-Users-devansh/db50257a-6170-49a1-bcb6-f56dd539b550/scratchpad/multiseed_metrics.csv",index=False)
+df.to_csv("/Users/devansh/mogp-main-vscode/MOGP-NTD/analysis_scripts/multiseed_metrics.csv",index=False)

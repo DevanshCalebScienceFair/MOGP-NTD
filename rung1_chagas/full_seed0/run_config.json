@@ -1,0 +1,57 @@
+{
+  "arm": "full",
+  "seed": 0,
+  "cmd": [
+    "/opt/env/bin/python",
+    "loop.py",
+    "--seed",
+    "0",
+    "--n-init",
+    "40",
+    "--batch-size",
+    "5",
+    "--n-iterations",
+    "50",
+    "--output-dir",
+    "/data/rung1/full_seed0",
+    "--posterior",
+    "joint",
+    "--acquisition-alpha",
+    "1e-3",
+    "--acquisition-pool-size",
+    "2000",
+    "--rank",
+    "1",
+    "--model",
+    "hadamard"
+  ],
+  "n_init": 40,
+  "batch_size": 5,
+  "n_iterations": 50,
+  "n_molecules": 290,
+  "budget_dock_calls_upper": 580,
+  "backend": "NRP/Nautilus",
+  "node": "pas.lasv.net.internet2.edu",
+  "slow_ehvi_path": true,
+  "campaign": "chagas",
+  "campaign_label": "Trypanosoma cruzi DHFR-TS (3INV) vs human DHFR",
+  "task_names": [
+    "TcDHFR_Docking",
+    "hDHFR_Docking",
+    "hERG_Toxicity_Prob",
+    "Caco2_logPapp",
+    "Half_Life_hours"
+  ],
+  "objective_signs": [
+    -1,
+    1,
+    -1,
+    1,
+    1
+  ],
+  "docking_targets": [
+    "TcDHFR",
+    "hDHFR"
+  ],
+  "bounds_file": "evaluation_bounds_chagas.json"
+}

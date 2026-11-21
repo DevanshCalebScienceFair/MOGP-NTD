@@ -60,7 +60,7 @@ for n in SIZES:
         r["box_ratio"] = ex["boxes"]/r["boxes"] if r["boxes"] else float("nan")
     print()
 
-pd.DataFrame(rows).to_csv("/private/tmp/claude-502/-Users-devansh/db50257a-6170-49a1-bcb6-f56dd539b550/scratchpad/alpha_bench.csv", index=False)
+pd.DataFrame(rows).to_csv("/Users/devansh/mogp-main-vscode/MOGP-NTD/analysis_scripts/alpha_bench.csv", index=False)
 print("="*82)
 print("ACCURACY COST OF alpha=1e-3 (BoTorch's default at 5 objectives)")
 print("="*82)

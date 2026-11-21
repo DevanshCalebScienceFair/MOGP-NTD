@@ -56,5 +56,5 @@ nz=(e>0)
 print(f"  candidates with real improvement: {nz.sum()}/{N_CAND}")
 if nz.sum()>1:
     print(f"  Spearman among those        {spearmanr(e[nz],p[nz]).statistic:.4f}")
-np.save("/private/tmp/claude-502/-Users-devansh/db50257a-6170-49a1-bcb6-f56dd539b550/scratchpad/imp_exact.npy",e)
-np.save("/private/tmp/claude-502/-Users-devansh/db50257a-6170-49a1-bcb6-f56dd539b550/scratchpad/imp_approx.npy",p)
+np.save("/Users/devansh/mogp-main-vscode/MOGP-NTD/analysis_scripts/imp_exact.npy",e)
+np.save("/Users/devansh/mogp-main-vscode/MOGP-NTD/analysis_scripts/imp_approx.npy",p)

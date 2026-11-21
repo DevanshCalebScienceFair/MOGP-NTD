@@ -53,22 +53,38 @@ kubectl -n "$NS" delete pod lib-upload --wait=false
 
 echo
 echo "==> 2/2  building the image in-cluster with kaniko"
-echo "    NOTE: set REGISTRY below to a registry you can push to before running."
-echo "    NRP GitLab: log in once at https://gitlab.nrp-nautilus.io, create a"
-echo "    project, then create a deploy token and store it as a secret:"
-echo
-echo "      kubectl -n $NS create secret docker-registry gitlab-registry \\"
-echo "        --docker-server=gitlab-registry.nrp-nautilus.io \\"
-echo "        --docker-username=<token-name> --docker-password=<token>"
-echo
-echo "    Then re-run with REGISTRY set, e.g."
-echo "      REGISTRY=gitlab-registry.nrp-nautilus.io/<user>/mogp-ntd ./nrp/bootstrap.sh"
 
-if [ -z "${REGISTRY:-}" ]; then
-  echo
-  echo "REGISTRY not set; stopping after the library upload."
+# GitHub Container Registry, not NRP GitLab. NRP's GitLab only accepts
+# institutional accounts through CILogon, so its signup form rejects a personal
+# address outright. ghcr.io needs no new account, and a PUBLIC image needs no
+# pull secret on the cluster at all: only this one-time push is authenticated.
+GH_USER="${GH_USER:-DevanshCalebScienceFair}"
+REGISTRY="${REGISTRY:-ghcr.io/$(echo "$GH_USER" | tr '[:upper:]' '[:lower:]')/mogp-ntd}"
+
+if [ -z "${GH_TOKEN:-}" ]; then
+  cat <<'MSG'
+
+    GH_TOKEN is not set, so the library is uploaded and the build is skipped.
+
+    To build: make a GitHub token with the `write:packages` scope at
+      https://github.com/settings/tokens   (classic token is fine)
+    then run, WITHOUT pasting the token into a chat:
+
+      read -rs GH_TOKEN && export GH_TOKEN && ./nrp/bootstrap.sh
+
+    After the first push, make the package public once at
+      https://github.com/users/<you>/packages  ->  mogp-ntd -> Package settings
+    so the cluster can pull it with no credentials.
+MSG
   exit 0
 fi
+
+echo "    registry: $REGISTRY"
+kubectl -n "$NS" delete secret ghcr-push --ignore-not-found
+kubectl -n "$NS" create secret docker-registry ghcr-push \
+  --docker-server=ghcr.io \
+  --docker-username="$GH_USER" \
+  --docker-password="$GH_TOKEN"
 
 kubectl -n "$NS" delete job kaniko-build --ignore-not-found --wait=true
 kubectl -n "$NS" apply -f - <<YAML
@@ -98,7 +114,9 @@ spec:
       volumes:
         - name: creds
           secret:
-            secretName: gitlab-registry
+            secretName: ghcr-push
             items: [{key: .dockerconfigjson, path: config.json}]
 YAML
-echo "    watch:  kubectl -n $NS logs -f job/kaniko-build"
+echo
+echo "    watch:   kubectl -n $NS logs -f job/kaniko-build"
+echo "    then:    ./nrp/launch.sh $NS $REGISTRY:rung1-latest"

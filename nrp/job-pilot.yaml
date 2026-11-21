@@ -1,0 +1,80 @@
+# ONE pilot chunk = one campaign x one slice of the molecule sample.
+# Templated: ${CAMPAIGN}, ${CAMPAIGN_SHORT}, ${CHUNK}, ${N_CHUNKS}, ${N}.
+# Rendered and applied by nrp/launch_pilots.sh.
+#
+# This is a GATE, not a campaign. It answers two questions before any
+# multi-hour run is launched: the task correlation against F19's floor, and
+# whether the PROVISIONAL bounds actually contain the observed docking range.
+#
+# Same CPU-only constraints as job-cell.yaml. DO NOT ADD nvidia.com/gpu:
+# a100/gh200/h100/h200 are hard-zero in this namespace's quota.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pilot-${CAMPAIGN_SHORT}-c${CHUNK}
+  labels:
+    app: correlation-pilot
+    campaign: "${CAMPAIGN_SHORT}"
+spec:
+  backoffLimit: 20         # opportunistic preemption is expected; chunks resume
+  ttlSecondsAfterFinished: 604800
+  template:
+    metadata:
+      labels:
+        app: correlation-pilot
+        campaign: "${CAMPAIGN_SHORT}"
+    spec:
+      restartPolicy: Never
+      priorityClassName: opportunistic
+      securityContext:
+        runAsUser: 0
+        runAsGroup: 0
+        fsGroup: 0
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: feature.node.kubernetes.io/pci-10de.present
+                    operator: NotIn
+                    values: ["true"]
+      containers:
+        - name: pilot
+          image: mambaorg/micromamba:1.5.8
+          command: ["bash", "-lc"]
+          args:
+            - |
+              set -euo pipefail
+              export HOME=/tmp
+              test -f /data/env.tar || {
+                echo "/data/env.tar is not built; run nrp/bootstrap.sh first" >&2
+                exit 1; }
+              echo "[env] extracting /data/env.tar -> /opt/env"
+              tar -C /opt -xf /data/env.tar
+              export PATH=/opt/env/bin:$PATH
+              vina --version
+              git clone --depth 1 --branch ExtraNovelPipeline \
+                https://github.com/DevanshCalebScienceFair/MOGP-NTD.git /opt/repo
+              cd /opt/repo
+              git log -1 --format='[repo] %h %s'
+              python nrp/run_pilot.py --campaign "${CAMPAIGN}" \
+                     --n ${N} --chunk ${CHUNK} --n-chunks ${N_CHUNKS} \
+                     --workdir /data/pilots
+          env:
+            - {name: MOGP_CAMPAIGN,        value: "${CAMPAIGN}"}
+            - {name: KMP_DUPLICATE_LIB_OK, value: "TRUE"}
+            - {name: PYTHONUNBUFFERED,     value: "1"}
+            - {name: OMP_NUM_THREADS,      value: "8"}
+            - name: NODE_NAME
+              valueFrom: {fieldRef: {fieldPath: spec.nodeName}}
+          resources:
+            requests: {cpu: "8", memory: "12Gi", ephemeral-storage: "20Gi"}
+            limits:   {cpu: "8", memory: "12Gi", ephemeral-storage: "20Gi"}
+          volumeMounts:
+            - {name: data, mountPath: /data}
+            - {name: scratch, mountPath: /opt}
+      volumes:
+        - name: data
+          persistentVolumeClaim: {claimName: rung1-campaign}
+        - name: scratch
+          emptyDir: {}

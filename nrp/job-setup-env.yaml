@@ -50,6 +50,7 @@ spec:
                 echo "[skip] /data/env.tar.zst already built"
               else
                 echo "[build] conda env on LOCAL disk -> /opt/env"
+                # /opt is emptyDir, so this only helps a retry of the SAME pod.
                 # ONE conda-forge solve. Mixing micromamba and pip on this base
                 # does not work: its python has no pip module. Versions pinned
                 # to the laptop's; sklearn 1.9.0 is required by the serialized
@@ -60,6 +61,13 @@ spec:
                   numpy scipy pandas pyarrow requests gemmi scikit-learn=1.9.0 \
                   pytorch=2.* cpuonly gpytorch botorch git curl zstd
 
+                # PATH FIRST. curl, zstd and git are installed INTO the new
+                # env, not present in the base image, so everything below this
+                # line depends on it. The first run of this job solved all 224
+                # packages and then died on `curl: command not found` because
+                # this export sat four lines lower.
+                export PATH=/opt/env/bin:$PATH
+
                 # The official static Linux binary, which is what docking.py
                 # shells out to. The conda `vina` package is the Python bindings
                 # and pins boost incompatibly with rdkit 2024.03.6.
@@ -67,7 +75,6 @@ spec:
                   https://github.com/ccsb-scripps/AutoDock-Vina/releases/download/v1.2.7/vina_1.2.7_linux_x86_64
                 chmod +x /opt/env/bin/vina
 
-                export PATH=/opt/env/bin:$PATH
                 echo "[check] toolchain BEFORE shipping it"
                 vina --version
                 python - <<'PY'
@@ -84,10 +91,9 @@ spec:
               fi
 
               echo "[clone] repo -> /data/repo"
+              export PATH=/opt/env/bin:$PATH
               rm -rf /data/repo.part
-              /opt/env/bin/git clone --depth 1 --branch ExtraNovelPipeline \
-                https://github.com/DevanshCalebScienceFair/MOGP-NTD.git /data/repo.part \
-                2>/dev/null || git clone --depth 1 --branch ExtraNovelPipeline \
+              git clone --depth 1 --branch ExtraNovelPipeline \
                 https://github.com/DevanshCalebScienceFair/MOGP-NTD.git /data/repo.part
               rm -rf /data/repo && mv /data/repo.part /data/repo
 

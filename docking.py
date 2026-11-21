@@ -84,6 +84,24 @@ TARGETS = {
         "size": (20.0, 20.0, 20.0),
         "description": "Human DHFR (off-target selectivity; PDB 1U72; maximize).",
     },
+    "TcDHFR": {
+        "pdb_id": "3INV",
+        # Trypanosoma cruzi DHFR-TS, the Chagas rung-1 target. Chosen over 3CL9
+        # (3.30 A, and its cofactor is NAP = NADP+, the OXIDISED form) and over
+        # 1E7W (L. major, 5 chain breaks, DHFR domain only). 3INV is 2.37 A,
+        # R-free 0.243, ZERO chain breaks, NDP (NADPH) present, 99% of sequence
+        # modelled, and its 514-residue chain means both DHFR and TS domains are
+        # resolved. It is a better structure than 1J3I, which this project has
+        # already published on.
+        #
+        # Box center is the C50 centroid from modal_receptor_audit.py, the same
+        # recipe as the other two targets, and is the center the n=281
+        # correlation pilot used to measure rho = +0.719 against hDHFR. Changing
+        # it invalidates that measurement.
+        "center": (-33.30, 16.06, 54.74),
+        "size": (20.0, 20.0, 20.0),
+        "description": "Trypanosoma cruzi DHFR-TS (Chagas target; PDB 3INV; minimize).",
+    },
 }
 
 # Default target for the backward-compatible dock()/batch_dock() helpers.

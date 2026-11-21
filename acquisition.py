@@ -80,7 +80,11 @@ from kernel import TanimotoKernel
 #   hERG_Toxicity_Prob  -1  (minimize: cardiac safety)
 #   Caco2_logPapp       +1  (maximize: intestinal permeability / absorption)
 #   Half_Life_hours     +1  (maximize: metabolic stability)
-DEFAULT_OBJECTIVE_SIGNS = [-1, +1, -1, +1, +1]
+# FROM THE CAMPAIGN, order-aligned with mogp.TASK_NAMES. For "malaria" this is
+# [-1, +1, -1, +1, +1], exactly the literal it replaces. Deriving it means a new
+# campaign cannot end up with its directions silently inherited from malaria's.
+import campaigns as _campaigns
+DEFAULT_OBJECTIVE_SIGNS = list(_campaigns.active_campaign()["signs"])
 
 # Number of quasi-Monte-Carlo posterior samples qNEHVI draws for its estimate.
 N_MC_SAMPLES = 128

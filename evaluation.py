@@ -64,7 +64,14 @@ import torch
 
 from botorch.utils.multi_objective.hypervolume import Hypervolume
 
+import campaigns as _campaigns
 from mogp import TASK_NAMES, resolve_objective_layout
+
+# The campaign's two docking objectives by name. PRIMARY is the pathogen target
+# (minimized), COUNTER is the human off-target (maximized). Every selectivity
+# computation reads these rather than a literal column name.
+PRIMARY_TASK = _campaigns.active_campaign()["primary"]
+COUNTER_TASK = _campaigns.active_campaign()["counter"]
 from acquisition import (
     compute_pareto_front,
     get_active_objectives,
@@ -135,8 +142,13 @@ SELECTIVITY_KCAL_COLUMN = SELECTIVITY_COLUMN
 
 # Where the shared bounds are persisted so every method/run reads identical
 # numbers. Lives next to this module.
+# PER CAMPAIGN. Two campaigns optimize different targets, so their normalized
+# hypervolumes are NOT commensurable and must never share an axis. Giving each
+# its own bounds file makes that structural instead of a convention someone has
+# to remember. `malaria` resolves to "evaluation_bounds.json", the published
+# read-only file, so nothing about the existing campaign changes.
 BOUNDS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                           "evaluation_bounds.json")
+                           _campaigns.active_campaign()["bounds_file"])
 
 
 # ---------------------------------------------------------------------- #
@@ -517,11 +529,15 @@ def add_selectivity_index(df):
     (e.g. once both targets are docked). The DataFrame is mutated in place and
     returned.
     """
-    if "hDHFR_Docking" in df.columns and "PfDHFR_Docking" in df.columns:
-        df[SELECTIVITY_COLUMN] = df["hDHFR_Docking"] - df["PfDHFR_Docking"]
-    if "hDHFR_Docking_LE" in df.columns and "PfDHFR_Docking_LE" in df.columns:
+    # PRIMARY_TASK / COUNTER_TASK, not literals: under MOGP_CAMPAIGN=chagas the
+    # primary column is TcDHFR_Docking. Hardcoding "PfDHFR_Docking" here would
+    # have left the selectivity index silently absent from every Chagas result
+    # frame, which is the project's commonest defect shape.
+    if COUNTER_TASK in df.columns and PRIMARY_TASK in df.columns:
+        df[SELECTIVITY_COLUMN] = df[COUNTER_TASK] - df[PRIMARY_TASK]
+    if f"{COUNTER_TASK}_LE" in df.columns and f"{PRIMARY_TASK}_LE" in df.columns:
         df[SELECTIVITY_LE_COLUMN] = (
-            df["hDHFR_Docking_LE"] - df["PfDHFR_Docking_LE"]
+            df[f"{COUNTER_TASK}_LE"] - df[f"{PRIMARY_TASK}_LE"]
         )
     return df
 
@@ -540,7 +556,7 @@ if __name__ == "__main__":
     # normalize near 1.0 on a lower-is-better docking objective (PfDHFR, sign -1),
     # and a weak binder (least negative LE) near 0.0. This confirms LE preserves
     # the raw "more negative = better" direction after the size correction.
-    pf = TASK_NAMES.index("PfDHFR_Docking")
+    pf = TASK_NAMES.index(PRIMARY_TASK)
     strong_le = DOCKING_LE_MIN            # most negative LE = strongest per-atom binder
     weak_le = DOCKING_LE_MAX              # least negative LE = weakest binder
     n_strong = float(normalize(np.array([[strong_le]]), objective_indices=[pf])[0, 0])

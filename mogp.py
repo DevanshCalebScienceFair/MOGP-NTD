@@ -52,13 +52,16 @@ from kernel import TanimotoKernel
 # acquisition.DEFAULT_OBJECTIVE_SIGNS (order-aligned with this list). Objectives
 # whose ADMET scores are out of domain arrive as NaN and are simply not observed
 # yet — the GP/acquisition/Pareto path handles a dynamic objective count.
-TASK_NAMES = [
-    "PfDHFR_Docking",
-    "hDHFR_Docking",
-    "hERG_Toxicity_Prob",
-    "Caco2_logPapp",
-    "Half_Life_hours",
-]
+# SELECTED BY CAMPAIGN, not hardwired. `campaigns.active_campaign()` reads the
+# MOGP_CAMPAIGN environment variable and defaults to "malaria", whose entry is
+# the exact list this used to be, so every existing script and test is
+# unaffected. Adding a disease is an entry in campaigns.py, not an edit here.
+# `campaigns.describe()` prints the resolved set, and `campaigns.record()` goes
+# into run_config.json, so a run states which disease it optimized.
+import campaigns as _campaigns
+
+_ACTIVE = _campaigns.active_campaign()
+TASK_NAMES = list(_ACTIVE["task_names"])
 
 
 # How each objective is PRODUCED at evaluation time. Two kinds:
@@ -72,13 +75,12 @@ TASK_NAMES = [
 # come first and three library objectives follow. The library refs must match
 # data.ADMET_COLUMNS names. Extra entries for objectives not in TASK_NAMES are
 # harmless and support swapping the objective set later.
-OBJECTIVE_SOURCES = {
-    "PfDHFR_Docking":     ("dock", "PfDHFR"),
-    "hDHFR_Docking":      ("dock", "hDHFR"),
-    "hERG_Toxicity_Prob": ("library", "hERG_Toxicity_Prob"),
-    "Caco2_logPapp":      ("library", "Caco2_logPapp"),
-    "Half_Life_hours":    ("library", "Half_Life_hours"),
-}
+OBJECTIVE_SOURCES = dict(_ACTIVE["sources"])
+
+# Objectives the GP models but which are NOT part of the hypervolume. Empty for
+# every campaign today; the mechanism exists so a bifunctional target's second
+# domain can be added as a free auxiliary task without redefining the front.
+AUXILIARY_TASKS = list(_ACTIVE["auxiliary"])
 
 
 # Task indices (into TASK_NAMES) the GP actually models: ONLY the expensive

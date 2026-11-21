@@ -52,4 +52,4 @@ spec:
       volumes:
         - name: data
           persistentVolumeClaim:
-            claimName: rung1-campaign
+            claimName: rung1-campaign    # namespace: lahs-asi

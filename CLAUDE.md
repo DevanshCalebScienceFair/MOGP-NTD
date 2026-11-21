@@ -1077,17 +1077,41 @@ which is also what `docking.py` shells out to. Version matching was not enough.
 Moving campaign compute from Modal to the National Research Platform's Nautilus
 cluster. Kubernetes, not Slurm. Login via CILogon at https://nrp.ai.
 
-### HARD CONSTRAINT: GPUs WE MAY NOT USE
+### NAMESPACE: `lahs-asi`. NOT `mogp`.
 
-1. **A100: quota is ZERO by default.** Must be requested through
-   https://nrp.ai/reservations. Do not write `nvidia.com/gpu` against an A100
-   node type without that reservation in hand.
-2. **A group-specific exclusion exists and is NOT YET ENUMERATED HERE.** The user
-   has stated some GPUs are off-limits to us. Until the specific models or node
-   labels are recorded in this section, **do not request any GPU**. Ask first.
+`mogp` is the alias on an LLM API key, not a namespace. The namespace is the
+Group column on https://nrp.ai/llmtoken/, and `kubectl get pods -n mogp` returns
+Forbidden. A label is not evidence; the cluster is.
 
-The rung-1 campaign is CPU-only, so neither bites yet. They bite the moment
-anyone adds `nvidia.com/gpu` to a manifest.
+    kubectl config set contexts.nautilus.namespace lahs-asi
+
+### HARD CONSTRAINT: GPUs WE MAY NOT USE. Enumerated from the live quota.
+
+`kubectl get resourcequota -n lahs-asi` on 2026-11-20:
+
+| quota object | limit |
+|---|---|
+| `a100-limit` | `requests.nvidia.com/a100: 0/0` |
+| `gh200-limit` | `requests.nvidia.com/gh200: 0/0` |
+| `h100-limit` | `requests.nvidia.com/h100: 0/0` |
+| `h200-limit` | `requests.nvidia.com/h200: 0/0` |
+| `high-priority-ban` | `pods: 0/0` |
+| `low-priority-ban` | `pods: 0/0` |
+
+**A100, GH200, H100 and H200 are hard-zero.** A manifest requesting one will not
+be admitted, it will be rejected by quota. Generic `nvidia.com/gpu` on any other
+card is allowed.
+
+**`priorityClassName: opportunistic` is not a choice, it is the only option.**
+Both the high- and low-priority classes are banned at 0 pods. Everything this
+namespace runs is preemptible, which is why checkpoint-and-resume is mandatory
+rather than merely prudent.
+
+Re-read the quota before assuming any of this still holds; it is namespace
+state, not documentation.
+
+The rung-1 campaign is CPU-only, so the GPU bans do not bite yet. They bite the
+moment anyone adds `nvidia.com/gpu` to a manifest.
 
 ### Why CPU-only is correct here, and not a compromise
 

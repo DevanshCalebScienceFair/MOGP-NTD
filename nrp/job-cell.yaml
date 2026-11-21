@@ -1,9 +1,15 @@
 # ONE campaign cell = one arm x one seed. Templated: ${ARM}, ${SEED}.
 # Rendered and applied by nrp/launch.sh.
 #
-# Stock public image. The environment, the vina binary and the repo all live on
-# the campaign volume, built once by nrp/job-setup-env.yaml, so there is no
-# container registry in this project at all.
+# Stock public image. The environment ships as ONE tarball on the campaign
+# volume, built once by nrp/job-setup-env.yaml, and is extracted to this pod's
+# LOCAL disk at startup. There is no container registry in this project at all.
+#
+# Extracting rather than running the env off CephFS is deliberate: 224 packages
+# of tiny files is the access pattern NRP's storage guidance says CephFS is
+# worst at, and every python import would pay for it. One large sequential read
+# plus a local extract is seconds; the env must land at /opt/env, the same
+# absolute path it was built at, because a conda env is not relocatable.
 #
 # CPU-ONLY, DELIBERATELY. Three things this namespace requires, all set:
 #   1. priorityClassName: opportunistic  (the only class lahs-asi may use)
@@ -30,6 +36,12 @@ spec:
     spec:
       restartPolicy: Never
       priorityClassName: opportunistic
+      # The CephFS volume mounts root-owned; the micromamba image's default
+      # user cannot write to it. This is what the first setup attempt failed on.
+      securityContext:
+        runAsUser: 0
+        runAsGroup: 0
+        fsGroup: 0
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -45,10 +57,14 @@ spec:
           args:
             - |
               set -euo pipefail
-              export HOME=/tmp PATH=/data/env/bin:$PATH
-              test -f /data/env/.complete || {
-                echo "/data/env is not built; run nrp/job-setup-env.yaml first" >&2
+              export HOME=/tmp
+              test -f /data/env.ok || {
+                echo "/data/env.tar.zst is not built; run nrp/bootstrap.sh first" >&2
                 exit 1; }
+              echo "[env] extracting /data/env.tar.zst -> /opt/env"
+              tar -C /opt --use-compress-program=unzstd -xf /data/env.tar.zst
+              export PATH=/opt/env/bin:$PATH
+              vina --version
               cd /data/repo
               python nrp/run_cell.py --arm "${ARM}" --seed "${SEED}" \
                      --workdir /data/rung1
@@ -69,6 +85,9 @@ spec:
             limits:   {cpu: "8", memory: "16Gi", ephemeral-storage: "20Gi"}
           volumeMounts:
             - {name: data, mountPath: /data}
+            - {name: scratch, mountPath: /opt}
       volumes:
         - name: data
           persistentVolumeClaim: {claimName: rung1-campaign}
+        - name: scratch
+          emptyDir: {}

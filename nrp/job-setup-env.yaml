@@ -1,9 +1,19 @@
-# ONE-TIME. Builds the Linux environment onto the campaign volume, so every cell
-# job can run from a stock public image with no container registry, no token and
-# no account. Replaces the Dockerfile + kaniko + ghcr path entirely.
+# ONE-TIME. Builds the Linux environment and parks it on the campaign volume as
+# a single tarball, so every cell job can run from a stock public image with no
+# container registry, no token and no account.
 #
-# Everything lands under /data: the conda env, the vina binary, and a clone of
-# the repo. The 12 cell jobs mount the same volume read-write and use them.
+# WHY A TARBALL AND NOT THE ENV ITSELF. The env is 224 packages and ~609 MB of
+# mostly tiny files. NRP's own storage guidance says CephFS is the wrong place
+# for conda envs and small-file workloads; RBD is right but is single-writer,
+# which 12 concurrent cells cannot share. So: build on the node's LOCAL disk,
+# ship one large file to CephFS (which is what CephFS IS good at), and let each
+# cell extract it back to local disk in seconds. The env is created at /opt/env
+# and extracted to /opt/env, the same absolute path, because a conda env is not
+# relocatable.
+#
+# runAsUser 0 because the CephFS volume mounts root-owned and the micromamba
+# image's default user cannot create directories in it. That is what the first
+# attempt failed on.
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -15,6 +25,10 @@ spec:
     spec:
       restartPolicy: Never
       priorityClassName: opportunistic
+      securityContext:
+        runAsUser: 0
+        runAsGroup: 0
+        fsGroup: 0
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -30,54 +44,65 @@ spec:
           args:
             - |
               set -euo pipefail
-              export HOME=/tmp
+              export HOME=/tmp MAMBA_ROOT_PREFIX=/tmp/mamba
 
-              if [ -x /data/env/bin/vina ] && [ -f /data/env/.complete ]; then
-                echo "[skip] /data/env already built"
+              if [ -f /data/env.tar.zst ] && [ -f /data/env.ok ]; then
+                echo "[skip] /data/env.tar.zst already built"
               else
-                echo "[build] conda env -> /data/env"
+                echo "[build] conda env on LOCAL disk -> /opt/env"
                 # ONE conda-forge solve. Mixing micromamba and pip on this base
                 # does not work: its python has no pip module. Versions pinned
-                # to the laptop's, because docking scores are machine-dependent
-                # and pinning is the only part of that we control.
-                micromamba create -y -p /data/env -c conda-forge -c pytorch \
+                # to the laptop's; sklearn 1.9.0 is required by the serialized
+                # ADMET models, which load silently wrong under another version.
+                micromamba create -y -p /opt/env -c conda-forge -c pytorch \
                   python=3.11 \
                   openbabel=3.1.1 rdkit=2024.03.6 meeko=0.7.1 biopython=1.87 \
                   numpy scipy pandas pyarrow requests gemmi scikit-learn=1.9.0 \
-                  pytorch=2.* cpuonly gpytorch botorch git curl
+                  pytorch=2.* cpuonly gpytorch botorch git curl zstd
 
                 # The official static Linux binary, which is what docking.py
                 # shells out to. The conda `vina` package is the Python bindings
                 # and pins boost incompatibly with rdkit 2024.03.6.
-                curl -fsSL -o /data/env/bin/vina \
+                curl -fsSL -o /opt/env/bin/vina \
                   https://github.com/ccsb-scripps/AutoDock-Vina/releases/download/v1.2.7/vina_1.2.7_linux_x86_64
-                chmod +x /data/env/bin/vina
-                touch /data/env/.complete
-              fi
+                chmod +x /opt/env/bin/vina
 
-              export PATH=/data/env/bin:$PATH
-              echo "[clone] repo -> /data/repo"
-              rm -rf /data/repo
-              git clone --depth 1 --branch ExtraNovelPipeline \
-                https://github.com/DevanshCalebScienceFair/MOGP-NTD.git /data/repo
-
-              echo "[check] toolchain"
-              vina --version
-              python - <<'PY'
+                export PATH=/opt/env/bin:$PATH
+                echo "[check] toolchain BEFORE shipping it"
+                vina --version
+                python - <<'PY'
               import rdkit, torch, gpytorch, botorch, meeko, sklearn
               print("rdkit", rdkit.__version__, "| torch", torch.__version__,
                     "| sklearn", sklearn.__version__,
                     "| cuda", torch.cuda.is_available())
               assert not torch.cuda.is_available(), "this env is CPU-only by design"
               PY
-              echo "[check] library on the volume"
-              ls -la /data/library
+                echo "[pack] /opt/env -> /data/env.tar.zst"
+                tar -C /opt -c env | zstd -3 -T0 -o /data/env.tar.zst.part
+                mv /data/env.tar.zst.part /data/env.tar.zst
+                touch /data/env.ok
+              fi
+
+              echo "[clone] repo -> /data/repo"
+              rm -rf /data/repo.part
+              /opt/env/bin/git clone --depth 1 --branch ExtraNovelPipeline \
+                https://github.com/DevanshCalebScienceFair/MOGP-NTD.git /data/repo.part \
+                2>/dev/null || git clone --depth 1 --branch ExtraNovelPipeline \
+                https://github.com/DevanshCalebScienceFair/MOGP-NTD.git /data/repo.part
+              rm -rf /data/repo && mv /data/repo.part /data/repo
+
+              echo "[check] what is on the volume"
+              ls -la /data /data/library
+              du -sh /data/env.tar.zst
               echo "[ok] setup complete"
           resources:
-            requests: {cpu: "4", memory: "8Gi", ephemeral-storage: "20Gi"}
-            limits:   {cpu: "4", memory: "8Gi", ephemeral-storage: "20Gi"}
+            requests: {cpu: "8", memory: "16Gi", ephemeral-storage: "60Gi"}
+            limits:   {cpu: "8", memory: "16Gi", ephemeral-storage: "60Gi"}
           volumeMounts:
             - {name: data, mountPath: /data}
+            - {name: scratch, mountPath: /opt}
       volumes:
         - name: data
           persistentVolumeClaim: {claimName: rung1-campaign}
+        - name: scratch
+          emptyDir: {}

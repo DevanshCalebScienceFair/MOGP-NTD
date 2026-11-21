@@ -46,8 +46,8 @@ spec:
               set -euo pipefail
               export HOME=/tmp MAMBA_ROOT_PREFIX=/tmp/mamba
 
-              if [ -f /data/env.tar.zst ] && [ -f /data/env.ok ]; then
-                echo "[skip] /data/env.tar.zst already built"
+              if [ -f /data/env.tar ] && [ -f /data/env.ok ]; then
+                echo "[skip] /data/env.tar already built"
               else
                 echo "[build] conda env on LOCAL disk -> /opt/env"
                 # /opt is emptyDir, so this only helps a retry of the SAME pod.
@@ -59,7 +59,7 @@ spec:
                   python=3.11 \
                   openbabel=3.1.1 rdkit=2024.03.6 meeko=0.7.1 biopython=1.87 \
                   numpy scipy pandas pyarrow requests gemmi scikit-learn=1.9.0 \
-                  pytorch=2.* cpuonly gpytorch botorch git curl zstd
+                  pytorch=2.* cpuonly gpytorch botorch git curl
 
                 # PATH FIRST. curl, zstd and git are installed INTO the new
                 # env, not present in the base image, so everything below this
@@ -84,9 +84,13 @@ spec:
                     "| cuda", torch.cuda.is_available())
               assert not torch.cuda.is_available(), "this env is CPU-only by design"
               PY
-                echo "[pack] /opt/env -> /data/env.tar.zst"
-                tar -C /opt -c env | zstd -3 -T0 -o /data/env.tar.zst.part
-                mv /data/env.tar.zst.part /data/env.tar.zst
+                # UNCOMPRESSED on purpose. Any compressor would have to
+                # exist in the CELL image to undo it, and the cell runs a stock
+                # image whose only archive tool is tar. Compressing with zstd
+                # put unzstd inside the archive that needs unzstd to open.
+                echo "[pack] /opt/env -> /data/env.tar (uncompressed)"
+                tar -C /opt -cf /data/env.tar.part env
+                mv /data/env.tar.part /data/env.tar
                 touch /data/env.ok
               fi
 
@@ -99,7 +103,7 @@ spec:
 
               echo "[check] what is on the volume"
               ls -la /data /data/library
-              du -sh /data/env.tar.zst
+              du -sh /data/env.tar
               echo "[ok] setup complete"
           resources:
             requests: {cpu: "8", memory: "16Gi", ephemeral-storage: "60Gi"}

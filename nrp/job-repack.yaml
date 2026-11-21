@@ -1,0 +1,34 @@
+apiVersion: batch/v1
+kind: Job
+metadata: {name: rung1-repack}
+spec:
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 3600
+  template:
+    spec:
+      restartPolicy: Never
+      priorityClassName: opportunistic
+      securityContext: {runAsUser: 0, runAsGroup: 0, fsGroup: 0}
+      containers:
+        - name: repack
+          image: alpine:3.20
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -eu
+              # zstd compressed the env to 754MB, but unzstd lives INSIDE that
+              # archive and the cell image has no decompressor. Repack as plain
+              # tar, which the cell image can read with tar alone.
+              apk add --no-cache zstd >/dev/null
+              unzstd -c /data/env.tar.zst > /data/env.tar.part
+              mv /data/env.tar.part /data/env.tar
+              rm -f /data/env.tar.zst
+              ls -la /data/env.tar
+              echo "[ok] repacked"
+          resources:
+            requests: {cpu: "2", memory: "4Gi", ephemeral-storage: "10Gi"}
+            limits:   {cpu: "2", memory: "4Gi", ephemeral-storage: "10Gi"}
+          volumeMounts: [{name: data, mountPath: /data}]
+      volumes:
+        - name: data
+          persistentVolumeClaim: {claimName: rung1-campaign}

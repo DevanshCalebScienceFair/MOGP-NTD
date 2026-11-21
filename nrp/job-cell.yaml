@@ -58,11 +58,16 @@ spec:
             - |
               set -euo pipefail
               export HOME=/tmp
-              test -f /data/env.ok || {
-                echo "/data/env.tar.zst is not built; run nrp/bootstrap.sh first" >&2
+              test -f /data/env.tar || {
+                echo "/data/env.tar is not built; run nrp/bootstrap.sh first" >&2
                 exit 1; }
-              echo "[env] extracting /data/env.tar.zst -> /opt/env"
-              tar -C /opt --use-compress-program=unzstd -xf /data/env.tar.zst
+              # PLAIN tar, no compression. zstd shrank this to 754 MB, but
+              # unzstd lives INSIDE the archive and this stock image has no
+              # decompressor, so the first attempt died on
+              # 'tar (child): unzstd: Cannot exec'. 2.9 GB sequential off
+              # CephFS is the access pattern CephFS is actually good at.
+              echo "[env] extracting /data/env.tar -> /opt/env"
+              tar -C /opt -xf /data/env.tar
               export PATH=/opt/env/bin:$PATH
               vina --version
               cd /data/repo

@@ -21,18 +21,20 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: rung1-${ARM}-seed${SEED}
+  name: ${PREFIX}-${ARM}-seed${SEED}
   labels:
-    app: rung1-campaign
+    app: ${PREFIX}-campaign
     arm: "${ARM}"
+    campaign: "${CAMPAIGN}"
 spec:
   backoffLimit: 6          # preemption is expected; a retry resumes from cache
   ttlSecondsAfterFinished: 604800
   template:
     metadata:
       labels:
-        app: rung1-campaign
+        app: ${PREFIX}-campaign
         arm: "${ARM}"
+        campaign: "${CAMPAIGN}"
     spec:
       restartPolicy: Never
       priorityClassName: opportunistic
@@ -82,12 +84,12 @@ spec:
               cd /opt/repo
               git log -1 --format='[repo] %h %s'
               python nrp/run_cell.py --arm "${ARM}" --seed "${SEED}" \
-                     --workdir /data/rung1
+                     --campaign "${CAMPAIGN}" --workdir "${WORKDIR}"
           env:
             # Read at IMPORT time by campaigns.py. run_cell.py EXITS if this is
             # not "chagas", so a manifest that drops it fails loudly instead of
             # running the malaria objective set into the Chagas output dir.
-            - {name: MOGP_CAMPAIGN,       value: "chagas"}
+            - {name: MOGP_CAMPAIGN,       value: "${CAMPAIGN}"}
             - {name: KMP_DUPLICATE_LIB_OK, value: "TRUE"}
             - {name: PYTHONUNBUFFERED,    value: "1"}
             # botorch's fused qLogEHVI kernel needs ninja plus a C++ toolchain.

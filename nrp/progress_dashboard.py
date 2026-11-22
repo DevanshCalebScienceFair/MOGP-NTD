@@ -22,7 +22,9 @@ import sys
 import time
 
 NS = "lahs-asi"
-SELECTOR = "app=rung1-campaign"
+# Both rungs at once. A set-based selector so rung 2 appears the moment it is
+# launched, rather than the dashboard quietly showing only half the cluster.
+SELECTOR = "app in (rung1-campaign,rung2-campaign)"
 
 # Rounds each arm is configured for, from nrp/run_cell.py. Used only to turn a
 # round number into a percentage; an arm missing here still shows its round.

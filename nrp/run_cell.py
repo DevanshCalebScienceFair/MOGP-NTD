@@ -158,6 +158,15 @@ def main():
                     choices=sorted(set(ARMS) | BASELINE_ARMS))
     ap.add_argument("--seed", required=True, type=int)
     ap.add_argument("--workdir", default="/data/rung1")
+    # OPTIONAL and defaulting to "chagas" on purpose. Pods that are already
+    # running were launched with a command line that has no --campaign, and a
+    # preempted pod is restarted with that SAME command line, so making this
+    # required would kill every in-flight retry. The default reproduces the
+    # previous behaviour exactly.
+    ap.add_argument("--campaign", default="chagas",
+                    help="campaigns.py key this cell must run; asserted against "
+                         "MOGP_CAMPAIGN so a manifest cannot run one objective "
+                         "set and file it under another campaign's directory")
     a = ap.parse_args()
 
     # The campaign is selected by environment variable and read at IMPORT time,
@@ -165,10 +174,11 @@ def main():
     # than defaulting means a manifest that forgets it fails loudly instead of
     # running malaria and filing the results under Chagas.
     campaign = os.environ.get("MOGP_CAMPAIGN")
-    if campaign != "chagas":
-        sys.exit(f"MOGP_CAMPAIGN must be 'chagas' for this cell, got {campaign!r}. "
-                 f"Without it this would run the malaria objective set and write "
-                 f"it into the Chagas output directory.")
+    if campaign != a.campaign:
+        sys.exit(f"MOGP_CAMPAIGN must be {a.campaign!r} for this cell, got "
+                 f"{campaign!r}. Without it this would run a DIFFERENT objective "
+                 f"set and write it into {a.workdir}, where every reader would "
+                 f"take it for a {a.campaign} result.")
 
     work = pathlib.Path(a.workdir)
     cell = work / f"{a.arm}_seed{a.seed}"

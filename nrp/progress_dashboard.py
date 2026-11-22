@@ -157,6 +157,15 @@ def render(snap: dict) -> str:
     for c in cells:
         arms.setdefault(c["arm"], []).append(c)
 
+    # A successful kubectl that matches nothing renders as 0 complete / 0
+    # running / 0%, which reads exactly like a campaign that has not started.
+    # Say "no cells" instead of letting zeros speak for themselves.
+    empty_banner = ("" if cells else
+                    '<div class="empty">kubectl returned NO cells for selector '
+                    f'<span class="mono">{html.escape(SELECTOR)}</span> in '
+                    f'<span class="mono">{html.escape(NS)}</span>. '
+                    'That is an empty listing, not a finished campaign.</div>')
+
     n_done = sum(c["state"] == "Complete" for c in cells)
     n_run = sum(c["state"] == "Running" for c in cells)
     n_fail = sum(c["state"] == "Failed" for c in cells)
@@ -255,6 +264,8 @@ td.bar>div {{ background:var(--barbg); border-radius:999px; height:7px;
 td.bar i {{ display:block; height:100%; background:var(--bar); border-radius:999px;
   transition:width .3s; }}
 .foot {{ color:var(--dim); font-size:12px; margin-top:18px; }}
+.empty {{ border:1px solid var(--fail); color:var(--fail); border-radius:8px;
+  padding:10px 12px; margin:4px 0 14px; font-size:13px; }}
 #overall>div {{ background:var(--barbg); border-radius:999px; height:9px;
   overflow:hidden; margin:4px 0 2px; }}
 #overall i {{ display:block; height:100%; background:var(--bar); }}
@@ -279,6 +290,7 @@ td.bar i {{ display:block; height:100%; background:var(--bar); border-radius:999
   <button id="auto" aria-pressed="false" onclick="toggle()">Auto-refresh: off</button>
 </div>
 
+{empty_banner}
 <div id="overall"><div><i style="width:{overall:.1f}%"></i></div></div>
 
 <table>

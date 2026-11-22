@@ -75,3 +75,4 @@ analysis_scripts/dim_bits_per_mol.npy
 
 # Live campaign dashboard, regenerated from kubectl; never a committed artifact.
 nrp/progress.html
+rung1_chagas_all/

@@ -105,6 +105,12 @@ def collect() -> dict:
                            for c in pod.get("status", {}).get("containerStatuses", []) or [])
 
         arm = labels.get("arm") or name.split("-")[1]
+        # Two campaigns run side by side and BOTH have an arm called "full",
+        # so grouping on the bare arm name would stack rung1-full-seed0 and
+        # rung2-full-seed0 in one block as two rows both labelled "seed 0".
+        # The group key carries the campaign; ARM_ROUNDS still looks up `arm`.
+        campaign = labels.get("campaign") or ("chagas" if name.startswith("rung1") else "?")
+        group = f"{campaign} / {arm}"
         rnd = hv = None
         phase = ""
         err = ""
@@ -136,12 +142,13 @@ def collect() -> dict:
         else:
             pct = 0.0
 
-        cells.append(dict(name=name, arm=arm, seed=name.split("seed")[-1],
+        cells.append(dict(name=name, arm=arm, group=group, campaign=campaign,
+                          seed=name.split("seed")[-1],
                           state=state, elapsed=elapsed, node=node,
                           restarts=restarts, round=rnd, total=total,
                           hv=hv, pct=pct, phase=phase, err=err))
 
-    cells.sort(key=lambda c: (c["arm"], int(c["seed"]) if c["seed"].isdigit() else 0))
+    cells.sort(key=lambda c: (c["group"], int(c["seed"]) if c["seed"].isdigit() else 0))
     return dict(generated=now.isoformat(timespec="seconds"), cells=cells)
 
 
@@ -157,7 +164,7 @@ def render(snap: dict) -> str:
     cells = snap["cells"]
     arms: dict[str, list] = {}
     for c in cells:
-        arms.setdefault(c["arm"], []).append(c)
+        arms.setdefault(c["group"], []).append(c)
 
     # A successful kubectl that matches nothing renders as 0 complete / 0
     # running / 0%, which reads exactly like a campaign that has not started.
@@ -184,7 +191,8 @@ def render(snap: dict) -> str:
         apct = sum(c["pct"] for c in group) / len(group)
         rows.append(
             f'<tr class="armhead"><td colspan="7">'
-            f'<b>{html.escape(ARM_LABEL.get(arm, arm))}</b>'
+            f'<b>{html.escape(arm.split(" / ")[0])} &middot; '
+            f'{html.escape(ARM_LABEL.get(arm.split(" / ")[-1], arm))}</b>'
             f'<span class="dim"> &nbsp;{done}/{len(group)} complete &nbsp;·&nbsp; {apct:.0f}%</span>'
             f'</td></tr>')
         for c in group:

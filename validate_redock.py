@@ -49,6 +49,24 @@ CASES = [
         "chain": "A",
         "smiles": "CN(Cc1cnc2c(n1)c(nc(n2)N)N)c3ccc(cc3)C(=O)N[C@@H](CCC(=O)O)C(=O)O",
     },
+    {
+        # The Chagas control. 3INV is T. cruzi DHFR-TS and its co-crystallized
+        # inhibitor is C50, the ligand whose centroid defines this project's
+        # TcDHFR box. Without this case the Chagas campaign has no evidence
+        # that its docking box reproduces a known pose, which is the one thing
+        # the malaria targets each have twice over.
+        "name": "C50 inhibitor",
+        "target": "TcDHFR",
+        "pdb": "3INV.pdb",
+        "resname": "C50",
+        "chain": "A",
+        # SMILES taken from the RCSB chemical component dictionary for C50,
+        # NOT from memory: 1-[3-(2,3-dichlorophenoxy)propoxy]-6,6-dimethyl-
+        # 1,6-dihydro-1,3,5-triazine-2,4-diamine, C14H19Cl2N5O2. Note this is
+        # the same 2,4-diamino-dihydrotriazine series as WR99210, the malaria
+        # reference drug, differing only dichloro vs trichloro on the phenoxy.
+        "smiles": "CC1(C)N=C(N)N=C(N)N1OCCCOc2cccc(Cl)c2Cl",
+    },
 ]
 
 

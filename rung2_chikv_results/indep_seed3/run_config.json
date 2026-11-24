@@ -1,0 +1,57 @@
+{
+  "arm": "indep",
+  "seed": 3,
+  "cmd": [
+    "/opt/env/bin/python",
+    "loop.py",
+    "--seed",
+    "3",
+    "--n-init",
+    "40",
+    "--batch-size",
+    "5",
+    "--n-iterations",
+    "50",
+    "--output-dir",
+    "/data/rung2/indep_seed3",
+    "--posterior",
+    "joint",
+    "--acquisition-alpha",
+    "1e-3",
+    "--acquisition-pool-size",
+    "2000",
+    "--rank",
+    "1",
+    "--model",
+    "independent"
+  ],
+  "n_init": 40,
+  "batch_size": 5,
+  "n_iterations": 50,
+  "n_molecules": 290,
+  "budget_dock_calls_upper": 580,
+  "backend": "NRP/Nautilus",
+  "node": "pas.bost.net.internet2.edu",
+  "slow_ehvi_path": true,
+  "campaign": "chikungunya",
+  "campaign_label": "Chikungunya nsP3 macrodomain (9YHH) vs human MacroD2 (4IQY)",
+  "task_names": [
+    "CHIKVnsP3_Docking",
+    "hMacroD2_Docking",
+    "hERG_Toxicity_Prob",
+    "Caco2_logPapp",
+    "Half_Life_hours"
+  ],
+  "objective_signs": [
+    -1,
+    1,
+    -1,
+    1,
+    1
+  ],
+  "docking_targets": [
+    "CHIKV_nsP3",
+    "hMacroD2"
+  ],
+  "bounds_file": "evaluation_bounds_chikv.json"
+}
